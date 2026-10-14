@@ -1,6 +1,8 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import initSqlJs from 'sql.js'
 import { describe, expect, it } from 'vitest'
 import { Store } from './db'
 
@@ -28,10 +30,97 @@ describe('Store', () => {
     expect(grades[0].tags).toEqual(['Run block win'])
     expect(reopened.gradesForTeam('DAL', 2025)).toHaveLength(2)
     expect(reopened.gradesForPlayer('p1', 2024)).toHaveLength(0)
-    expect(reopened.gradedPlayCounts(['2025_01_DAL_PHI']).get('2025_01_DAL_PHI')).toBe(2)
+    expect(reopened.gradedPlayCounts(['2025_01_DAL_PHI'], 'DAL').get('2025_01_DAL_PHI')).toBe(2)
+    expect(reopened.gradedPlayCounts(['2025_01_DAL_PHI'], 'PHI').get('2025_01_DAL_PHI')).toBeUndefined()
 
     reopened.saveGrade({ gameId: '2025_01_DAL_PHI', playId: 71, playerId: 'p1', team: 'DAL', grade: null, tags: [], note: '' })
     expect(reopened.gradesForPlayer('p1', 2025)).toHaveLength(1)
+  })
+
+  it('seeds the defaults only once, so emptied lists stay empty', async () => {
+    const { store, file } = await freshStore()
+    store.saveChartFields([])
+    store.saveTags(store.tags().filter((t) => t.group !== 'QB'))
+    store.close()
+
+    const reopened = await Store.open(file)
+    expect(reopened.chartFields()).toEqual([])
+    expect(reopened.tags().filter((t) => t.group === 'QB')).toEqual([])
+    expect(reopened.settings()).not.toHaveProperty('seeded')
+  })
+
+  it('marks a database from before seed-once as seeded without reseeding it', async () => {
+    const { store, file } = await freshStore()
+    store.saveChartFields([{ name: 'Front', options: ['Over', 'Under'] }])
+    store.close()
+    const SQL = await initSqlJs()
+    const old = new SQL.Database(readFileSync(file))
+    old.run("DELETE FROM settings WHERE key = 'seeded'")
+    writeFileSync(file, Buffer.from(old.export()))
+
+    const upgraded = await Store.open(file)
+    expect(upgraded.chartFields().map((f) => f.name)).toEqual(['Front'])
+    upgraded.saveChartFields([])
+    upgraded.close()
+    expect((await Store.open(file)).chartFields()).toEqual([])
+  })
+
+  it('renames a tag on existing grades, but not a label another group still uses', async () => {
+    const { store } = await freshStore()
+    const grade = (playerId: string, tags: string[]) =>
+      store.saveGrade({ gameId: '2025_01_DAL_PHI', playId: 71, playerId, team: 'DAL', grade: 1, tags, note: '' })
+    const tagsOf = (playerId: string) => store.gradesForGame('2025_01_DAL_PHI').find((g) => g.playerId === playerId)!.tags
+    grade('ol', ['Pancake', 'Penalty'])
+    grade('wr', ['Drop', 'Route win'])
+
+    const pancake = store.tags().find((t) => t.group === 'OL' && t.label === 'Pancake')!
+    const renamed = store.saveTags(store.tags().map((t) => (t.id === pancake.id ? { ...t, label: 'Pancake block' } : t)))
+    expect(renamed.find((t) => t.label === 'Pancake block')!.id).toBe(pancake.id)
+    expect(tagsOf('ol')).toEqual(['Pancake block', 'Penalty'])
+
+    // 'Drop' is also an RB and TE tag, and the grade doesn't say which group it came from.
+    store.saveTags(store.tags().map((t) => (t.group === 'WR' && t.label === 'Drop' ? { ...t, label: 'Dropped pass' } : t)))
+    expect(tagsOf('wr')).toEqual(['Drop', 'Route win'])
+    store.saveTags(store.tags().map((t) => (t.label === 'Drop' ? { ...t, label: 'Dropped pass' } : t)))
+    expect(tagsOf('wr')).toEqual(['Dropped pass', 'Route win'])
+    // Renamed two different ways (WR and TE both had it): no telling which one the grade meant.
+    store.saveTags(store.tags().map((t) => (t.label === 'Route win' ? { ...t, label: `${t.group} route win` } : t)))
+    expect(tagsOf('wr')).toEqual(['Dropped pass', 'Route win'])
+
+    // A tag removed and another added (no id carried over) isn't a rename.
+    store.saveTags([
+      ...store.tags().filter((t) => t.label !== 'Penalty'),
+      { group: 'OL', label: 'Holding', kind: 'neg' }
+    ])
+    expect(tagsOf('ol')).toEqual(['Pancake block', 'Penalty'])
+  })
+
+  it('keeps charted values when a chart field or option is renamed', async () => {
+    const { store } = await freshStore()
+    const note = { gameId: 'g', playId: 1, note: '', drawing: {}, flagged: false }
+    store.savePlayNote({ ...note, chart: { 'Coverage shell': 'Cover 3', Pressure: '5+ blitz', 'Run concept': 'Power' } })
+    const chart = () => store.notesForGame('g')[0].chart
+
+    const fields = store.chartFields()
+    const saved = store.saveChartFields(
+      fields.map((f) =>
+        f.name === 'Coverage shell' ? { ...f, name: 'Shell', options: f.options.map((o) => (o === 'Cover 3' ? 'Cover 3 sky' : o)) } : f
+      )
+    )
+    expect(saved.map((f) => f.id)).toEqual(fields.map((f) => f.id))
+    expect(chart()).toEqual({ Shell: 'Cover 3 sky', Pressure: '5+ blitz', 'Run concept': 'Power' })
+
+    // Swapping two names swaps their values; removing an option or a field keeps what was charted.
+    store.saveChartFields(
+      store.chartFields().map((f) => ({
+        ...f,
+        name: f.name === 'Pressure' ? 'Run concept' : f.name === 'Run concept' ? 'Pressure' : f.name,
+        options: f.name === 'Shell' ? f.options.filter((o) => o !== 'Cover 3 sky') : f.options
+      }))
+    )
+    expect(chart()).toEqual({ Shell: 'Cover 3 sky', Pressure: 'Power', 'Run concept': '5+ blitz' })
+    store.saveChartFields(store.chartFields().filter((f) => f.name !== 'Pressure'))
+    expect(chart()).toEqual({ Shell: 'Cover 3 sky', Pressure: 'Power', 'Run concept': '5+ blitz' })
   })
 
   it('replaces clips per game and relinks them', async () => {

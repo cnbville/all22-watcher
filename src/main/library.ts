@@ -154,7 +154,7 @@ export class Library {
       .sort((a, b) => a.gameday.localeCompare(b.gameday) || a.week - b.week)
     const gameIds = games.map((g) => g.gameId)
     const clipCounts = this.store.clipCounts(gameIds)
-    const graded = this.store.gradedPlayCounts(gameIds)
+    const graded = this.store.gradedPlayCounts(gameIds, abbr)
     const teamGames = await Promise.all(
       games.map(async (g) => ({
         ...g,
@@ -271,7 +271,7 @@ export class Library {
         team,
         clipCount: this.store.clipCounts([gameId]).get(gameId) ?? 0,
         playCount: (await this.plays(gameId)).filter((p) => p.playType !== '').length,
-        gradedPlays: this.store.gradedPlayCounts([gameId]).get(gameId) ?? 0
+        gradedPlays: this.store.gradedPlayCounts([gameId], team).get(gameId) ?? 0
       })
     }
     return out

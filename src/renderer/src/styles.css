@@ -1147,6 +1147,11 @@ select.input {
 .report .stat-tile .label {
   color: #666;
 }
+/* Without this the dark color scheme paints the PDF's page margins near-black. */
+html:has(.report) {
+  color-scheme: light;
+  background: #fff;
+}
 body:has(.report) {
   overflow: auto;
   background: #fff;

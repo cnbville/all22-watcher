@@ -3,7 +3,7 @@ import { emptyTally, formatStat, gradeScore, ordinal, plusRate } from '@shared/s
 import { POSITION_GROUPS } from '@shared/teams'
 import type { GradeTally, PositionGroup, TeamGame, TeamRankedStat, TeamRosterRow } from '@shared/types'
 import { api } from '../api'
-import { Crumbs } from '../App'
+import { Crumbs, useSeason } from '../App'
 import { ErrorBox, errorText, GradeBar, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
 import { gameResult, opponentLabel, pct, weekLabel } from '../format'
 import { links, navigate } from '../router'
@@ -25,6 +25,7 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
   const overview = useAsync(() => api.teamOverview(season, team), [season, team])
   const [importing, setImporting] = useState<TeamGame | null>(null)
   const [rosterFilter, setRosterFilter] = useState<'all' | 'offense' | 'defense' | 'graded'>('all')
+  const { setSeason } = useSeason()
 
   if (overview.error) return <div className="page"><ErrorBox error={overview.error} /></div>
   if (!overview.data) return <Loading />
@@ -50,7 +51,14 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
     <div className="page">
       <Crumbs>
         <span className="sep">/</span>
-        <a onClick={() => navigate(links.home())}>{season}</a>
+        <a
+          onClick={() => {
+            setSeason(season)
+            navigate(links.home())
+          }}
+        >
+          {season}
+        </a>
         <span className="sep">/</span>
         <span>{t.name}</span>
       </Crumbs>

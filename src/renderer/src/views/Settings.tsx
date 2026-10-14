@@ -6,8 +6,9 @@ import { Crumbs } from '../App'
 import { ErrorBox, Loading, toast, useAsync } from '../components/common'
 import { SPEEDS } from '../components/VideoStage'
 
-type DraftTag = Omit<TagDef, 'id'> & { key: string }
-type DraftField = { key: string; name: string; options: string }
+// Saved tags and fields keep their id, so the app can tell a rename from a remove plus an add.
+type DraftTag = Omit<TagDef, 'id'> & { id?: number; key: string }
+type DraftField = { key: string; id?: number; name: string; options: string }
 
 let keySeq = 0
 const nextKey = () => `k${++keySeq}`
@@ -100,7 +101,7 @@ function TagEditor({ initial }: { initial: TagDef[] }) {
   }
   const inGroup = draft.filter((t) => t.group === group)
   const save = async () => {
-    const saved = await api.saveTags(draft.filter((t) => t.label.trim()).map(({ group, label, kind }) => ({ group, label: label.trim(), kind })))
+    const saved = await api.saveTags(draft.filter((t) => t.label.trim()).map(({ id, group, label, kind }) => ({ id, group, label: label.trim(), kind })))
     setDraft(saved.map((t) => ({ ...t, key: nextKey() })))
     setDirty(false)
     toast('Tags saved')
@@ -169,7 +170,7 @@ function move(list: DraftTag[], key: string, delta: number, group: PositionGroup
 }
 
 function ChartFieldEditor({ initial }: { initial: ChartField[] }) {
-  const [draft, setDraft] = useState<DraftField[]>(() => initial.map((f) => ({ key: nextKey(), name: f.name, options: f.options.join(', ') })))
+  const [draft, setDraft] = useState<DraftField[]>(() => initial.map((f) => ({ key: nextKey(), id: f.id, name: f.name, options: f.options.join(', ') })))
   const [dirty, setDirty] = useState(false)
   useEffect(() => setDirty(false), [])
   const update = (next: DraftField[]) => {
@@ -180,9 +181,9 @@ function ChartFieldEditor({ initial }: { initial: ChartField[] }) {
     const saved = await api.saveChartFields(
       draft
         .filter((f) => f.name.trim())
-        .map((f) => ({ name: f.name.trim(), options: f.options.split(',').map((o) => o.trim()).filter(Boolean) }))
+        .map((f) => ({ id: f.id, name: f.name.trim(), options: f.options.split(',').map((o) => o.trim()).filter(Boolean) }))
     )
-    setDraft(saved.map((f) => ({ key: nextKey(), name: f.name, options: f.options.join(', ') })))
+    setDraft(saved.map((f) => ({ key: nextKey(), id: f.id, name: f.name, options: f.options.join(', ') })))
     setDirty(false)
     toast('Charting fields saved')
   }

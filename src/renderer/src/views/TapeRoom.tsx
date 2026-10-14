@@ -785,7 +785,12 @@ function PlayerGradeRow({
   onNote: (text: string) => void
 }) {
   const g = entry?.grade ?? null
-  const shownTags = selected ? tags : tags.filter((t) => entry?.tags.includes(t.label))
+  // A label whose tag was since removed (or renamed in only one of the groups sharing it) still shows, so it can be cleared.
+  const stale = (entry?.tags ?? []).filter((l) => !tags.some((t) => t.label === l))
+  const shownTags = [
+    ...(selected ? tags : tags.filter((t) => entry?.tags.includes(t.label))),
+    ...stale.map((label, i): TagDef => ({ id: -1 - i, group: player.group, label, kind: 'neutral' }))
+  ]
   return (
     <div className={`player-row ${selected ? 'selected' : ''}`} onClick={onSelect}>
       <div className="line">

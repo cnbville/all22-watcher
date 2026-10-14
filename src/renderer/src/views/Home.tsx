@@ -20,6 +20,8 @@ export function Home() {
   if (statuses.error) return <div className="page"><ErrorBox error={statuses.error} /></div>
   if (!statuses.data || !season) return <Loading />
   const status = statuses.data.find((s) => s.season === season) ?? statuses.data[0]
+  // Changes when a season is downloaded again, so the views below remount and fetch the new numbers.
+  const dataStamp = statuses.data.map((s) => s.downloadedAt).join()
 
   return (
     <div className="page">
@@ -40,9 +42,9 @@ export function Home() {
           <span className="spacer" />
           {status.downloaded && <DataStatus status={status} onDone={statuses.reload} />}
         </div>
-        <RecentFilmRow />
+        <RecentFilmRow key={dataStamp} />
         {status.downloaded ? (
-          <TeamGrid season={season} />
+          <TeamGrid key={dataStamp} season={season} />
         ) : (
           <DownloadPanel season={season} onDone={statuses.reload} />
         )}
