@@ -21,6 +21,7 @@ import { ErrorBox, isTyping, Kbd, Loading, Modal, TeamChip, toast, useAsync } fr
 import { INK, SPEEDS, type VideoHandle, VideoStage } from '../components/VideoStage'
 import {
   downDistance,
+  lastName,
   playKind,
   playTypeLabel,
   prettyEnum,
@@ -837,7 +838,7 @@ function PlayerGradeRow({
         <input
           className="input"
           style={{ width: '100%', marginTop: 6, height: 26, fontSize: 12 }}
-          placeholder={`Note on ${player.name.split(' ').pop()} this play`}
+          placeholder={`Note on ${lastName(player.name)} this play`}
           defaultValue={entry?.note ?? ''}
           key={`${entry?.playId}-${player.id}`}
           onClick={(e) => e.stopPropagation()}

@@ -160,6 +160,12 @@ export function statColumns(group: PositionGroup): StatColumn[] {
   }
 }
 
+/** "Michael Carter II" → "Carter". */
+export function lastName(name: string): string {
+  const parts = name.split(/\s+/).filter((w) => !/^(jr\.?|sr\.?|ii|iii|iv|v)$/i.test(w))
+  return parts[parts.length - 1] ?? name
+}
+
 export function initials(name: string): string {
   return name
     .split(/\s+/)
