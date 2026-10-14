@@ -42,12 +42,14 @@ export function ImportFilm({
     try {
       const res = await api.convertClips(game.gameId, preview.unsupported)
       if (res.failed.length) setError(new Error(`${res.failed.length} clip(s) couldn’t be converted: ${res.failed[0].error}`))
-      // Re-match with the same choices, keeping any matches already fixed by hand.
+      // Re-match with the same choices, keeping any matches already fixed by hand (the ones that differ from the
+      // automatic match); the rest shift to make room for the newly playable clips.
       const next = await api.previewMatch(game.gameId, paths, {
         includeSpecialTeams: preview.includeSpecialTeams,
         includeNoPlays: preview.includeNoPlays
       })
-      const kept = new Map(rows.map((r) => [r.path, r.playId]))
+      const auto = new Map(preview.rows.map((r) => [r.path, r.playId]))
+      const kept = new Map(rows.filter((r) => auto.get(r.path) !== r.playId).map((r) => [r.path, r.playId]))
       setPreview(next)
       setRows(next.rows.map((r) => (kept.has(r.path) ? { ...r, playId: kept.get(r.path)! } : r)))
     } catch (e) {
@@ -220,7 +222,8 @@ export function ImportFilm({
                           className="input"
                           autoFocus
                           value={r.playId ?? ''}
-                          onBlur={() => setEditing(null)}
+                          // Close after the event that blurred it, so a pick that blurs the dropdown still reaches onChange.
+                          onBlur={() => setTimeout(() => setEditing((cur) => (cur === i ? null : cur)))}
                           onChange={(e) => {
                             const v = e.target.value === '' ? null : Number(e.target.value)
                             setRows(rows.map((x, j) => (j === i ? { ...x, playId: v } : x)))

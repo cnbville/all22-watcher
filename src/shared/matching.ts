@@ -21,17 +21,35 @@ export function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
+const parentName = (path: string) => path.split(/[\\/]/).slice(-2, -1)[0] ?? ''
+
+/** How many folders above a clip are searched for an angle name. */
+const ANGLE_FOLDER_DEPTH = 3
+
+/** The angle one file or folder name points to, matching whole words only ("Inside Linebackers" isn't "side line"). */
+function nameAngle(name: string, isFolder: boolean): Angle | null {
+  const words = (name.toLowerCase().match(/[a-z]+/g) ?? []).join(' ')
+  if (/\b(ez|end zone)\b|endzone/.test(words)) return 'endzone'
+  if (/\b(sl|side line)\b|sideline/.test(words) || (isFolder && words === 'wide')) return 'sideline'
+  return null
+}
+
 /**
- * Guesses the camera angle from the file name or its folder, e.g.
- * "Q1_0412_EZ.mp4", "endzone/clip 3.mp4", "SL - play 12.mov".
+ * Guesses the camera angle from the file name or the nearest folder that names one, e.g.
+ * "Q1_0412_EZ.mp4", "endzone/clip 3.mp4", "Sideline/1st Half/12.mov". `depth` is where it was
+ * found: 0 for the file name, 1 for its folder, 2 for the one above, or -1 when nothing names an angle.
  */
+export function angleSource(path: string): { angle: Angle; depth: number } {
+  const names = path.split(/[\\/]/).filter(Boolean).reverse().slice(0, ANGLE_FOLDER_DEPTH + 1)
+  for (const [depth, name] of names.entries()) {
+    const angle = nameAngle(name, depth > 0)
+    if (angle) return { angle, depth }
+  }
+  return { angle: 'main', depth: -1 }
+}
+
 export function detectAngle(path: string): Angle {
-  const parts = path.split(/[\\/]/).slice(-2).join(' ').toLowerCase()
-  const tokens = parts.split(/[^a-z0-9]+/).filter(Boolean)
-  const joined = parts.replace(/[^a-z]/g, '')
-  if (tokens.includes('ez') || joined.includes('endzone') || tokens.includes('end') && tokens.includes('zone')) return 'endzone'
-  if (tokens.includes('sl') || joined.includes('sideline') || tokens.includes('wide') || tokens.includes('side')) return 'sideline'
-  return 'main'
+  return angleSource(path).angle
 }
 
 /** Plays that get their own clip in a typical one-clip-per-play cut-up, in game order. */
@@ -64,7 +82,14 @@ export function matchClips(
     const angle = detectAngle(p)
     byAngle.set(angle, [...(byAngle.get(angle) ?? []), p])
   }
-  for (const list of byAngle.values()) list.sort((a, b) => naturalCompare(baseName(a), baseName(b)) || naturalCompare(a, b))
+  for (const list of byAngle.values()) {
+    // Folders that each restart their numbering (Q1/001, Q2/001…) are kept together, in folder order.
+    const byFolder = new Set(list.map(baseName)).size < list.length
+    list.sort(
+      (a, b) =>
+        (byFolder ? naturalCompare(parentName(a), parentName(b)) : 0) || naturalCompare(baseName(a), baseName(b)) || naturalCompare(a, b)
+    )
+  }
 
   const largest = Math.max(0, ...[...byAngle.values()].map((l) => l.length))
   const stOptions = opts.includeSpecialTeams === undefined ? [true, false] : [opts.includeSpecialTeams]
@@ -101,10 +126,19 @@ export function matchClips(
 export function shiftMatches(rows: ClipMatchRow[], index: number, delta: number, ordered: Play[]): ClipMatchRow[] {
   const angle = rows[index]?.angle
   const ids = ordered.map((p) => p.playId)
+  // Unlinked clips right after one on the last play ran off the end of the list, so they carry on past it
+  // (and come back when slid earlier). Other unlinked clips were skipped on purpose and stay put.
+  let pastEnd = -1
+  const positions = rows.map((row) => {
+    if (row.angle !== angle) return -1
+    if (row.playId === null) return pastEnd === -1 ? -1 : ++pastEnd
+    const pos = ids.indexOf(row.playId)
+    pastEnd = pos === ids.length - 1 ? pos : -1
+    return pos
+  })
   return rows.map((row, i) => {
-    if (i < index || row.angle !== angle) return row
-    const pos = row.playId === null ? -1 : ids.indexOf(row.playId)
-    if (pos === -1) return row
+    const pos = positions[i]
+    if (i < index || pos === -1) return row
     const next = pos + delta
     return { ...row, playId: next >= 0 && next < ids.length ? ids[next] : null }
   })

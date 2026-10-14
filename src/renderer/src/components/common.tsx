@@ -125,8 +125,12 @@ export function Modal({ title, onClose, children, footer, width }: {
   )
 }
 
+const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'])
+
+/** True when keys are going into a text field. A focused dropdown, slider or checkbox leaves hotkeys to the page. */
 export function isTyping(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null
   if (!t) return false
-  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable
+  if (t instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(t.type)
+  return t.tagName === 'TEXTAREA' || t.isContentEditable
 }
