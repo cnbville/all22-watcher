@@ -51,6 +51,6 @@ describe('Store', () => {
   it('merges settings patches', async () => {
     const { store } = await freshStore()
     store.saveSettings({ autoAdvance: true, pinned: { DAL: ['p1'] } })
-    expect(store.settings()).toMatchObject({ autoAdvance: true, includeSpecialTeams: true, pinned: { DAL: ['p1'] } })
+    expect(store.settings()).toMatchObject({ autoAdvance: true, defaultSpeed: 1, pinned: { DAL: ['p1'] } })
   })
 })

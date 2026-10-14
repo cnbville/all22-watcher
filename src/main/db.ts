@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS settings (
 
 const DEFAULT_SETTINGS: Settings = {
   autoAdvance: false,
-  includeSpecialTeams: true,
   defaultSpeed: 1,
   pinned: {}
 }

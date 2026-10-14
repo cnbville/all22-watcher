@@ -50,6 +50,7 @@ export function currentSeason(now = new Date()): number {
 export class Library {
   private seasons = new Map<number, SeasonData>()
   private playsCache = new Map<string, Play[]>()
+  private downloads = new Map<number, Promise<SeasonStatus>>()
 
   constructor(
     readonly store: Store,
@@ -73,7 +74,17 @@ export class Library {
     return seasonStatuses(this.cacheDir, this.availableSeasons())
   }
 
-  async downloadSeason(season: number, onProgress: (p: DataProgress) => void): Promise<SeasonStatus> {
+  /** Downloads a season; a second request while one is running joins it instead of starting over. */
+  downloadSeason(season: number, onProgress: (p: DataProgress) => void): Promise<SeasonStatus> {
+    let running = this.downloads.get(season)
+    if (!running) {
+      running = this.runDownload(season, onProgress).finally(() => this.downloads.delete(season))
+      this.downloads.set(season, running)
+    }
+    return running
+  }
+
+  private async runDownload(season: number, onProgress: (p: DataProgress) => void): Promise<SeasonStatus> {
     await downloadSeason(season, this.cacheDir, this.fetcher, onProgress)
     this.seasons.delete(season)
     for (const key of this.playsCache.keys()) if (key.startsWith(`${season}_`)) this.playsCache.delete(key)

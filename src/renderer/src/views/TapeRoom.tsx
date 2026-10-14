@@ -53,6 +53,7 @@ const NO_FILTERS: Filters = {
 }
 
 const gradeKey = (playId: number, playerId: string) => `${playId}|${playerId}`
+const NO_GRADES: GradeEntry[] = []
 
 export function TapeRoom({ gameId, team, initialPlay }: { gameId: string; team: string; initialPlay: number | null }) {
   const film = useAsync(() => api.gameFilm(gameId), [gameId])
@@ -117,6 +118,10 @@ function Room({
     [film.clips]
   )
   const [angle, setAngle] = useState<Angle>(angles[0] ?? 'main')
+  // Film can be imported or replaced while the room is open; fall back to the preferred angle.
+  useEffect(() => {
+    if (angles.length && !angles.includes(angle)) setAngle(angles[0])
+  }, [angles, angle])
 
   const opponent = team === game.homeTeam ? game.awayTeam : game.homeTeam
   useEffect(() => {
@@ -125,14 +130,17 @@ function Room({
   const pinned = settings.pinned[team] ?? []
   const sideOf = (p: Play) => (p.posteam === team ? 'off' : 'def')
 
-  const playGrades = useCallback(
-    (playId: number) => {
-      const out: GradeEntry[] = []
-      for (const g of grades.values()) if (g.playId === playId && g.team === team && g.grade !== null) out.push(g)
-      return out
-    },
-    [grades, team]
-  )
+  const gradesByPlay = useMemo(() => {
+    const m = new Map<number, GradeEntry[]>()
+    for (const g of grades.values()) {
+      if (g.team !== team || g.grade === null) continue
+      const list = m.get(g.playId)
+      if (list) list.push(g)
+      else m.set(g.playId, [g])
+    }
+    return m
+  }, [grades, team])
+  const playGrades = useCallback((playId: number) => gradesByPlay.get(playId) ?? NO_GRADES, [gradesByPlay])
 
   const options = useMemo(() => {
     const uniq = (f: (p: Play) => string | null) => [...new Set(plays.map(f).filter((v): v is string => !!v))].sort()
@@ -328,7 +336,7 @@ function Room({
   }
 
   const studyTeam = TEAM_BY_ABBR[team]
-  const gradedCount = useMemo(() => new Set([...grades.values()].filter((g) => g.team === team && g.grade !== null).map((g) => g.playId)).size, [grades, team])
+  const gradedCount = gradesByPlay.size
 
   return (
     <>

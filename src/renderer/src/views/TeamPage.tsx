@@ -4,7 +4,7 @@ import { POSITION_GROUPS } from '@shared/teams'
 import type { GradeTally, PositionGroup, TeamGame, TeamRankedStat, TeamRosterRow } from '@shared/types'
 import { api } from '../api'
 import { Crumbs } from '../App'
-import { ErrorBox, GradeBar, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
+import { ErrorBox, errorText, GradeBar, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
 import { gameResult, opponentLabel, pct, weekLabel } from '../format'
 import { links, navigate } from '../router'
 import { ImportFilm } from './ImportFilm'
@@ -31,8 +31,12 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
   const { team: t, summary, games, roster } = overview.data
 
   const exportCsv = async () => {
-    const path = await api.exportGradesCsv(season, team)
-    if (path) toast(`Saved ${path.split('/').pop()}`)
+    try {
+      const path = await api.exportGradesCsv(season, team)
+      if (path) toast(`Saved ${path.split('/').pop()}`)
+    } catch (e) {
+      toast(`Couldn’t export grades: ${errorText(e)}`)
+    }
   }
 
   const filtered = roster.filter((p) => {

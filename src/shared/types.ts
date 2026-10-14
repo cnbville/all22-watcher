@@ -177,7 +177,6 @@ export interface ChartField {
 
 export interface Settings {
   autoAdvance: boolean
-  includeSpecialTeams: boolean
   defaultSpeed: number
   pinned: Record<string, string[]>
 }

@@ -52,9 +52,13 @@ export function Loading({ label = 'Loading…' }: { label?: string }) {
   return <div className="empty">{label}</div>
 }
 
+/** An error's message without Electron's IPC prefix. */
+export function errorText(error: unknown): string {
+  return error instanceof Error ? error.message.replace(/^Error invoking remote method 'api': (Error: )?/, '') : String(error)
+}
+
 export function ErrorBox({ error }: { error: unknown }) {
-  const msg = error instanceof Error ? error.message.replace(/^Error invoking remote method 'api': (Error: )?/, '') : String(error)
-  return <div className="err">{msg}</div>
+  return <div className="err">{errorText(error)}</div>
 }
 
 /** Runs an async loader whenever deps change; returns data, error, and a reload function. */

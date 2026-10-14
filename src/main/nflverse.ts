@@ -66,6 +66,10 @@ function parseCsv(stream: Readable, gz: boolean, onRow: (row: Row) => void): Pro
   })
 }
 
+/** Older seasons use the codes teams had then; the app always uses today's. */
+const RENAMED_TEAMS: Record<string, string> = { OAK: 'LV', SD: 'LAC', STL: 'LA', LAR: 'LA', JAC: 'JAX', WSH: 'WAS' }
+export const team = (abbr: string | undefined): string => (abbr ? RENAMED_TEAMS[abbr] ?? abbr : '')
+
 const num = (v: string | undefined): number | null => {
   if (v === undefined || v === '' || v === 'NA') return null
   const n = Number(v)
@@ -96,8 +100,8 @@ export function playFromRow(r: Row): Play {
     ydstogo: num(r.ydstogo),
     yrdln: r.yrdln ?? '',
     yardline100: num(r.yardline_100),
-    posteam: r.posteam ?? '',
-    defteam: r.defteam ?? '',
+    posteam: team(r.posteam),
+    defteam: team(r.defteam),
     playType: r.play_type === 'NA' ? '' : (r.play_type ?? ''),
     desc: r.desc ?? '',
     yardsGained: num(r.yards_gained),
@@ -196,8 +200,8 @@ export async function downloadSeason(
       week: Number(r.week),
       gameType: r.game_type,
       gameday: r.gameday,
-      homeTeam: r.home_team,
-      awayTeam: r.away_team,
+      homeTeam: team(r.home_team),
+      awayTeam: team(r.away_team),
       homeScore: num(r.home_score),
       awayScore: num(r.away_score)
     })
@@ -240,7 +244,7 @@ export async function downloadSeason(
       play.offensePlayers = ids(r.offense_players)
       play.defensePlayers = ids(r.defense_players)
       const kind: keyof Snaps | null = play.special ? 'special' : null
-      for (const [list, names, positions, numbers, side, team] of [
+      for (const [list, names, positions, numbers, side, teamAbbr] of [
         [play.offensePlayers, r.offense_names, r.offense_positions, r.offense_numbers, 'offense', play.posteam],
         [play.defensePlayers, r.defense_names, r.defense_positions, r.defense_numbers, 'defense', play.defteam]
       ] as const) {
@@ -248,7 +252,7 @@ export async function downloadSeason(
         const ps = positions?.split(';') ?? []
         const ns = numbers?.split(';') ?? []
         list.forEach((id, i) => {
-          if (!extra.has(id)) extra.set(id, { id, name: nm[i] ?? id, position: ps[i] ?? '', jersey: ns[i] ?? '', team })
+          if (!extra.has(id)) extra.set(id, { id, name: nm[i] ?? id, position: ps[i] ?? '', jersey: ns[i] ?? '', team: teamAbbr })
           if (play.playType === '') return
           const bucket = (snaps[id] ??= {})
           const s = (bucket[play.gameId] ??= { offense: 0, defense: 0, special: 0 })
@@ -276,7 +280,7 @@ export async function downloadSeason(
         id,
         week,
         name: r.full_name,
-        team: r.team,
+        team: team(r.team),
         position: r.position,
         depthPos: r.depth_chart_position ?? '',
         group: positionGroup(r.position ?? '', r.depth_chart_position ?? ''),
@@ -306,8 +310,8 @@ export async function downloadSeason(
         gameId: r.game_id,
         week: Number(r.week),
         seasonType: r.season_type,
-        team: r.team,
-        opponent: r.opponent_team,
+        team: team(r.team),
+        opponent: team(r.opponent_team),
         stats
       })
     })

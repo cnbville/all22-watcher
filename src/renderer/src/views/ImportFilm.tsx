@@ -42,7 +42,14 @@ export function ImportFilm({
     try {
       const res = await api.convertClips(game.gameId, preview.unsupported)
       if (res.failed.length) setError(new Error(`${res.failed.length} clip(s) couldn’t be converted: ${res.failed[0].error}`))
-      await load(paths)
+      // Re-match with the same choices, keeping any matches already fixed by hand.
+      const next = await api.previewMatch(game.gameId, paths, {
+        includeSpecialTeams: preview.includeSpecialTeams,
+        includeNoPlays: preview.includeNoPlays
+      })
+      const kept = new Map(rows.map((r) => [r.path, r.playId]))
+      setPreview(next)
+      setRows(next.rows.map((r) => (kept.has(r.path) ? { ...r, playId: kept.get(r.path)! } : r)))
     } catch (e) {
       setError(e)
     } finally {

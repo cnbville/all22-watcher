@@ -1,9 +1,13 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 const CANDIDATES = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']
+
+/** Video codecs Chromium on macOS can play from an MP4, so they can be copied without re-encoding. */
+const COPYABLE = new Set(['h264', 'hevc'])
 
 /** Finds an ffmpeg install (Homebrew or system), or null when there isn't one. */
 export function findFfmpeg(): string | null {
@@ -12,24 +16,41 @@ export function findFfmpeg(): string | null {
   return CANDIDATES.find((p) => existsSync(p)) ?? null
 }
 
-function run(bin: string, args: string[]): Promise<void> {
+function run(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(bin, args, { maxBuffer: 16 * 1024 * 1024 }, (err, _out, stderr) => {
+    execFile(bin, args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr.split('\n').filter(Boolean).slice(-2).join(' ') || err.message))
-      else resolve()
+      else resolve(stdout)
     })
   })
 }
 
-/** Where a converted copy of `input` goes: keeps the clip's folder name so angle detection still works. */
-export function convertedPath(input: string, outDir: string): string {
-  const folder = basename(dirname(input))
-  return join(outDir, folder, basename(input).replace(/\.[^.]+$/, '') + '.mp4')
+/** The first video stream's codec name, or null when it can't be read (no ffprobe, odd file). */
+async function videoCodec(ffmpeg: string, input: string): Promise<string | null> {
+  const ffprobe = join(dirname(ffmpeg), 'ffprobe')
+  if (!existsSync(ffprobe)) return null
+  try {
+    const out = await run(ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', input])
+    return out.trim().split('\n')[0] || null
+  } catch {
+    return null
+  }
 }
 
 /**
- * Turns clips the player can't open (MKV, AVI, TS…) into MP4s under `outDir`. Tries a fast
- * remux first, which works when the video is already H.264, and re-encodes only when that fails.
+ * Where a converted copy of `input` goes. A hash of the source folder keeps copies of
+ * same-named clips from different folders apart, and the clip's own folder name is kept as
+ * the parent so sideline/end zone detection still works.
+ */
+export function convertedPath(input: string, outDir: string): string {
+  const source = dirname(input)
+  const hash = createHash('sha1').update(source).digest('hex').slice(0, 8)
+  return join(outDir, hash, basename(source), `${basename(input)}.mp4`)
+}
+
+/**
+ * Turns clips the player can't open (MKV, AVI, TS…) into MP4s under `outDir`. H.264/HEVC video is
+ * copied into the new container as-is (fast); anything else is re-encoded to H.264.
  */
 export async function convertClips(
   ffmpeg: string,
@@ -41,20 +62,20 @@ export async function convertClips(
   const failed: { path: string; error: string }[] = []
   for (const [i, input] of inputs.entries()) {
     const out = convertedPath(input, outDir)
+    // Write under a temporary name so a failed or interrupted conversion never looks finished.
+    const tmp = `${out}.partial.mp4`
     await mkdir(dirname(out), { recursive: true })
     try {
-      try {
-        await run(ffmpeg, ['-y', '-v', 'error', '-i', input, '-map', '0:v:0', '-map', '0:a?', '-c', 'copy', '-movflags', '+faststart', out])
-      } catch {
-        await rm(out, { force: true })
-        await run(ffmpeg, [
-          '-y', '-v', 'error', '-i', input, '-map', '0:v:0', '-map', '0:a?',
-          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
-          '-c:a', 'aac', '-movflags', '+faststart', out
-        ])
-      }
+      const codec = await videoCodec(ffmpeg, input)
+      const video =
+        codec && COPYABLE.has(codec)
+          ? ['-c:v', 'copy', ...(codec === 'hevc' ? ['-tag:v', 'hvc1'] : [])]
+          : ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p']
+      await run(ffmpeg, ['-y', '-v', 'error', '-i', input, '-map', '0:v:0', '-map', '0:a?', ...video, '-c:a', 'aac', '-movflags', '+faststart', tmp])
+      await rename(tmp, out)
       converted.push(out)
     } catch (e) {
+      await rm(tmp, { force: true })
       failed.push({ path: input, error: e instanceof Error ? e.message : String(e) })
     }
     onProgress(i + 1, inputs.length)

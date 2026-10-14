@@ -5,7 +5,7 @@ import { TEAM_BY_ABBR } from '@shared/teams'
 import type { Angle, PlayerGameLine, PlayerProfile, ReelItem } from '@shared/types'
 import { api } from '../api'
 import { Crumbs } from '../App'
-import { ErrorBox, GradeBar, GradeSymbol, Headshot, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
+import { ErrorBox, errorText, GradeBar, GradeSymbol, Headshot, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
 import { downDistance, pct, quarterLabel, shortDesc, statColumns } from '../format'
 import { links, navigate } from '../router'
 
@@ -24,6 +24,8 @@ export function PlayerPage({ season, playerId }: { season: number; playerId: str
     try {
       const path = await api.exportPlayerReport(season, playerId)
       if (path) toast(`Saved ${path.split('/').pop()}`)
+    } catch (e) {
+      toast(`Couldn’t save the report: ${errorText(e)}`)
     } finally {
       setExporting(false)
     }
