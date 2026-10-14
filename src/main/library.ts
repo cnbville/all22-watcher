@@ -96,7 +96,7 @@ export class Library {
     let data = this.seasons.get(season)
     if (!data) {
       const loaded = await loadSeason(this.cacheDir, season)
-      if (!loaded) throw new Error(`The ${season} season hasn't been downloaded yet.`)
+      if (!loaded) throw new Error(`The ${season} season hasn't been downloaded yet, or was saved by an older version of the app. Download it again from the home screen.`)
       this.seasons.set(season, (data = loaded))
     }
     return data
@@ -168,12 +168,9 @@ export class Library {
     for (const g of this.store.gradesForTeam(abbr, season)) {
       addToTally(tallies.get(g.playerId) ?? tallies.set(g.playerId, emptyTally()).get(g.playerId)!, g.grade)
     }
-    const teamGameIds = new Set(gameIds)
     const snapsFor = (id: string) => {
       let n = 0
-      for (const [gameId, s] of Object.entries(data.snaps[id] ?? {})) {
-        if (teamGameIds.has(gameId)) n += s.offense + s.defense + s.special
-      }
+      for (const s of Object.values(data.snaps[id] ?? {})) if (s.team === abbr) n += s.offense + s.defense + s.special
       return n
     }
 
@@ -182,6 +179,9 @@ export class Library {
     for (const p of data.roster) if (p.team === abbr && p.status !== 'CUT' && p.status !== 'RET') ids.add(p.id)
     const rosterIds = new Set(data.roster.map((p) => p.id))
     for (const e of data.extraPlayers) if (e.team === abbr && !rosterIds.has(e.id)) ids.add(e.id)
+    // Players who played for the team before a trade or release.
+    for (const [id, games] of Object.entries(data.snaps)) if (Object.values(games).some((s) => s.team === abbr)) ids.add(id)
+    for (const w of data.playerWeeks) if (w.team === abbr) ids.add(w.playerId)
     for (const id of tallies.keys()) ids.add(id)
 
     const roster: TeamRosterRow[] = [...ids]
@@ -217,6 +217,17 @@ export class Library {
         const p = index.get(id)
         if (p) players[id] = p
       }
+    }
+    // Players who changed teams during the season are listed with the side they played for in this game.
+    const sides = new Map<string, string>()
+    for (const w of data.playerWeeks) if (w.gameId === gameId) sides.set(w.playerId, w.team)
+    for (const play of plays) {
+      for (const id of play.offensePlayers) sides.set(id, play.posteam)
+      for (const id of play.defensePlayers) sides.set(id, play.defteam)
+    }
+    for (const [id, team] of sides) {
+      const p = players[id] ?? index.get(id)
+      if (p && (team === game.homeTeam || team === game.awayTeam)) players[id] = { ...p, team }
     }
     return {
       game,
@@ -309,6 +320,7 @@ export class Library {
       const week = weeks.find((w) => w.gameId === game.gameId)
       const team =
         week?.team ??
+        snaps[game.gameId]?.team ??
         grades.find((g) => g.gameId === game.gameId)?.team ??
         (player.team === game.awayTeam ? game.awayTeam : game.homeTeam)
       const opponent = team === game.homeTeam ? game.awayTeam : game.homeTeam

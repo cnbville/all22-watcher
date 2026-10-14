@@ -74,7 +74,7 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
                 {summary.ties ? `-${summary.ties}` : ''}
               </div>
               <div className="muted">
-                {summary.pointsFor} PF · {summary.pointsAgainst} PA
+                Regular season · {summary.pointsFor} PF · {summary.pointsAgainst} PA
               </div>
             </div>
           )}
