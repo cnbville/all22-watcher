@@ -3,7 +3,7 @@ import type { Api } from '@shared/api'
 import type { DataProgress } from '@shared/types'
 
 const METHODS = [
-  'seasons', 'downloadSeason', 'teamSummaries', 'teamOverview', 'gameFilm', 'pickClips', 'previewMatch',
+  'seasons', 'downloadSeason', 'teamSummaries', 'teamOverview', 'gameFilm', 'openedFilm', 'recentFilm', 'pickClips', 'previewMatch',
   'importClips', 'relinkClip', 'removeFilm', 'revealClip', 'saveGrade', 'savePlayNote', 'playerProfile',
   'tags', 'saveTags', 'chartFields', 'saveChartFields', 'settings', 'saveSettings', 'exportGradesCsv',
   'exportPlayerReport', 'dataFolder', 'openDataFolder'

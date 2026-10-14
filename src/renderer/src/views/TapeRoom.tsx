@@ -118,6 +118,9 @@ function Room({
   const [angle, setAngle] = useState<Angle>(angles[0] ?? 'main')
 
   const opponent = team === game.homeTeam ? game.awayTeam : game.homeTeam
+  useEffect(() => {
+    if (film.clips.length) void api.openedFilm(game.gameId, team)
+  }, [game.gameId, team, film.clips.length])
   const pinned = settings.pinned[team] ?? []
   const sideOf = (p: Play) => (p.posteam === team ? 'off' : 'def')
 
@@ -210,6 +213,13 @@ function Room({
     if (!gradingList.some((p) => p.id === selected)) setSelected(gradingList[0]?.id ?? null)
   }, [gradingList, selected])
 
+  // Each new play starts at the top of the player list.
+  const firstPlayer = gradingList[0]?.id ?? null
+  useEffect(() => {
+    setSelected(firstPlayer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId])
+
   // Keep the selected play visible in the list.
   useEffect(() => {
     document.querySelector('.play-row.current')?.scrollIntoView({ block: 'nearest' })
@@ -228,6 +238,11 @@ function Room({
   const setGrade = (playerId: string, grade: Grade | null) => {
     if (!current) return
     saveGrade({ ...entryFor(playerId), grade })
+  }
+  /** Grades everyone on the play who has no grade yet as 0, for snaps where nobody stood out. */
+  const fillZeros = () => {
+    if (!current) return
+    for (const p of gradingList) if (entryFor(p.id).grade === null) saveGrade({ ...entryFor(p.id), grade: 0 })
   }
   const toggleTag = (playerId: string, tag: TagDef) => {
     if (!current) return
@@ -296,6 +311,7 @@ function Room({
       else if (/^[1-9]$/.test(k) && gradingList[Number(k) - 1]) setSelected(gradingList[Number(k) - 1].id)
       else if ((k === '=' || k === '+') && sel) (setGrade(sel.id, 1), selectNextPlayer())
       else if (k === '-' && sel) (setGrade(sel.id, -1), selectNextPlayer())
+      else if ((k === ')' || (k === '0' && e.shiftKey)) && current) fillZeros()
       else if (k === '0' && sel) (setGrade(sel.id, 0), selectNextPlayer())
       else if ((k === 'Backspace' || k === 'Delete') && sel) setGrade(sel.id, null)
       else if (tagIndex >= 0 && sel && tagsFor(sel)[tagIndex]) toggleTag(sel.id, tagsFor(sel)[tagIndex])
@@ -517,6 +533,7 @@ function Room({
       {fixing && (
         <ImportFilm
           game={game}
+          team={team}
           existing={
             film.clips.length
               ? film.clips.map((c) => ({ path: c.path, fileName: c.fileName, angle: c.angle, playId: c.playId }))
@@ -786,7 +803,7 @@ function PlayerGradeRow({
             {player.name}
           </a>
         </span>
-        <span className="pos">{player.depthPos || player.position}</span>
+        <span className="ppos">{player.depthPos || player.position}</span>
         <div className="gbtns" onClick={(e) => e.stopPropagation()}>
           <button className={`gbtn minus ${g === -1 ? 'on' : ''}`} onClick={() => onGrade(-1)} title="Minus (-)">
             –
@@ -882,6 +899,7 @@ const HOTKEYS: [string[], string][] = [
   [['='], 'Grade + (then next player)'],
   [['0'], 'Grade 0'],
   [['-'], 'Grade –'],
+  [['⇧0'], 'Grade everyone left 0'],
   [['⌫'], 'Clear grade'],
   [['Q', '…', 'P'], 'Toggle the player’s tags'],
   [['D'], 'Draw on the film'],

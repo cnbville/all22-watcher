@@ -120,6 +120,8 @@ function handlers(): Handlers {
     teamSummaries: (season) => library.teamSummaries(season),
     teamOverview: (season, team) => library.teamOverview(season, team),
     gameFilm: (gameId) => library.gameFilm(gameId),
+    openedFilm: async (gameId, team) => library.store.touchFilm(gameId, team, true),
+    recentFilm: () => library.recentFilm(),
     pickClips: async () => {
       const res = await dialog.showOpenDialog(mainWindow!, {
         title: 'Choose the clips (or the folder of clips) for this game',
@@ -129,7 +131,7 @@ function handlers(): Handlers {
       return res.canceled ? null : res.filePaths
     },
     previewMatch: (gameId, paths, options) => library.previewMatch(gameId, paths, options),
-    importClips: async (gameId, rows) => library.importClips(gameId, rows),
+    importClips: async (gameId, team, rows) => library.importClips(gameId, team, rows),
     relinkClip: async (clipId, playId) => library.store.relinkClip(clipId, playId),
     removeFilm: async (gameId) => library.store.removeClips(gameId),
     revealClip: async (path) => shell.showItemInFolder(path),

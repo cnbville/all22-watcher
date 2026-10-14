@@ -15,8 +15,8 @@ A Mac app for watching and grading NFL All-22 film. Pick a team, see its season 
 
 ### Download the app
 
-1. Open the repo's **Actions** tab, pick the latest green **Build** run, and download **All-22-Watcher-mac** at the bottom of the page.
-2. Unzip it and open the `.dmg` that matches your Mac (`arm64` for Apple silicon, `x64` for Intel). Drag **All-22 Watcher** into Applications.
+1. Open the repo's **Actions** tab, pick the latest green **Build** run, and at the bottom of the page download **All-22-Watcher-mac-apple-silicon** (M1 and newer) or **All-22-Watcher-mac-intel**.
+2. Unzip it, open the `.dmg`, and drag **All-22 Watcher** into Applications.
 3. The app isn't signed by Apple, so the first time, right-click it in Applications and choose **Open**, then **Open** again. If macOS still refuses, run `xattr -dr com.apple.quarantine "/Applications/All-22 Watcher.app"` in Terminal.
 
 ### Or build it yourself
@@ -72,6 +72,7 @@ Each graded snap is +, 0, or –. A player's grade is `50 + 50 × (plus − minu
 ```sh
 npm run typecheck
 npm test                                   # unit tests
+npm run build && npm run smoke             # launch the app and click through a full session
 NFLVERSE_MIRROR=/path/to/csvs npm test     # also test the nflverse import against real files
 ```
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { formatStat, ordinal, plusRate } from '@shared/stats'
+import { emptyTally, formatStat, gradeScore, ordinal, plusRate } from '@shared/stats'
 import { POSITION_GROUPS } from '@shared/teams'
-import type { PositionGroup, TeamGame, TeamRankedStat, TeamRosterRow } from '@shared/types'
+import type { GradeTally, PositionGroup, TeamGame, TeamRankedStat, TeamRosterRow } from '@shared/types'
 import { api } from '../api'
 import { Crumbs } from '../App'
 import { ErrorBox, GradeBar, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
@@ -83,6 +83,8 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
           </div>
         )}
 
+        <UnitGrades roster={roster} />
+
         <div className="two-col">
           <div className="card">
             <div className="card-title">
@@ -121,6 +123,7 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
       {importing && (
         <ImportFilm
           game={importing}
+          team={team}
           onClose={() => setImporting(null)}
           onImported={() => {
             setImporting(null)
@@ -128,6 +131,48 @@ export function TeamPage({ season, team }: { season: number; team: string }) {
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** Your grades rolled up by position group, so you can see which unit is carrying the team. */
+function UnitGrades({ roster }: { roster: TeamRosterRow[] }) {
+  const units = POSITION_GROUPS.map((g) => {
+    const tally: GradeTally = emptyTally()
+    for (const p of roster.filter((r) => r.group === g)) {
+      tally.graded += p.tally.graded
+      tally.plus += p.tally.plus
+      tally.zero += p.tally.zero
+      tally.minus += p.tally.minus
+    }
+    return { group: g, tally }
+  }).filter((u) => u.tally.graded > 0)
+  if (!units.length) return null
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-title">
+        <h3>Unit grades</h3>
+        <span className="faint">from your film grading, 50 is neutral</span>
+      </div>
+      <div className="stat-list" style={{ gridTemplateColumns: `repeat(${Math.min(units.length, 9)}, 1fr)` }}>
+        {units.map((u) => {
+          const s = gradeScore(u.tally)!
+          return (
+            <div className="stat-tile" key={u.group}>
+              <div className="label">{GROUP_NAMES[u.group]}</div>
+              <div className="value">
+                <Score tally={u.tally} />
+              </div>
+              <div className="faint" style={{ fontSize: 11 }}>
+                {u.tally.graded} snaps · {pct(plusRate(u.tally))} plus
+              </div>
+              <div style={{ marginTop: 6 }} title={`${s}`}>
+                <GradeBar tally={u.tally} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

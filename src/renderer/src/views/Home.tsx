@@ -4,6 +4,7 @@ import type { DataProgress, SeasonStatus, TeamSummary } from '@shared/types'
 import { api } from '../api'
 import { useSeason } from '../App'
 import { ErrorBox, Loading, TeamChip, useAsync } from '../components/common'
+import { opponentLabel, weekLabel } from '../format'
 import { links, navigate } from '../router'
 
 export function Home() {
@@ -39,6 +40,7 @@ export function Home() {
           <span className="spacer" />
           {status.downloaded && <DataStatus status={status} onDone={statuses.reload} />}
         </div>
+        <RecentFilmRow />
         {status.downloaded ? (
           <TeamGrid season={season} />
         ) : (
@@ -112,6 +114,36 @@ function DataStatus({ status, onDone }: { status: SeasonStatus; onDone: () => vo
         </>
       )}
       {!!dl.error && <ErrorBox error={dl.error} />}
+    </div>
+  )
+}
+
+function RecentFilmRow() {
+  const recent = useAsync(() => api.recentFilm(), [])
+  if (!recent.data?.length) return null
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <h4 style={{ marginBottom: 8 }}>Continue watching</h4>
+      <div className="row wrap" style={{ gap: 10 }}>
+        {recent.data.map((r) => (
+          <div
+            key={r.game.gameId}
+            className="team-card"
+            style={{ width: 250, marginBottom: 0 }}
+            onClick={() => navigate(links.film(r.game.gameId, r.team))}
+          >
+            <TeamChip abbr={r.team} />
+            <div style={{ minWidth: 0 }}>
+              <div className="name">
+                {r.team} {opponentLabel(r.game, r.team)}
+              </div>
+              <div className="faint" style={{ fontSize: 11 }}>
+                {r.game.season} {weekLabel(r.game)} · {r.gradedPlays}/{r.playCount} plays graded
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

@@ -35,8 +35,24 @@ jobs:
         env:
           # The app isn't signed with an Apple Developer ID yet.
           CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Smoke test the packaged app
+        run: npm run smoke
+        env:
+          APP: dist/mac-arm64/All-22 Watcher.app/Contents/MacOS/All-22 Watcher
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test-screenshots
+          path: e2e/output/
       - uses: actions/upload-artifact@v4
         with:
-          name: All-22-Watcher-mac
-          path: dist/*.dmg
+          name: All-22-Watcher-mac-apple-silicon
+          path: dist/*-arm64.dmg
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: All-22-Watcher-mac-intel
+          path: |
+            dist/*.dmg
+            !dist/*-arm64.dmg
           if-no-files-found: error

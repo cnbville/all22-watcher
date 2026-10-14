@@ -11,6 +11,7 @@ import type {
   Settings,
   TagDef,
   TeamOverview,
+  RecentFilm,
   TeamSummary
 } from './types'
 
@@ -28,10 +29,13 @@ export interface Api {
   teamSummaries(season: number): Promise<TeamSummary[]>
   teamOverview(season: number, team: string): Promise<TeamOverview>
   gameFilm(gameId: string): Promise<GameFilm>
+  /** Records that you opened a game's film studying `team`. */
+  openedFilm(gameId: string, team: string): Promise<void>
+  recentFilm(): Promise<RecentFilm[]>
 
   pickClips(): Promise<string[] | null>
   previewMatch(gameId: string, paths: string[], options?: MatchOptions): Promise<MatchPreview>
-  importClips(gameId: string, rows: ClipMatchRow[]): Promise<void>
+  importClips(gameId: string, team: string, rows: ClipMatchRow[]): Promise<void>
   relinkClip(clipId: number, playId: number | null): Promise<void>
   removeFilm(gameId: string): Promise<void>
   revealClip(path: string): Promise<void>

@@ -10,11 +10,13 @@ const playText = (p: Play) => `${quarterLabel(p.qtr)} ${p.time} · ${p.posteam} 
 /** Pick a game's clips, check how they line up with the play-by-play, fix any that are off, and save. */
 export function ImportFilm({
   game,
+  team,
   existing,
   onClose,
   onImported
 }: {
   game: GameInfo
+  team: string
   existing?: ClipMatchRow[]
   onClose: () => void
   onImported: () => void
@@ -65,7 +67,7 @@ export function ImportFilm({
   const save = async () => {
     setBusy(true)
     try {
-      await api.importClips(game.gameId, rows)
+      await api.importClips(game.gameId, team, rows)
       toast(`Saved ${rows.length} clips`)
       onImported()
     } catch (e) {

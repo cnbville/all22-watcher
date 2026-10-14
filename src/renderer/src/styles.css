@@ -815,7 +815,7 @@ select.input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.player-row .pos {
+.player-row .ppos {
   color: var(--text-3);
   font-size: 11px;
   width: 26px;

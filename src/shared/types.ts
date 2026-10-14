@@ -223,6 +223,14 @@ export interface TeamOverview {
   roster: TeamRosterRow[]
 }
 
+export interface RecentFilm {
+  game: GameInfo
+  team: string
+  clipCount: number
+  playCount: number
+  gradedPlays: number
+}
+
 export interface GameFilm {
   game: GameInfo
   plays: Play[]

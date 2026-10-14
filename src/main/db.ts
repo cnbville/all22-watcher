@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS chart_fields (
   options TEXT NOT NULL,
   sort INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS film_games (
+  game_id TEXT PRIMARY KEY,
+  team TEXT NOT NULL,
+  imported_at TEXT NOT NULL,
+  opened_at TEXT
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -194,11 +200,31 @@ export class Store {
     })
   }
 
+  /** Remembers which team you study in a game and when you last opened it, for the home screen. */
+  touchFilm(gameId: string, team: string, opened: boolean) {
+    const now = new Date().toISOString()
+    this.run(
+      `INSERT INTO film_games (game_id, team, imported_at, opened_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (game_id) DO UPDATE SET team = excluded.team, opened_at = COALESCE(excluded.opened_at, film_games.opened_at)`,
+      [gameId, team, now, opened ? now : null]
+    )
+  }
+
+  recentFilm(limit = 8): { gameId: string; team: string }[] {
+    return this.all<{ game_id: string; team: string }>(
+      `SELECT f.game_id, f.team FROM film_games f
+       WHERE EXISTS (SELECT 1 FROM clips c WHERE c.game_id = f.game_id)
+       ORDER BY COALESCE(f.opened_at, f.imported_at) DESC LIMIT ?`,
+      [limit]
+    ).map((r) => ({ gameId: r.game_id, team: r.team }))
+  }
+
   relinkClip(clipId: number, playId: number | null) {
     this.run('UPDATE clips SET play_id = ? WHERE id = ?', [playId, clipId])
   }
 
   removeClips(gameId: string) {
+    this.db.run('DELETE FROM film_games WHERE game_id = ?', [gameId])
     this.run('DELETE FROM clips WHERE game_id = ?', [gameId])
   }
 

@@ -17,6 +17,7 @@ import type {
   PlayerGameLine,
   PlayerProfile,
   PlayNote,
+  RecentFilm,
   ReelItem,
   RosterPlayer,
   SeasonStatus,
@@ -229,8 +230,27 @@ export class Library {
     }
   }
 
-  importClips(gameId: string, rows: ClipMatchRow[]) {
+  importClips(gameId: string, team: string, rows: ClipMatchRow[]) {
     this.store.replaceClips(gameId, rows)
+    this.store.touchFilm(gameId, team, false)
+  }
+
+  async recentFilm(): Promise<RecentFilm[]> {
+    const out: RecentFilm[] = []
+    for (const { gameId, team } of this.store.recentFilm()) {
+      const season = Number(gameId.slice(0, 4))
+      const data = await this.season(season).catch(() => null)
+      const game = data?.games.find((g) => g.gameId === gameId)
+      if (!game) continue
+      out.push({
+        game,
+        team,
+        clipCount: this.store.clipCounts([gameId]).get(gameId) ?? 0,
+        playCount: (await this.plays(gameId)).filter((p) => p.playType !== '').length,
+        gradedPlays: this.store.gradedPlayCounts([gameId]).get(gameId) ?? 0
+      })
+    }
+    return out
   }
 
   saveGrade(entry: GradeEntry) {
