@@ -27,6 +27,28 @@ export function ImportFilm({
   const [editing, setEditing] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [canConvert, setCanConvert] = useState(false)
+  const [converting, setConverting] = useState<{ done: number; total: number } | null>(null)
+
+  useEffect(() => {
+    void api.canConvert().then(setCanConvert)
+    return api.onConvertProgress(setConverting)
+  }, [])
+
+  const convert = async () => {
+    if (!preview) return
+    setConverting({ done: 0, total: preview.unsupported.length })
+    setError(null)
+    try {
+      const res = await api.convertClips(game.gameId, preview.unsupported)
+      if (res.failed.length) setError(new Error(`${res.failed.length} clip(s) couldn’t be converted: ${res.failed[0].error}`))
+      await load(paths)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setConverting(null)
+    }
+  }
 
   const load = async (ps: string[], opts?: { includeSpecialTeams: boolean; includeNoPlays: boolean }, keepRows = false) => {
     setBusy(true)
@@ -144,9 +166,21 @@ export function ImportFilm({
           ))}
           {!!preview.unsupported.length && (
             <div className="warn">
-              {preview.unsupported.length} file{preview.unsupported.length > 1 ? 's are' : ' is'} in a format the player can’t
-              open ({[...new Set(preview.unsupported.map((p) => p.split('.').pop()))].join(', ')}). Convert them to MP4 or MOV
-              and import again.
+              <div className="row">
+                <span>
+                  {preview.unsupported.length} file{preview.unsupported.length > 1 ? 's are' : ' is'} in a format the player
+                  can’t open ({[...new Set(preview.unsupported.map((p) => p.split('.').pop()))].join(', ')}).{' '}
+                  {canConvert
+                    ? 'The app can make MP4 copies; your originals aren’t touched.'
+                    : 'Install ffmpeg (brew install ffmpeg) and reopen this window to convert them here, or convert them to MP4 yourself.'}
+                </span>
+                <span className="spacer" />
+                {canConvert && (
+                  <button className="btn small primary" onClick={convert} disabled={!!converting}>
+                    {converting ? `Converting ${converting.done}/${converting.total}…` : 'Convert to MP4'}
+                  </button>
+                )}
+              </div>
             </div>
           )}
           <p className="faint" style={{ margin: 0 }}>

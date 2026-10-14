@@ -5,6 +5,7 @@ import { Readable } from 'node:stream'
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
 import { type Api, CLIP_SCHEME } from '@shared/api'
 import { VIDEO_EXTENSIONS } from '@shared/matching'
+import { convertClips, findFfmpeg } from './convert'
 import { Store } from './db'
 import { Library } from './library'
 import { mirrorFetcher, webFetcher } from './nflverse'
@@ -108,7 +109,7 @@ async function renderPlayerReport(season: number, playerId: string): Promise<Buf
   }
 }
 
-type Handlers = Omit<Api, 'onDataProgress'>
+type Handlers = Omit<Api, 'onDataProgress' | 'onConvertProgress'>
 
 function handlers(): Handlers {
   return {
@@ -132,6 +133,14 @@ function handlers(): Handlers {
     },
     previewMatch: (gameId, paths, options) => library.previewMatch(gameId, paths, options),
     importClips: async (gameId, team, rows) => library.importClips(gameId, team, rows),
+    canConvert: async () => !!findFfmpeg(),
+    convertClips: async (gameId, paths) => {
+      const ffmpeg = findFfmpeg()
+      if (!ffmpeg) throw new Error('ffmpeg isn’t installed. Install it with Homebrew: brew install ffmpeg')
+      return convertClips(ffmpeg, paths, library.convertedDir(gameId), (done, total) => {
+        for (const w of BrowserWindow.getAllWindows()) w.webContents.send('convert-progress', { done, total })
+      })
+    },
     relinkClip: async (clipId, playId) => library.store.relinkClip(clipId, playId),
     removeFilm: async (gameId) => library.store.removeClips(gameId),
     revealClip: async (path) => shell.showItemInFolder(path),

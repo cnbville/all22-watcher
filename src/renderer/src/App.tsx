@@ -46,6 +46,27 @@ export function App() {
     }
   }
 
+  // Hand focus back to the page after using a control, so hotkeys (Space, arrows) keep driving the film
+  // instead of re-pressing the last button or changing the last dropdown.
+  useEffect(() => {
+    const onClick = (e: Event) => {
+      const button = (e.target as HTMLElement | null)?.closest?.('button')
+      if (button) button.blur()
+    }
+    const onChange = (e: Event) => {
+      const t = e.target
+      if (t instanceof HTMLSelectElement || (t instanceof HTMLInputElement && (t.type === 'range' || t.type === 'checkbox'))) {
+        t.blur()
+      }
+    }
+    document.addEventListener('click', onClick)
+    document.addEventListener('change', onChange, true)
+    return () => {
+      document.removeEventListener('click', onClick)
+      document.removeEventListener('change', onChange, true)
+    }
+  }, [])
+
   const [head, a, b] = route.path
   if (head === 'report') return <Report season={Number(a)} playerId={b} />
 

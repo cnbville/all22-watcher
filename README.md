@@ -37,7 +37,7 @@ npm run dist     # build dist/*.dmg
 4. **Check the matches.** The app guesses whether your clips include special teams and penalty no-plays from how many clips there are; flip the checkboxes if it guessed wrong. If one clip is missing mid-game, click the arrow on the first wrong row to slide everything after it.
 5. **Grade.** Watch the snap, then go down the player list with `=` (plus), `0`, and `-` (minus). Each grade moves you to the next player. Press `↓` for the next play.
 
-Clips play in MP4, MOV, M4V, or WebM. Other formats (MKV, AVI) need converting first.
+Clips play in MP4, MOV, M4V, or WebM. For MKV, AVI, TS and other formats, install [ffmpeg](https://ffmpeg.org) (`brew install ffmpeg`) and the import window offers to make MP4 copies; your originals aren't touched.
 
 ### Hotkeys
 

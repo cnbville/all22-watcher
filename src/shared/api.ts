@@ -36,6 +36,10 @@ export interface Api {
   pickClips(): Promise<string[] | null>
   previewMatch(gameId: string, paths: string[], options?: MatchOptions): Promise<MatchPreview>
   importClips(gameId: string, team: string, rows: ClipMatchRow[]): Promise<void>
+  /** Whether ffmpeg is installed, so clips in other formats can be converted. */
+  canConvert(): Promise<boolean>
+  convertClips(gameId: string, paths: string[]): Promise<{ converted: string[]; failed: { path: string; error: string }[] }>
+  onConvertProgress(cb: (p: { done: number; total: number }) => void): () => void
   relinkClip(clipId: number, playId: number | null): Promise<void>
   removeFilm(gameId: string): Promise<void>
   revealClip(path: string): Promise<void>

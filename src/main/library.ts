@@ -25,6 +25,7 @@ import type {
   TeamRosterRow,
   TeamSummary
 } from '@shared/types'
+import { convertedPath } from './convert'
 import type { Store } from './db'
 import {
   downloadSeason,
@@ -53,8 +54,14 @@ export class Library {
   constructor(
     readonly store: Store,
     readonly cacheDir: string,
-    private fetcher: Fetcher
+    private fetcher: Fetcher,
+    /** Where MP4 copies of clips in other formats are kept, one folder per game. */
+    readonly convertedRoot: string = join(cacheDir, '..', 'converted')
   ) {}
+
+  convertedDir(gameId: string): string {
+    return join(this.convertedRoot, gameId)
+  }
 
   availableSeasons(): number[] {
     const out: number[] = []
@@ -214,7 +221,13 @@ export class Library {
   async previewMatch(gameId: string, paths: string[], options: MatchOptions = {}): Promise<MatchPreview> {
     const files = await expandVideoFiles(paths)
     const playable = files.filter((f) => PLAYABLE_EXTENSIONS.includes(extensionOf(f)))
-    const unsupported = files.filter((f) => !PLAYABLE_EXTENSIONS.includes(extensionOf(f)))
+    const unsupported: string[] = []
+    // Clips already converted to MP4 stand in for their originals.
+    for (const f of files.filter((f) => !PLAYABLE_EXTENSIONS.includes(extensionOf(f)))) {
+      const copy = convertedPath(f, this.convertedDir(gameId))
+      if (existsSync(copy)) playable.push(copy)
+      else unsupported.push(f)
+    }
     const plays = (await this.plays(gameId)).filter((p) => p.playType !== '')
     const result = matchClips(playable, plays, options)
     const warnings = [...result.warnings]
