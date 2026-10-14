@@ -135,6 +135,9 @@ h4 {
 .topbar > * {
   -webkit-app-region: no-drag;
 }
+.topbar > .spacer {
+  -webkit-app-region: drag;
+}
 .topbar .brand {
   font-weight: 700;
   letter-spacing: 0.02em;

@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -52,5 +52,46 @@ describe('Store', () => {
     const { store } = await freshStore()
     store.saveSettings({ autoAdvance: true, pinned: { DAL: ['p1'] } })
     expect(store.settings()).toMatchObject({ autoAdvance: true, defaultSpeed: 1, pinned: { DAL: ['p1'] } })
+  })
+})
+
+describe('Store.openOrRecover', () => {
+  it('opens a good file as is', async () => {
+    const { store, file } = await freshStore()
+    store.saveSettings({ autoAdvance: true })
+    store.close()
+    const { store: reopened, movedTo } = await Store.openOrRecover(file)
+    expect(movedTo).toBeNull()
+    expect(reopened.settings().autoAdvance).toBe(true)
+  })
+
+  it('moves an unreadable file aside and starts fresh', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-db-'))
+    const file = join(dir, 'grades.sqlite')
+    await writeFile(file, 'not a database at all')
+    const { store, movedTo } = await Store.openOrRecover(file)
+    expect(movedTo).toMatch(/grades\.sqlite\.corrupt-/)
+    expect(await readFile(movedTo!, 'utf8')).toBe('not a database at all')
+    expect(store.tags().length).toBeGreaterThan(0)
+    expect((await readdir(dir)).sort()).toEqual(['grades.sqlite', movedTo!.slice(dir.length + 1)])
+  })
+
+  it('moves a truncated file aside', async () => {
+    const { store, file } = await freshStore()
+    store.saveGrade({ gameId: 'g', playId: 1, playerId: 'p1', team: 'DAL', grade: 1, tags: [], note: '' })
+    store.close()
+    const bytes = await readFile(file)
+    await writeFile(file, bytes.subarray(0, 50))
+    const { store: fresh, movedTo } = await Store.openOrRecover(file)
+    expect(movedTo).not.toBeNull()
+    expect(fresh.gradesForGame('g')).toEqual([])
+  })
+
+  it('leaves the file alone when opening fails for another reason', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-db-'))
+    const file = join(dir, 'grades.sqlite')
+    await mkdir(file)
+    await expect(Store.openOrRecover(file)).rejects.toThrow(/EISDIR/)
+    expect(await readdir(dir)).toEqual(['grades.sqlite'])
   })
 })

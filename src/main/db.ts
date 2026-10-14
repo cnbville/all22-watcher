@@ -105,6 +105,21 @@ export class Store {
     return store
   }
 
+  /**
+   * Opens the store, but if SQLite can't read the file (damaged, or not a database at all) it's moved
+   * aside, never deleted, and a fresh store is started. `movedTo` says where the old file went.
+   */
+  static async openOrRecover(file: string, wasmDir?: string): Promise<{ store: Store; movedTo: string | null }> {
+    try {
+      return { store: await Store.open(file, wasmDir), movedTo: null }
+    } catch (e) {
+      if (!existsSync(file) || !/file is not a database|database disk image is malformed/.test(String(e))) throw e
+      const movedTo = `${file}.corrupt-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`
+      renameSync(file, movedTo)
+      return { store: await Store.open(file, wasmDir), movedTo }
+    }
+  }
+
   private all<T = Record<string, SqlValue>>(sql: string, params: Params = []): T[] {
     const stmt = this.db.prepare(sql)
     try {

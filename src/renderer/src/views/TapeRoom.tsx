@@ -186,10 +186,21 @@ function Room({
     (delta: number) => {
       if (!visible.length) return
       const i = visible.findIndex((p) => p.playId === currentId)
-      const next = i === -1 ? visible[0] : visible[Math.min(visible.length - 1, Math.max(0, i + delta))]
+      let next: Play | undefined
+      if (i !== -1) next = visible[Math.min(visible.length - 1, Math.max(0, i + delta))]
+      else {
+        // The current play can drop out of the list (graded while showing Ungraded): step from where it sat.
+        const pi = plays.findIndex((p) => p.playId === currentId)
+        const before = visible.filter((p) => plays.indexOf(p) < pi).length
+        next = pi === -1 ? visible[0] : visible[delta > 0 ? before + delta - 1 : before + delta]
+      }
+      if (!next || next.playId === currentId) return
+      // Notes save on blur, so blur a note still being typed before its field is swapped for the next play's.
+      const typing = document.activeElement
+      if (typing instanceof HTMLElement && typing.closest('.tape-side')) typing.blur()
       setCurrentId(next.playId)
     },
-    [visible, currentId]
+    [visible, plays, currentId]
   )
 
   // Who's being graded on this play: the 11 on the field when nflverse has participation data,
@@ -285,6 +296,10 @@ function Room({
     setSelected(gradingList[Math.max(0, Math.min(gradingList.length - 1, ni))].id)
   }
 
+  // Angle switching cycles through the angles this play has, not every angle in the game.
+  const playAngles = ANGLE_ORDER.filter((a) => currentClips.some((c) => c.angle === a))
+  const nextAngle = () => playAngles.length > 1 && setAngle(playAngles[(playAngles.indexOf(clip!.angle) + 1) % playAngles.length])
+
   const strokes: Stroke[] = (note?.drawing[clip?.angle ?? angle] ?? []) as Stroke[]
   const setStrokes = (s: Stroke[]) => saveNote({ drawing: { ...note!.drawing, [clip?.angle ?? angle]: s } })
 
@@ -309,7 +324,7 @@ function Room({
       else if (k === ']') setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(speed) + 1)] ?? 1)
       else if (k === 'b') video.current?.restart()
       else if (k === 'l') setLoop((v) => !v)
-      else if (k === 'a') angles.length > 1 && setAngle(angles[(angles.indexOf(angle) + 1) % angles.length])
+      else if (k === 'a') nextAngle()
       else if (k === 'd') setDrawing((v) => !v)
       else if (k === 'c') note && setStrokes([])
       else if (k === 'z') note && setStrokes(strokes.slice(0, -1))
@@ -427,8 +442,8 @@ function Room({
                 <button className={`btn small ${loop ? 'active' : ''}`} onClick={() => setLoop(!loop)} title="Loop the clip (L)">
                   Loop
                 </button>
-                {angles.length > 1 && (
-                  <button className="btn small" onClick={() => setAngle(angles[(angles.indexOf(angle) + 1) % angles.length])} title="Switch camera angle (A)">
+                {playAngles.length > 1 && (
+                  <button className="btn small" onClick={nextAngle} title="Switch camera angle (A)">
                     {clip?.angle === 'endzone' ? 'End zone' : clip?.angle === 'sideline' ? 'Sideline' : 'Angle'}
                   </button>
                 )}
@@ -481,6 +496,7 @@ function Room({
                       key={p.id}
                       index={i}
                       season={game.season}
+                      playId={current.playId}
                       player={p}
                       entry={e}
                       tags={tagsFor(p)}
@@ -769,10 +785,11 @@ function PlayInfo({ play, clip, flagged, onFlag }: { play: Play; clip: Clip | nu
 }
 
 function PlayerGradeRow({
-  index, season, player, entry, tags, selected, starred, onSelect, onGrade, onTag, onStar, onNote
+  index, season, playId, player, entry, tags, selected, starred, onSelect, onGrade, onTag, onStar, onNote
 }: {
   index: number
   season: number
+  playId: number
   player: RosterPlayer
   entry: GradeEntry | undefined
   tags: TagDef[]
@@ -848,7 +865,7 @@ function PlayerGradeRow({
           style={{ width: '100%', marginTop: 6, height: 26, fontSize: 12 }}
           placeholder={`Note on ${lastName(player.name)} this play`}
           defaultValue={entry?.note ?? ''}
-          key={`${entry?.playId}-${player.id}`}
+          key={`${playId}-${player.id}`}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur()

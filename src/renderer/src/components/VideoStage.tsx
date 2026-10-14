@@ -11,7 +11,14 @@ export interface VideoHandle {
 
 export const SPEEDS = [0.25, 0.5, 0.75, 1, 1.5, 2]
 export const INK = ['#ffd60a', '#ff4d4d', '#4dd2ff', '#ffffff', '#7CFC7C']
-const FRAME = 1 / 30
+// Frame lengths of the usual film rates: 60, 59.94, 50, 30, 29.97, 25, 24 and 23.976 fps.
+const FRAME_LENGTHS = [1 / 60, 1001 / 60000, 1 / 50, 1 / 30, 1001 / 30000, 1 / 25, 1 / 24, 1001 / 24000]
+
+/** The usual frame length closest to a measured gap between frames, or null if none is close. */
+function snapFrame(gap: number): number | null {
+  const near = FRAME_LENGTHS.reduce((a, b) => (Math.abs(b - gap) < Math.abs(a - gap) ? b : a))
+  return Math.abs(near - gap) / near < 0.02 ? near : null
+}
 
 interface Props {
   clip: Clip | null
@@ -38,6 +45,7 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
   const [duration, setDuration] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [frame, setFrame] = useState(1 / 30)
   const live = useRef<Stroke | null>(null)
 
   const controls = useMemo<VideoHandle>(() => ({
@@ -51,7 +59,7 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
       const v = video.current
       if (!v) return
       v.pause()
-      v.currentTime = Math.min(Math.max(0, v.currentTime + frames * FRAME), v.duration || 0)
+      v.currentTime = Math.min(Math.max(0, v.currentTime + frames * frame), v.duration || 0)
     },
     seekBy(seconds) {
       const v = video.current
@@ -64,7 +72,7 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
       v.currentTime = 0
       void v.play().catch(() => {})
     }
-  }), [])
+  }), [frame])
   useImperativeHandle(ref, () => controls, [controls])
 
   useEffect(() => {
@@ -72,6 +80,32 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
   }, [speed, clip])
 
   useEffect(() => setError(null), [clip])
+
+  // Clips can be 30 or 60 fps (or 29.97/59.94), so learn the frame length from the smallest gap between
+  // frames shown while the clip plays. Faster than 1× can skip frames, so only normal or slow playback counts.
+  useEffect(() => {
+    const v = video.current
+    if (!v) return
+    let last = -1
+    let gap = Infinity
+    let samples = 0
+    let id = 0
+    const onFrame: VideoFrameRequestCallback = (_now, meta) => {
+      const d = meta.mediaTime - last
+      last = meta.mediaTime
+      if (!v.paused && v.playbackRate <= 1 && d > 0) {
+        gap = Math.min(gap, d)
+        if (++samples >= 12) {
+          const snapped = snapFrame(gap)
+          if (snapped) setFrame(snapped)
+          return
+        }
+      }
+      id = v.requestVideoFrameCallback(onFrame)
+    }
+    id = v.requestVideoFrameCallback(onFrame)
+    return () => v.cancelVideoFrameCallback(id)
+  }, [clip])
 
   // The drawing layer maps 0–1 coordinates onto the visible picture (the video is letterboxed).
   const contentRect = useCallback(() => {
@@ -221,7 +255,7 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
           type="range"
           min={0}
           max={duration || 0}
-          step={FRAME}
+          step={frame}
           value={Math.min(time, duration || 0)}
           onChange={(e) => {
             if (video.current) video.current.currentTime = Number(e.target.value)
