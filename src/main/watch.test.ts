@@ -162,6 +162,22 @@ describe('WatchFolder', () => {
     expect(lib.store.filmGames()[0].clipCount).toBe(4)
   })
 
+  it('starts watching a folder that was missing once it is back', async () => {
+    const { lib, dir } = await library()
+    const root = join(dir, 'watch')
+    lib.store.saveSettings({ watchFolder: root })
+    const watch = new WatchFolder(lib, { settleMs: 40, rescanMs: 60_000 })
+    stops.push(() => watch.stop())
+    watch.configure()
+    expect(watch.status().state).toBe('missing')
+    await mkdir(root)
+    // The minute rescan finds it again; from then on fs.watch sees new game folders by itself.
+    await watch.scan()
+    await gameFolder(root, 'DAL at PHI', 1)
+    for (let i = 0; i < 50 && !lib.store.filmGames().length; i++) await sleep(50)
+    expect(lib.store.filmGames()).toMatchObject([{ gameId: '2025_01_DAL_PHI', source: 'watch' }])
+  })
+
   it('reports a missing or paused folder', async () => {
     const { lib, dir } = await library()
     const watch = new WatchFolder(lib, { fsWatch: false })

@@ -129,22 +129,26 @@ export class WatchFolder {
   }
 
   private startWatching(folder: string) {
-    if (this.opts.fsWatch !== false && existsSync(folder)) {
-      try {
-        this.watcher = watch(folder, { recursive: true }, () => this.soon())
-        this.watcher.on('error', () => this.stopFsWatch())
-      } catch {
-        // Recursive watching isn't available everywhere; the rescan still finds new folders.
-        try {
-          this.watcher = watch(folder, () => this.soon())
-          this.watcher.on('error', () => this.stopFsWatch())
-        } catch {
-          this.watcher = null
-        }
-      }
-    }
+    this.startFsWatch(folder)
     this.rescan = setInterval(() => void this.scan(), this.opts.rescanMs ?? RESCAN_MS)
     this.rescan.unref?.()
+  }
+
+  /** fs.watch on the folder, when it exists. A folder that was missing (an unplugged drive) gets one once it's back. */
+  private startFsWatch(folder: string) {
+    if (this.watcher || this.opts.fsWatch === false || !existsSync(folder)) return
+    try {
+      this.watcher = watch(folder, { recursive: true }, () => this.soon())
+      this.watcher.on('error', () => this.stopFsWatch())
+    } catch {
+      // Recursive watching isn't available everywhere; the rescan still finds new folders.
+      try {
+        this.watcher = watch(folder, () => this.soon())
+        this.watcher.on('error', () => this.stopFsWatch())
+      } catch {
+        this.watcher = null
+      }
+    }
   }
 
   private stopFsWatch() {
@@ -210,9 +214,12 @@ export class WatchFolder {
     if (!folder || this.paused) return
     this.lastChecked = new Date().toISOString()
     if (!existsSync(folder)) {
+      // A watcher on a folder that went away sees nothing when it comes back.
+      this.stopFsWatch()
       this.push()
       return
     }
+    this.startFsWatch(folder)
     let dirs: string[]
     try {
       dirs = (await readdir(folder, { withFileTypes: true })).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => join(folder, e.name))
