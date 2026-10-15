@@ -21,9 +21,17 @@ export function baseName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
 }
 
-const parentName = (path: string) => path.split(/[\\/]/).slice(-2, -1)[0] ?? ''
+const isOvertime = (folder: string) => /^(ot|overtime)(?![a-z])/i.test(folder)
 
-const isOvertime = (path: string) => /^(ot|overtime)(?![a-z])/i.test(parentName(path))
+const NUMBER_WORDS: Record<string, string> = { first: '1', one: '1', second: '2', two: '2', third: '3', three: '3', fourth: '4', four: '4', fifth: '5', five: '5' }
+
+/** A folder name as it sorts, so "Second Quarter" comes before "Third Quarter" and "Quarter Two" before "Quarter Three". */
+const folderKey = (folder: string) => folder.toLowerCase().replace(/[a-z]+/g, (w) => NUMBER_WORDS[w] ?? w)
+
+const VIDEO_SUFFIX = new RegExp(`(${VIDEO_EXTENSIONS.map((e) => `\\${e}`).join('|')})+$`, 'i')
+
+/** A file name without its video extensions, so a converted "001.mkv.mp4" and "001.mp4" are both clip 001. */
+const stem = (path: string) => baseName(path).replace(VIDEO_SUFFIX, '')
 
 /** How many folders above a clip are searched for an angle name. */
 const ANGLE_FOLDER_DEPTH = 3
@@ -71,25 +79,74 @@ export interface MatchResult {
 }
 
 /**
+ * Each file's path from the folder the user picked down, that folder's own name included (for a picked file, from the
+ * folder it's in). Angles are detected from these, so a "Side Projects" folder the film sits in isn't taken for the sideline.
+ */
+export function pickedPaths(picked: string[], files: string[]): Map<string, string> {
+  const isFile = new Set(files)
+  const [first = [], ...rest] = picked.map((p) => p.split(/[\\/]/).filter(Boolean).slice(0, isFile.has(p) ? -1 : undefined))
+  let shared = 0
+  while (shared < first.length && rest.every((r) => r[shared] === first[shared])) shared++
+  return new Map(
+    files.map((f): [string, string] => {
+      const parts = f.split(/[\\/]/).filter(Boolean)
+      const inside = parts.slice(0, shared).every((name, i) => name === first[i])
+      return [f, inside ? parts.slice(Math.max(0, shared - 1)).join('/') : f]
+    })
+  )
+}
+
+/**
+ * Puts one angle's clips in file name order. When numbering restarts in each folder (Q1/001, Q2/001…), clips are kept
+ * together by folder, in folder order with overtime last. Only as many folders up as it takes to tell the restarts apart
+ * are compared, so Q1/Sideline/001 and Sideline/Q1/001 both work.
+ */
+function sortClips(list: string[], nameOf: (path: string) => string) {
+  const folders = new Map(list.map((p) => [p, nameOf(p).split(/[\\/]/).slice(0, -1)]))
+  const lastFolders = (p: string, depth: number) => {
+    const f = folders.get(p)!
+    return [...Array<string>(Math.max(0, depth - f.length)).fill(''), ...f.slice(Math.max(0, f.length - depth))]
+  }
+  const restarts = (depth: number) => {
+    const seen = new Map<string, string>()
+    return list.some((p) => {
+      const key = [...lastFolders(p, depth), stem(nameOf(p))].join('\0')
+      const dir = folders.get(p)!.join('/')
+      if ((seen.get(key) ?? dir) !== dir) return true
+      seen.set(key, dir)
+      return false
+    })
+  }
+  const deepest = Math.max(0, ...[...folders.values()].map((f) => f.length))
+  let depth = 0
+  while (depth < deepest && restarts(depth)) depth++
+  const folderOrder = (a: string, b: string) => {
+    const [x, y] = [lastFolders(a, depth), lastFolders(b, depth)]
+    return Number(x.some(isOvertime)) - Number(y.some(isOvertime)) || x.reduce((c, f, i) => c || naturalCompare(folderKey(f), folderKey(y[i])), 0)
+  }
+  list.sort(
+    (a, b) => folderOrder(a, b) || naturalCompare(baseName(nameOf(a)), baseName(nameOf(b))) || naturalCompare(nameOf(a), nameOf(b)) || naturalCompare(a, b)
+  )
+}
+
+/**
  * Pairs clips with plays in order, one angle at a time. When the caller doesn't say whether
  * special teams or no-plays were cut, picks whichever combination best matches the clip count.
+ * `nameOf` gives the path angles and order are read from: by default the clip's own, but the caller
+ * can pass the part inside the picked folder, or a converted copy's original.
  */
 export function matchClips(
   paths: string[],
   plays: Play[],
-  opts: { includeSpecialTeams?: boolean; includeNoPlays?: boolean } = {}
+  opts: { includeSpecialTeams?: boolean; includeNoPlays?: boolean } = {},
+  nameOf: (path: string) => string = (p) => p
 ): MatchResult {
   const byAngle = new Map<Angle, string[]>()
   for (const p of paths) {
-    const angle = detectAngle(p)
+    const angle = detectAngle(nameOf(p))
     byAngle.set(angle, [...(byAngle.get(angle) ?? []), p])
   }
-  for (const list of byAngle.values()) {
-    // Folders that each restart their numbering (Q1/001, Q2/001…) are kept together, in folder order with overtime last.
-    const byFolder = new Set(list.map(baseName)).size < list.length
-    const folderOrder = (a: string, b: string) => Number(isOvertime(a)) - Number(isOvertime(b)) || naturalCompare(parentName(a), parentName(b))
-    list.sort((a, b) => (byFolder ? folderOrder(a, b) : 0) || naturalCompare(baseName(a), baseName(b)) || naturalCompare(a, b))
-  }
+  for (const list of byAngle.values()) sortClips(list, nameOf)
 
   const largest = Math.max(0, ...[...byAngle.values()].map((l) => l.length))
   const stOptions = opts.includeSpecialTeams === undefined ? [true, false] : [opts.includeSpecialTeams]

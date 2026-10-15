@@ -52,18 +52,21 @@ export function convertedPath(input: string, outDir: string): string {
 }
 
 /**
- * The converted copy of `input`, or null when there isn't one. Copies made before convertedPath kept the angle
- * folder sit under the clip's own folder name; one found there is hard-linked into place rather than moved, so
- * clips already saved with the old path keep playing.
+ * The converted copy of `input`, or null when there isn't one. Earlier versions kept more or fewer of the source
+ * folders under the same hash (only the clip's own folder, or up to an angle folder they detected differently); a copy
+ * found there is hard-linked into place rather than moved, so clips already saved with the old path keep playing.
  */
 export async function findConverted(input: string, outDir: string): Promise<string | null> {
   const copy = convertedPath(input, outDir)
   if (existsSync(copy)) return copy
-  const old = join(outDir, folderHash(dirname(input)), basename(dirname(input)), basename(copy))
-  if (old === copy || !existsSync(old)) return null
+  const source = dirname(input)
+  const folders = source.split(sep).filter(Boolean)
+  // Everything under the hash came from this clip's folder, however many folder names were kept.
+  const old = folders.map((_, i) => join(outDir, folderHash(source), ...folders.slice(-1 - i), basename(copy))).find((p) => existsSync(p))
+  if (!old) return null
   await mkdir(dirname(copy), { recursive: true })
   await link(old, copy).catch(() => {})
-  return existsSync(copy) ? copy : null
+  return existsSync(copy) ? copy : old
 }
 
 /**

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import type { MatchOptions } from '@shared/api'
-import { extensionOf, matchClips, PLAYABLE_EXTENSIONS, VIDEO_EXTENSIONS } from '@shared/matching'
+import { extensionOf, matchClips, pickedPaths, PLAYABLE_EXTENSIONS, VIDEO_EXTENSIONS } from '@shared/matching'
 import { addToTally, emptyTally } from '@shared/stats'
 import { POSITION_GROUPS, positionGroup, TEAM_BY_ABBR } from '@shared/teams'
 import type {
@@ -242,16 +242,26 @@ export class Library {
 
   async previewMatch(gameId: string, paths: string[], options: MatchOptions = {}): Promise<MatchPreview> {
     const files = await expandVideoFiles(paths)
+    const outDir = this.convertedDir(gameId)
+    const isCopy = (f: string) => f.startsWith(outDir + sep)
+    // Angles and order are read only from the folders the user picked, never the ones above.
+    const names = pickedPaths(paths.filter((p) => !isCopy(p)), files.filter((f) => !isCopy(f)))
+    // Saved copies (when fixing matches) go by the source folders kept under their hash.
+    for (const f of files.filter(isCopy)) names.set(f, relative(outDir, f).split(sep).slice(1).join('/'))
     const playable = files.filter((f) => PLAYABLE_EXTENSIONS.includes(extensionOf(f)))
     const unsupported: string[] = []
-    // Clips already converted to MP4 stand in for their originals.
+    // Clips already converted to MP4 stand in for their originals, and are placed by the original's path.
     for (const f of files.filter((f) => !PLAYABLE_EXTENSIONS.includes(extensionOf(f)))) {
-      const copy = await findConverted(f, this.convertedDir(gameId))
-      if (copy) playable.push(copy)
-      else unsupported.push(f)
+      const copy = await findConverted(f, outDir)
+      if (!copy) {
+        unsupported.push(f)
+        continue
+      }
+      playable.push(copy)
+      names.set(copy, names.get(f) ?? f)
     }
     const plays = (await this.plays(gameId)).filter((p) => p.playType !== '')
-    const result = matchClips(playable, plays, options)
+    const result = matchClips(playable, plays, options, (p) => names.get(p) ?? p)
     const warnings = [...result.warnings]
     if (!plays.length) warnings.unshift('No play-by-play for this game yet, so clips can’t be matched to plays.')
     return {

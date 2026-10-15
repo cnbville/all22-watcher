@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
+import { convertedPath } from './convert'
 import { Store } from './db'
 import { Library } from './library'
 import { mirrorFetcher, seasonStatuses } from './nflverse'
@@ -95,5 +96,35 @@ describe('Library with players who changed teams', () => {
     expect((await seasonStatuses(library.cacheDir, [2025]))[0].downloaded).toBe(false)
     const reopened = new Library(library.store, library.cacheDir, mirrorFetcher('/nowhere'))
     await expect(reopened.season(2025)).rejects.toThrow(/older version/)
+  })
+})
+
+describe('Library.previewMatch', () => {
+  it('reads angles from the picked folder down, and places converted copies by their originals', async () => {
+    const library = await tradeSeason()
+    const gameId = '2025_01_DAL_NYJ'
+    const game = join(await mkdtemp(join(tmpdir(), 'all22-pick-')), 'Side Projects', 'DAL at NYJ')
+    for (const angle of ['All-22', 'Sideline']) {
+      await mkdir(join(game, angle), { recursive: true })
+      await writeFile(join(game, angle, '001.mp4'), '')
+    }
+    const mkv = join(game, 'Sideline', '002.mkv')
+    await writeFile(mkv, '')
+    expect((await library.previewMatch(gameId, [game])).unsupported).toEqual([mkv])
+
+    const copy = convertedPath(mkv, library.convertedDir(gameId))
+    await mkdir(dirname(copy), { recursive: true })
+    await writeFile(copy, '')
+    const picked = await library.previewMatch(gameId, [game])
+    expect(picked.unsupported).toEqual([])
+    const rows = picked.rows.map((r) => [r.path, r.angle, r.playId])
+    expect(rows).toEqual([
+      [join(game, 'All-22', '001.mp4'), 'main', 10],
+      [join(game, 'Sideline', '001.mp4'), 'sideline', 10],
+      [copy, 'sideline', 11]
+    ])
+
+    // Fixing saved matches later picks the saved clips themselves, copies included.
+    expect((await library.previewMatch(gameId, rows.map((r) => r[0] as string))).rows.map((r) => [r.path, r.angle, r.playId])).toEqual(rows)
   })
 })

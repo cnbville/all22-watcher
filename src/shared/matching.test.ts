@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectAngle, filmablePlays, matchClips, naturalCompare, shiftMatches } from './matching'
+import { baseName, detectAngle, filmablePlays, matchClips, naturalCompare, pickedPaths, shiftMatches } from './matching'
 import type { Play } from './types'
 
 const play = (playId: number, playType: string): Play =>
@@ -99,6 +99,85 @@ describe('matching', () => {
     // A converted copy (kept under its source folder's name) sorts next to its original's neighbours.
     const mixed = matchClips(['/g/Q1/1.mp4', '/conv/ab12cd34/Q1/2.mkv.mp4', '/g/Q1/3.mp4', '/g/Q2/1.mp4'], plays, { includeSpecialTeams: false, includeNoPlays: false })
     expect(mixed.rows.map((x) => x.fileName)).toEqual(['1.mp4', '2.mkv.mp4', '3.mp4', '1.mp4'])
+  })
+
+  it('keeps quarter folders together whether they hold the angle folders or sit inside them', () => {
+    const nested = (outer: string[], inner: string[]) =>
+      outer.flatMap((o) => inner.flatMap((i) => ['Play 2.mp4', 'Play 1.mp4'].map((f) => `/g/DAL at PHI/${o}/${i}/${f}`))).reverse()
+    const sideline = (files: string[]) =>
+      matchClips(files, plays, { includeSpecialTeams: true, includeNoPlays: true }).rows.filter((x) => x.angle === 'sideline').map((x) => [x.path.slice(14), x.playId])
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4']
+    const ids = [40, 71, 112, 141, 166, 188, 200, 210]
+    const expected = (path: (q: string, f: string) => string) => quarters.flatMap((q) => ['Play 1.mp4', 'Play 2.mp4'].map((f) => path(q, f))).map((p, i) => [p, ids[i]])
+    expect(sideline(nested(quarters, ['Sideline', 'End Zone']))).toEqual(expected((q, f) => `${q}/Sideline/${f}`))
+    expect(sideline(nested(['Sideline', 'End Zone'], quarters))).toEqual(expected((q, f) => `Sideline/${q}/${f}`))
+    expect(matchClips(nested(quarters, ['Sideline', 'End Zone']), plays).warnings).toEqual([])
+
+    // Overtime still comes last when it holds the angle folders too.
+    const ot = ['OT', 'Q4'].flatMap((q) => ['1.mp4', '2.mp4'].map((f) => `/g/${q}/Sideline/${f}`))
+    expect(matchClips(ot, plays).rows.map((x) => x.path.slice(3))).toEqual(['Q4/Sideline/1.mp4', 'Q4/Sideline/2.mp4', 'OT/Sideline/1.mp4', 'OT/Sideline/2.mp4'])
+  })
+
+  it('puts spelled-out quarters and halves in game order', () => {
+    const order = (folders: string[]) =>
+      matchClips([...folders].reverse().flatMap((q) => ['002.mp4', '001.mp4'].map((f) => `/g/${q}/${f}`)), plays).rows.map((x) => x.path.slice(3))
+    const inOrder = (folders: string[]) => folders.flatMap((q) => [`${q}/001.mp4`, `${q}/002.mp4`])
+    for (const folders of [
+      ['First Quarter', 'Second Quarter', 'Third Quarter', 'Fourth Quarter', 'Overtime'],
+      ['Quarter One', 'Quarter Two', 'Quarter Three', 'Quarter Four', 'OT'],
+      ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter'],
+      ['First Half', 'Second Half']
+    ]) {
+      expect(order(folders)).toEqual(inOrder(folders))
+    }
+  })
+
+  it('notices restarted numbering when the folders hold different formats', () => {
+    const halves = (files: string[]) => matchClips([...files].reverse(), plays).rows.map((x) => x.path)
+    const converted = ['/conv/ab12cd34/1st Half/001.mkv.mp4', '/conv/ab12cd34/1st Half/002.mkv.mp4', '/g/2nd Half/001.mp4', '/g/2nd Half/002.mp4']
+    expect(halves(converted)).toEqual(converted)
+    const formats = ['/g/1st Half/001.mov', '/g/1st Half/002.mov', '/g/2nd Half/001.mp4', '/g/2nd Half/002.mp4']
+    expect(halves(formats)).toEqual(formats)
+    // A name that merely has dots in it isn't cut short, so these two aren't taken for a restart.
+    expect(halves(['/g/B/12.30.mp4', '/g/A/12.mp4'])).toEqual(['/g/B/12.30.mp4', '/g/A/12.mp4'])
+  })
+
+  it('reads angles only from the picked folder down', () => {
+    const game = '/Users/me/Side Projects/DAL at PHI'
+    const files = ['All-22', 'Sideline'].flatMap((a) => ['001.mp4', '002.mp4', '003.mp4', '004.mp4'].map((f) => `${game}/${a}/${f}`))
+    expect(detectAngle(files[0])).toBe('sideline')
+    const names = pickedPaths([game], files)
+    expect(names.get(files[0])).toBe('DAL at PHI/All-22/001.mp4')
+    const r = matchClips(files, plays, {}, (p) => names.get(p)!)
+    expect(r.rows.map((x) => [x.path.slice(game.length + 1), x.angle, x.playId])).toEqual([
+      ['All-22/001.mp4', 'main', 71], ['All-22/002.mp4', 'main', 112], ['All-22/003.mp4', 'main', 166], ['All-22/004.mp4', 'main', 188],
+      ['Sideline/001.mp4', 'sideline', 71], ['Sideline/002.mp4', 'sideline', 112], ['Sideline/003.mp4', 'sideline', 166], ['Sideline/004.mp4', 'sideline', 188]
+    ])
+    expect(r.warnings).toEqual([])
+
+    // The picked folder's own name counts, whether the folder or the files in it were picked, or both angle folders.
+    const sideline = files.slice(4)
+    const angles = (picked: string[], within: string[]) => [...pickedPaths(picked, within).values()].map(detectAngle)
+    expect(angles([`${game}/Sideline`], sideline)).toEqual(['sideline', 'sideline', 'sideline', 'sideline'])
+    expect(angles(sideline, sideline)).toEqual(['sideline', 'sideline', 'sideline', 'sideline'])
+    expect(angles([`${game}/All-22`], files.slice(0, 4))).toEqual(['main', 'main', 'main', 'main'])
+    expect(angles([`${game}/All-22`, `${game}/Sideline`], files)).toEqual([...Array(4).fill('main'), ...Array(4).fill('sideline')])
+  })
+
+  it('places converted copies by their original path', () => {
+    // An all-MKV game in Q1/Sideline folders: each folder's copies go under its own hash, and their own paths lost the quarter.
+    const game = '/Users/me/Side Projects/DAL at PHI'
+    const originals = ['Q1', 'Q2'].flatMap((q) => ['Play 1.mkv', 'Play 2.mkv'].map((f) => `${game}/${q}/Sideline/${f}`))
+    const copyOf = (p: string) => `/conv/${p.includes('/Q1/') ? 'ffff0000' : '0000ffff'}/Sideline/${baseName(p)}.mp4`
+    const names = pickedPaths([game], originals)
+    const copies = new Map(originals.map((p) => [copyOf(p), names.get(p)!]))
+    const r = matchClips([...copies.keys()].reverse(), plays, { includeSpecialTeams: false, includeNoPlays: false }, (p) => copies.get(p)!)
+    expect(r.rows.map((x) => [x.path, x.angle, x.playId])).toEqual([
+      ['/conv/ffff0000/Sideline/Play 1.mkv.mp4', 'sideline', 71],
+      ['/conv/ffff0000/Sideline/Play 2.mkv.mp4', 'sideline', 112],
+      ['/conv/0000ffff/Sideline/Play 1.mkv.mp4', 'sideline', 166],
+      ['/conv/0000ffff/Sideline/Play 2.mkv.mp4', 'sideline', 188]
+    ])
   })
 
   it('shifts later clips when one is missing', () => {

@@ -55,6 +55,24 @@ describe('findConverted', () => {
 
     expect(await findConverted(join(dir, 'Film', 'Sideline', 'DAL at PHI', '002.mkv'), out)).toBeNull()
   })
+
+  it('finds a copy made by a build that kept more of the source folders', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-find-'))
+    const out = join(dir, 'out')
+    const input = join(dir, 'Film', 'Sideline', 'Wide Angle', 'Q1', '001.mkv')
+    // The previous build didn't count "Wide Angle" as an angle name, so it kept every folder up to "Sideline".
+    const hash = createHash('sha1').update(dirname(input)).digest('hex').slice(0, 8)
+    const old = join(out, hash, 'Sideline', 'Wide Angle', 'Q1', '001.mkv.mp4')
+    await mkdir(dirname(old), { recursive: true })
+    await writeFile(old, 'video')
+    const found = await findConverted(input, out)
+    expect(found).toBe(convertedPath(input, out))
+    expect(readFileSync(found!, 'utf8')).toBe('video')
+    expect(existsSync(old)).toBe(true)
+
+    // A copy of a same-named clip from another folder never stands in.
+    expect(await findConverted(join(dir, 'Film', 'End Zone', 'Wide Angle', 'Q1', '001.mkv'), out)).toBeNull()
+  })
 })
 
 const ffmpeg = findFfmpeg()
