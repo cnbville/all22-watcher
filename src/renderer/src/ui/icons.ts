@@ -1,5 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  CircleMinus,
+  CirclePlus,
+  Folder,
   ChevronLeft,
   Clock,
   ChevronRight,
@@ -202,5 +205,8 @@ export const ICONS: Record<IconName, LucideIcon> = {
   clock: Clock,
   'trash-2': Trash2,
   'copy': Copy,
-  'pencil': Pencil
+  'pencil': Pencil,
+  'circle-minus': CircleMinus,
+  'circle-plus': CirclePlus,
+  'folder': Folder
 }

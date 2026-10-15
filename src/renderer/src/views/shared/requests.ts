@@ -19,8 +19,24 @@ export interface AddToCutupRequest {
 
 type Handler<T> = (req: T) => void
 
+/**
+ * What the Export Video sheet opens with (03 §11.1). `choices` fills the Plays popup ("All Graded Plays (20)",
+ * "Shown in the Reel (11)", "Selected Plays (3)"); the first one is the default unless `initial` names another.
+ */
+export interface ExportSheetRequest {
+  source: ExportSource
+  /** The sheet's subtitle ("Cooper DeJean · 2025 reel"). */
+  title?: string
+  choices?: { key: string; label: string; plays: PlayRef[] }[]
+  initial?: string
+  /** The burned-in player for cut-up and tape-room sources (the page's player always wins for player sources). */
+  playerId?: string | null
+  /** Default angle: the reel's or cut-up's current one. */
+  angle?: 'sideline' | 'endzone' | 'main' | 'sideBySide'
+}
+
 let addHandler: Handler<AddToCutupRequest> | null = null
-let exportHandler: Handler<{ source: ExportSource; title?: string }> | null = null
+let exportHandler: Handler<ExportSheetRequest> | null = null
 const listeners = new Set<() => void>()
 const changed = () => listeners.forEach((l) => l())
 
@@ -35,7 +51,7 @@ export function onAddToCutupRequest(handler: Handler<AddToCutupRequest>): () => 
 }
 
 /** The export owner calls this once; returns an unregister function. */
-export function onExportVideoRequest(handler: Handler<{ source: ExportSource; title?: string }>): () => void {
+export function onExportVideoRequest(handler: Handler<ExportSheetRequest>): () => void {
   exportHandler = handler
   changed()
   return () => {
@@ -56,9 +72,9 @@ export function useExportVideoAvailable(): boolean {
   )
 }
 
-export function requestExportVideo(source: ExportSource, title?: string): boolean {
+export function requestExportVideo(source: ExportSource, title?: string, opts: Omit<ExportSheetRequest, 'source' | 'title'> = {}): boolean {
   if (!exportHandler) return false
-  exportHandler({ source, title })
+  exportHandler({ ...opts, source, title })
   return true
 }
 
