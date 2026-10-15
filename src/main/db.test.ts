@@ -87,6 +87,31 @@ describe('Store.openOrRecover', () => {
     expect(fresh.gradesForGame('g')).toEqual([])
   })
 
+  it('moves a file with a damaged schema aside', async () => {
+    const { store, file } = await freshStore()
+    store.saveGrade({ gameId: 'g', playId: 1, playerId: 'p1', team: 'DAL', grade: 1, tags: [], note: '' })
+    store.close()
+    const bytes = await readFile(file)
+    bytes.write('CREATE TABLX', bytes.indexOf('CREATE TABLE clips'))
+    await writeFile(file, bytes)
+    const { store: fresh, movedTo } = await Store.openOrRecover(file)
+    expect(movedTo).not.toBeNull()
+    expect(await readFile(movedTo!)).toEqual(bytes)
+    expect(fresh.gradesForGame('g')).toEqual([])
+  })
+
+  it('moves a file with a damaged header aside', async () => {
+    const { store, file } = await freshStore()
+    store.close()
+    const bytes = await readFile(file)
+    // Offset 44 holds the schema format number, which SQLite refuses above 4.
+    bytes.writeUInt32BE(99, 44)
+    await writeFile(file, bytes)
+    const { movedTo } = await Store.openOrRecover(file)
+    expect(movedTo).not.toBeNull()
+    expect(await readFile(movedTo!)).toEqual(bytes)
+  })
+
   it('leaves the file alone when opening fails for another reason', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'all22-db-'))
     const file = join(dir, 'grades.sqlite')

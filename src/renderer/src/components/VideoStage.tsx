@@ -81,30 +81,44 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
 
   useEffect(() => setError(null), [clip])
 
-  // Clips can be 30 or 60 fps (or 29.97/59.94), so learn the frame length from the smallest gap between
-  // frames shown while the clip plays. Faster than 1× can skip frames, so only normal or slow playback counts.
+  // Clips can be 30 or 60 fps (or 29.97/59.94), so learn the frame length from the smallest gap between frames
+  // shown while the clip plays. Above 1× the screen skips frames, so that gap can span several; media time over
+  // frames decoded (the decoder skips none) says how many. A seek re-decodes from a keyframe, so it starts over.
   useEffect(() => {
     const v = video.current
     if (!v) return
-    let last = -1
+    let start: { time: number; frames: number } | null = null
+    let last = 0
     let gap = Infinity
-    let samples = 0
     let id = 0
     const onFrame: VideoFrameRequestCallback = (_now, meta) => {
-      const d = meta.mediaTime - last
-      last = meta.mediaTime
-      if (!v.paused && v.playbackRate <= 1 && d > 0) {
-        gap = Math.min(gap, d)
-        if (++samples >= 12) {
-          const snapped = snapFrame(gap)
-          if (snapped) setFrame(snapped)
-          return
+      const frames = v.getVideoPlaybackQuality().totalVideoFrames
+      if (v.paused || !start) {
+        start = v.paused ? null : { time: meta.mediaTime, frames }
+        gap = Infinity
+      } else {
+        if (meta.mediaTime > last) gap = Math.min(gap, meta.mediaTime - last)
+        if (meta.mediaTime - start.time >= 1) {
+          const rough = (meta.mediaTime - start.time) / (frames - start.frames)
+          const snapped = snapFrame(gap / Math.max(1, Math.round(gap / rough)))
+          if (snapped) {
+            setFrame(snapped)
+            return
+          }
+          start = { time: meta.mediaTime, frames }
+          gap = Infinity
         }
       }
+      last = meta.mediaTime
       id = v.requestVideoFrameCallback(onFrame)
     }
+    const onSeeking = () => (start = null)
     id = v.requestVideoFrameCallback(onFrame)
-    return () => v.cancelVideoFrameCallback(id)
+    v.addEventListener('seeking', onSeeking)
+    return () => {
+      v.cancelVideoFrameCallback(id)
+      v.removeEventListener('seeking', onSeeking)
+    }
   }, [clip])
 
   // The drawing layer maps 0–1 coordinates onto the visible picture (the video is letterboxed).

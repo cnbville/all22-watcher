@@ -347,6 +347,9 @@ function Room({
   })
 
   const onEnded = () => {
+    // Don't change plays under a note still being typed: the rest of it would land as hotkeys on the next play.
+    const typing = document.activeElement
+    if ((typing instanceof HTMLTextAreaElement || (typing instanceof HTMLInputElement && typing.type === 'text')) && typing.closest('.tape-side')) return
     if (settings.autoAdvance) go(1)
   }
 

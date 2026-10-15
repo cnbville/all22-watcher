@@ -113,7 +113,7 @@ export class Store {
     try {
       return { store: await Store.open(file, wasmDir), movedTo: null }
     } catch (e) {
-      if (!existsSync(file) || !/file is not a database|database disk image is malformed/.test(String(e))) throw e
+      if (!existsSync(file) || !/file is not a database|malformed|unsupported file format/.test(String(e))) throw e
       const movedTo = `${file}.corrupt-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`
       renameSync(file, movedTo)
       return { store: await Store.open(file, wasmDir), movedTo }
