@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { FilterToken } from '@shared/playQuery'
 import { gradeScore, netScore, plusRate } from '@shared/stats'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { ChartField, FilmLibraryItem, PlayerProfile, TagDef, TeamSummary } from '@shared/types'
 import { api } from '../../api'
 import { experienceLabel, formatPct, formatSigned, heightLabel } from '../../format'
-import { Avatar } from '../../ui/Avatar'
 import { Button } from '../../ui/Button'
-import { RingGauge } from '../../ui/charts/RingGauge'
 import { EmptyState } from '../../ui/EmptyState'
 import { Segmented } from '../../ui/Segmented'
 import type { SearchToken } from '../../ui/SearchField'
-import { TeamDot, teamStyle } from '../../ui/TeamChip'
+import { TeamLogo } from '../../ui/TeamChip'
 import { useCommand, useDynamicMenus } from '../../shell/commands'
 import { exportReport, playerMenu, showMenu } from '../../shell/contextMenus'
 import { useDataEvent } from '../../shell/dataEvents'
@@ -19,13 +17,13 @@ import { links, navigate, useHistory, useRoute } from '../../shell/router'
 import { CollapsingTitle, Loading, LoadError, Screen, useScrollRestore } from '../../shell/Screen'
 import { useSeasons } from '../../shell/store'
 import { Toolbar } from '../../shell/Toolbar'
-import { readLocal, type ReelEntry, requestExportVideo, useExportVideoAvailable, useLoaded, useRouteState } from '../shared'
+import { Poster, readLocal, type ReelEntry, requestExportVideo, useExportVideoAvailable, useLoaded, useRouteState } from '../shared'
 import { SeasonGate } from '../shared/SeasonGate'
 import { Career } from './Career'
 import { FilmSection, filmReelState } from './FilmSection'
 import { fromFilter, parseTokensParam, suggest, type TokenEnv, tokenPool, toFilter } from './filmTokens'
 import { GameLogSection } from './GameLog'
-import { type PlayerSection, PLAYER_SECTIONS, reelEntries, type ReelSort, teamsLine } from './model'
+import { heroPoster, type PlayerSection, PLAYER_SECTIONS, positionName, reelEntries, type ReelSort, teamsLine, trendNote } from './model'
 import { Overview } from './Overview'
 import { Splits } from './Splits'
 import './player.css'
@@ -306,40 +304,45 @@ function PlayerHeader({ ctx }: { ctx: PlayerCtx }) {
   const player = p.player
   const team = TEAM_BY_ABBR[player.team]
   const score = gradeScore(p.tally)
-  const bio = [player.college, heightLabel(player.height), player.weight ? `${player.weight} lb` : '', experienceLabel(player.yearsExp)].filter(Boolean).join(' · ')
+  const t = p.tally
+  const pos = player.depthPos || player.position
+  const bio = [heightLabel(player.height), player.weight ? `${player.weight} lb` : '', player.college, experienceLabel(player.yearsExp), t.graded ? `${t.graded} ${t.graded === 1 ? 'play' : 'plays'} graded` : '']
+    .filter(Boolean)
+    .join(' · ')
   const moved = teamsLine(p)
   const menu = (e: React.MouseEvent) => void showMenu(e, playerMenu(season, player))
-  const t = p.tally
+  const poster = useMemo(() => heroPoster(ctx.entries), [ctx.entries])
+  const art = useBleed()
+  const trend = trendNote(p)
   const tip = t.graded
     ? `${t.plus} plus · ${t.zero} zero · ${t.minus} minus · ${t.critical} critical · net ${formatSigned(netScore(t))} · ${formatPct(plusRate(t))} plus`
     : 'Not graded yet'
   return (
-    <CollapsingTitle className="player-header" test="player-header">
-      <div className="player-header__rule" style={teamStyle(player.team)} />
-      <div className="player-header__row">
-        <span onContextMenu={menu}>
-          <Avatar url={player.headshot} name={player.name} size={96} team={player.team} />
-        </span>
-        <div className="player-header__text">
-          <h1 className="player-header__name" onContextMenu={menu}>
-            {player.name}
-          </h1>
-          <div className="player-header__line">
-            <TeamDot abbr={player.team} size={10} />
+    <CollapsingTitle className="player-hero" test="player-header">
+      <div ref={art} className="player-hero__art" data-keyart aria-hidden>
+        {poster && <Poster poster={poster} width={1600} className="player-hero__still" />}
+      </div>
+      <div className="player-hero__content">
+        <div className="player-hero__text">
+          <div className="player-hero__line">
+            <TeamLogo abbr={player.team} size={20} />
             <span>
-              {player.jersey ? `#${player.jersey} · ` : ''}
-              {player.depthPos || player.position} ·{' '}
-              <a className="player-header__link" onClick={() => navigate(links.team(season, player.team))}>
+              {[positionName(pos), player.jersey ? `No. ${player.jersey}` : ''].filter(Boolean).join(' · ')}
+              {' · '}
+              <a className="player-hero__link" onClick={() => navigate(links.team(season, player.team))}>
                 {team?.name ?? player.team}
               </a>
             </span>
           </div>
-          {bio && <div className="player-header__bio">{bio}</div>}
+          <h1 className="player-hero__name" onContextMenu={menu}>
+            {player.name}
+          </h1>
+          {bio && <div className="player-hero__bio num">{bio}</div>}
           {moved && (
-            <div className="player-header__bio">
+            <div className="player-hero__bio">
               {moved.before}
               {moved.link && (
-                <a className="player-header__link" onClick={() => navigate(links.team(season, moved.link!.abbr))}>
+                <a className="player-hero__link" onClick={() => navigate(links.team(season, moved.link!.abbr))}>
                   {moved.link.text}
                 </a>
               )}
@@ -347,13 +350,29 @@ function PlayerHeader({ ctx }: { ctx: PlayerCtx }) {
             </div>
           )}
         </div>
-        <div className="player-header__grade" title={tip}>
-          <RingGauge score={score} size={120} label="Grade" />
-          <div className="player-header__graded">{t.graded ? `${t.graded} ${t.graded === 1 ? 'play' : 'plays'} graded` : 'Not graded yet'}</div>
+        <div className="player-hero__grade" title={tip} data-test="player-grade">
+          <span className="player-hero__score num">{score === null ? '—' : Math.round(score)}</span>
+          <span className="player-hero__note">{t.graded ? (trend ? `Season grade, ${trend.charAt(0).toLowerCase()}${trend.slice(1)}` : 'Season grade') : 'Not graded yet'}</span>
         </div>
       </div>
     </CollapsingTitle>
   )
+}
+
+/** Lets the key art run the full width of the content column, past the page's max width and side padding. */
+function useBleed() {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    const content = document.getElementById('content')
+    if (!el || !content) return
+    const set = () => el.style.setProperty('--bleed-w', `${content.clientWidth}px`)
+    set()
+    const ro = new ResizeObserver(set)
+    ro.observe(content)
+    return () => ro.disconnect()
+  }, [])
+  return ref
 }
 
 export { firstName }

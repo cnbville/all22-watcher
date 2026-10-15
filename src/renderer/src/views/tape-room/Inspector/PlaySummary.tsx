@@ -19,10 +19,11 @@ export function epaText(epa: number | null): string | null {
   return `EPA ${epa >= 0 ? '+' : '−'}${Math.abs(epa).toFixed(2)}`
 }
 
-/** "2nd & Goal at DAL 3", "Kickoff at DAL 35". */
+/** "2nd & Goal at DAL 3", "Kickoff at DAL 35", "1st & 10 at midfield". */
 export function situationText(p: Play): string {
   const base = p.down ? downDistance(p) : playTypeLabel(p.playType)
-  return p.yrdln ? `${base} at ${p.yrdln}` : base
+  if (!p.yrdln) return base
+  return /^(?:[A-Z]+ )?50$/.test(p.yrdln.trim()) ? `${base} at midfield` : `${base} at ${p.yrdln}`
 }
 
 /** The pinned play summary (02 §6.2): situation and Flag toggle, the result line, and the description. */

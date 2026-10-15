@@ -16,7 +16,8 @@ export const FILES = {
   pbp: (s: number) => `${BASE}/pbp/play_by_play_${s}.csv.gz`,
   participation: (s: number) => `${BASE}/pbp_participation/pbp_participation_${s}.csv`,
   roster: (s: number) => `${BASE}/rosters/roster_${s}.csv`,
-  playerStats: (s: number) => `${BASE}/stats_player/stats_player_week_${s}.csv`
+  playerStats: (s: number) => `${BASE}/stats_player/stats_player_week_${s}.csv`,
+  teams: () => `${BASE}/teams/teams_colors_logos.csv`
 }
 
 /** Opens a download as a stream, or returns null when the file doesn't exist (404). */
@@ -41,9 +42,9 @@ export function webFetcher(fetchImpl: (url: string) => Promise<Response>): Fetch
   }
 }
 
-type Row = Record<string, string>
+export type Row = Record<string, string>
 
-function parseCsv(stream: Readable, gz: boolean, onRow: (row: Row) => void): Promise<void> {
+export function parseCsv(stream: Readable, gz: boolean, onRow: (row: Row) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const parser = Papa.parse(Papa.NODE_STREAM_INPUT, { header: true, skipEmptyLines: true })
     parser.on('data', (row: Row) => {

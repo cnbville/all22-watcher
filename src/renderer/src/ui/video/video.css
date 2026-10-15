@@ -43,13 +43,14 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    height: 20px;
-    padding: 0 8px;
-    border-radius: 10px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 11px;
     background: var(--mat-hud);
     backdrop-filter: var(--mat-hud-filter);
+    box-shadow: inset 0 0 0 0.5px var(--mat-hud-border);
     color: var(--hud-label);
-    font: 500 11px/14px var(--font-text);
+    font: 400 12px/15px var(--font-text);
     white-space: nowrap;
     pointer-events: none;
     transition: opacity var(--dur-fast);
@@ -119,10 +120,10 @@
   }
   .pane-message__button {
     margin-top: 16px;
-    height: 24px;
-    padding: 0 12px;
+    height: 28px;
+    padding: 0 14px;
     border: 0;
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     background: var(--hud-on);
     color: var(--hud-label);
     font: 500 13px/16px var(--font-text);
@@ -147,19 +148,45 @@
   }
 
   /* Transport HUD (large: two rows plus the drawing lane; compact: one 44px row) */
+  /* Floats on glass over the picture: no border, a hairline inside, and it fades (and settles 4px) when idle. */
   .transport-hud {
     position: absolute;
     z-index: 20;
-    transition: opacity var(--dur-fast);
+    border: 0;
+    box-shadow:
+      inset 0 0 0 0.5px var(--mat-hud-border),
+      var(--shadow-hud);
+    transition:
+      opacity var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
   }
   .transport-hud[data-state='hidden'] {
-    transition: opacity var(--dur-base);
+    transform: translateY(4px);
+    transition:
+      opacity var(--dur-slow) var(--ease-in-out),
+      transform var(--dur-slow) var(--ease-in-out);
   }
   .transport-hud--large {
     display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
+    padding: 6px 12px;
+    border-radius: 14px;
+  }
+  .transport-hud .hud__button {
+    border-radius: var(--r-lg);
+    color: var(--hud-label-2);
+  }
+  .transport-hud .hud__button:hover:not(:disabled),
+  .transport-hud .hud__button[aria-pressed='true'] {
+    color: var(--hud-label);
+  }
+  .transport-hud .hud__button[data-test='hud-play'] {
+    color: var(--hud-label);
+  }
+  .transport-hud .hud__button:disabled {
+    color: var(--hud-label-3);
   }
   .transport-hud__row {
     position: relative;
@@ -222,10 +249,10 @@
     height: 32px;
     padding: 0 8px;
     border: 0;
-    border-radius: var(--r-md);
+    border-radius: var(--r-lg);
     background: transparent;
-    color: var(--hud-label);
-    font: 500 12px/15px var(--font-text);
+    color: var(--hud-label-2);
+    font: 400 12px/15px var(--font-text);
     white-space: nowrap;
   }
   .hud__text-button:hover:not(:disabled) {
@@ -237,8 +264,11 @@
   .hud__text-button:disabled {
     color: var(--hud-label-3);
   }
+  .hud__text-button:hover:not(:disabled) {
+    color: var(--hud-label);
+  }
   .hud__text-button .icon {
-    color: var(--hud-label-2);
+    color: var(--hud-label-3);
   }
   .hud__speed {
     justify-content: center;
@@ -252,7 +282,7 @@
     max-width: 104px;
     padding: 0 8px;
     color: var(--hud-label-2);
-    font: 500 12px/15px var(--font-text);
+    font: 400 12px/15px var(--font-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -265,7 +295,7 @@
     text-overflow: ellipsis;
   }
   .hud__time {
-    font: var(--t-mono-md);
+    font: var(--t-mono-sm);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     padding: 0;
@@ -274,16 +304,16 @@
   }
   .hud__time--elapsed {
     text-align: right;
-    color: var(--hud-label);
+    color: var(--hud-label-2);
     cursor: pointer;
   }
   .hud__time--elapsed:disabled {
     cursor: default;
-    color: var(--hud-label);
+    color: var(--hud-label-2);
   }
   .hud__time--duration {
     text-align: left;
-    color: var(--hud-label-2);
+    color: var(--hud-label-3);
   }
   .transport-hud--compact .hud__time {
     width: 48px;
@@ -301,9 +331,12 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 8px;
-    height: 4px;
-    border-radius: 2px;
+    top: 8.5px;
+    height: 3px;
+    border-radius: 1.5px;
+    transition:
+      height var(--dur-fast) var(--ease-out),
+      top var(--dur-fast) var(--ease-out);
     background: var(--scrub-track);
     overflow: hidden;
   }
@@ -375,6 +408,10 @@
     border-radius: 1px;
     background: var(--accent);
   }
+  .scrubber:hover .scrubber__track {
+    top: 8px;
+    height: 4px;
+  }
   .scrubber[aria-disabled='true'] .scrubber__track {
     opacity: 0.5;
   }
@@ -439,14 +476,16 @@
     left: 50%;
     z-index: 30;
     transform: translateX(-50%);
-    height: 28px;
-    padding: 0 14px;
-    border-radius: 14px;
+    height: 30px;
+    padding: 0 16px;
+    border-radius: 15px;
     background: var(--mat-hud);
     backdrop-filter: var(--mat-hud-filter);
-    box-shadow: var(--shadow-hud);
+    box-shadow:
+      inset 0 0 0 0.5px var(--mat-hud-border),
+      var(--shadow-hud);
     color: var(--hud-label);
-    font: 500 13px/28px var(--font-text);
+    font: 400 13px/30px var(--font-text);
     white-space: nowrap;
     pointer-events: none;
     animation: viewer-toast-in var(--dur-fast) var(--ease-out);

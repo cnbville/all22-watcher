@@ -4,7 +4,6 @@ import type { PlayerSeasonLine, SeasonStatus } from '@shared/types'
 import { api } from '../../api'
 import { formatSigned, statColumns, weekCode } from '../../format'
 import { Button } from '../../ui/Button'
-import { RingGauge } from '../../ui/charts/RingGauge'
 import { Sparkline } from '../../ui/charts/Sparkline'
 import { Icon } from '../../ui/Icon'
 import { ProgressRing } from '../../ui/Progress'
@@ -199,8 +198,10 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
     <div data-test="player-career">
       <div className="career-summary">
         <div className="career-summary__ring">
-          <RingGauge score={gradeScore(career)} size={72} label="Career" />
+          <span className="career-summary__score num">{gradeScore(career) === null ? '—' : Math.round(gradeScore(career)!)}</span>
           <span className="career-summary__text">
+            <span className="career-summary__label">Career grade</span>
+            <br />
             {withLines} {withLines === 1 ? 'season' : 'seasons'} · {career.graded} {career.graded === 1 ? 'play' : 'plays'} graded
           </span>
         </div>

@@ -5,12 +5,12 @@ import { mixOklab, withAlpha } from './color'
  * OKLab with an easing exponent so values near 50 stay calm. Ink is for numbers and glyphs, fill for bars.
  */
 export const HEAT = {
-  lo: '#EF5A5F',
-  mid: '#9B9BA4',
-  hi: '#4FC98C',
-  loFill: '#8A3A3E',
-  midFill: '#4A4A52',
-  hiFill: '#2C7A55'
+  lo: '#CF8A80',
+  mid: '#8E8E93',
+  hi: '#86B596',
+  loFill: '#6E4440',
+  midFill: '#46464C',
+  hiFill: '#3D5F49'
 } as const
 
 function build(mid: string, lo: string, hi: string): string[] {

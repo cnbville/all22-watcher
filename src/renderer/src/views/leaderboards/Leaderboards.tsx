@@ -5,7 +5,6 @@ import { api } from '../../api'
 import { formatEpa, formatPct } from '../../format'
 import { Avatar } from '../../ui/Avatar'
 import { Button } from '../../ui/Button'
-import { RingGauge } from '../../ui/charts/RingGauge'
 import { Sparkline } from '../../ui/charts/Sparkline'
 import { EmptyState } from '../../ui/EmptyState'
 import { GradeBadge, TallyBar } from '../../ui/Grade'
@@ -16,7 +15,7 @@ import { PopupButton } from '../../ui/PopupButton'
 import { Segmented } from '../../ui/Segmented'
 import { Stepper } from '../../ui/Stepper'
 import { type Column, Table } from '../../ui/Table'
-import { TeamChip } from '../../ui/TeamChip'
+import { TeamChip, TeamLogo } from '../../ui/TeamChip'
 import { banner, errorBanner } from '../../shell/Banners'
 import { useCommand, useDynamicMenus } from '../../shell/commands'
 import { playerMenu, showMenu } from '../../shell/contextMenus'
@@ -403,9 +402,11 @@ function LeaderContent({
   ]
   const shown = columns.filter((c) => !hide.has(c.id))
 
+  const podium = q.trim() ? [] : ranked.slice(0, 3)
   return (
     <>
       {header}
+      {podium.length > 0 && <TopShelf views={podium} season={season} total={ranked.length} />}
       <div ref={measure} className="leaders__table">
         {!rows.length ? (
           <EmptyState icon="search" title={`No Results for “${q.trim()}”`} body="Check the spelling, or try a team’s name or abbreviation." />
@@ -427,6 +428,45 @@ function LeaderContent({
         )}
       </div>
     </>
+  )
+}
+
+/** The top three as quiet cards above the table: headshot, name, team logo and the grade as one light number. */
+function TopShelf({ views, season, total }: { views: LeaderView[]; season: number; total: number }) {
+  return (
+    <div className="leaders-top" data-test="leaders-top">
+      {views.map((v) => {
+        const team = v.teams[v.teams.length - 1]
+        return (
+          <button
+            key={v.id}
+            type="button"
+            className="leaders-top__card"
+            onClick={() => navigate(links.player(season, v.id))}
+            onContextMenu={(e) => void showMenu(e, playerMenu(season, v.row.player))}
+            title={`Open ${v.name}`}
+          >
+            <span className="leaders-top__rank">{v.tied ? `T-${v.rank}` : v.rank} of {total}</span>
+            <span className="leaders-top__who">
+              <Avatar url={v.row.player.headshot} name={v.name} size={44} team={team} />
+              <span className="leaders-top__names">
+                <span className="leaders-top__name">{v.name}</span>
+                <span className="leaders-top__line">
+                  <TeamLogo abbr={team} size={16} />
+                  {[v.position, TEAM_BY_ABBR[team]?.nickname ?? team].join(' · ')}
+                </span>
+              </span>
+            </span>
+            <span className="leaders-top__grade">
+              <span className="leaders-top__score num">{v.grade === null ? '—' : Math.round(v.grade)}</span>
+              <span className="leaders-top__sub num">
+                {v.graded} graded · {v.games} {v.games === 1 ? 'game' : 'games'}
+              </span>
+            </span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -456,7 +496,7 @@ function LeaderInspector({ view, total, season, tags, library }: { view: LeaderV
         </div>
         <InspectorSection id="grade" title="Grade">
           <div className="leaders-inspector__grade">
-            <RingGauge score={view.grade} size={72} />
+            <span className="leaders-inspector__score num">{view.grade === null ? '—' : Math.round(view.grade)}</span>
             <div>
               <div className="leaders-inspector__rank">
                 Rank {view.rank} of {total}
@@ -474,7 +514,7 @@ function LeaderInspector({ view, total, season, tags, library }: { view: LeaderV
           </div>
         </InspectorSection>
         {view.trend.length > 0 && (
-          <InspectorSection id="byGame" title="By Game">
+          <InspectorSection id="byGame" title="By game">
             {view.trend.length > 1 ? (
               <>
                 <Sparkline values={view.trend} width={120} height={32} />
@@ -489,7 +529,7 @@ function LeaderInspector({ view, total, season, tags, library }: { view: LeaderV
           </InspectorSection>
         )}
         {view.row.topTags.length > 0 && (
-          <InspectorSection id="tags" title="Top Tags">
+          <InspectorSection id="tags" title="Top tags">
             <div className="leaders-inspector__tags">
               {view.row.topTags.map((tag) => {
                 const kind = polarity.get(tag.tag) ?? 'neutral'

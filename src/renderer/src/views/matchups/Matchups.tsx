@@ -12,7 +12,7 @@ import type { MenuItemSpec } from '../../ui/Menu'
 import { Popover } from '../../ui/Popover'
 import { PopupButton } from '../../ui/PopupButton'
 import { ProgressBar } from '../../ui/Progress'
-import { TeamBadge, TeamDot } from '../../ui/TeamChip'
+import { TeamBadge, TeamLogo } from '../../ui/TeamChip'
 import { useCommand } from '../../shell/commands'
 import { gameMenu, playerMenu, showMenu, teamMenu } from '../../shell/contextMenus'
 import { useDataEvent } from '../../shell/dataEvents'
@@ -133,7 +133,7 @@ function Well({ side, team, other, index, onPick }: { side: 'left' | 'right'; te
       >
         {t ? (
           <>
-            <TeamBadge abbr={t.abbr} />
+            <TeamBadge abbr={t.abbr} size={56} />
             <div className="matchup-well__text">
               <div className="matchup-well__name">{t.name}</div>
               <div className="matchup-well__sub">{[rec ? recordLabel(rec.wins, rec.losses, rec.ties) : '', t.division].filter(Boolean).join(' · ')}</div>
@@ -154,7 +154,7 @@ function Well({ side, team, other, index, onPick }: { side: 'left' | 'right'; te
         ) : (
           <div className="matchup-well__empty">
             <Icon name="shield" size={32} />
-            <span>Choose Team</span>
+            <span>Choose team</span>
           </div>
         )}
       </div>
@@ -197,7 +197,7 @@ function PickerLists({ season, index }: { season: number; index: ReturnType<type
     <>
       {shownWeek !== null && (
         <Section
-          title={sample ? `${weekName(sample)} Games` : `Week ${shownWeek} Games`}
+          title={sample ? `${weekName(sample)} games` : `Week ${shownWeek} games`}
           className="matchup-section"
           trailing={
             <PopupButton<string>
@@ -219,11 +219,11 @@ function PickerLists({ season, index }: { season: number; index: ReturnType<type
               return (
                 <button key={g.gameId} type="button" className="matchup-list__row" data-test="matchup-game" onClick={() => openMatchup(season, l, r, false)}>
                   <span className="matchup-list__teams">
-                    <TeamDot abbr={g.awayTeam} size={8} />
+                    <TeamLogo abbr={g.awayTeam} size={20} />
                     <span>
                       {g.awayTeam} @ {g.homeTeam}
                     </span>
-                    <TeamDot abbr={g.homeTeam} size={8} />
+                    <TeamLogo abbr={g.homeTeam} size={20} />
                   </span>
                   <span className="matchup-list__date">{dayLabel(g.gameday)}</span>
                   <span className="matchup-list__records num">
@@ -242,11 +242,11 @@ function PickerLists({ season, index }: { season: number; index: ReturnType<type
             {recent.map((m) => (
               <button key={`${m.left}|${m.right}|${m.season}`} type="button" className="matchup-list__row" onClick={() => openMatchup(m.season, m.left, m.right, false)}>
                 <span className="matchup-list__teams">
-                  <TeamDot abbr={m.left} size={8} />
+                  <TeamLogo abbr={m.left} size={20} />
                   <span>
                     {m.left} vs {m.right}
                   </span>
-                  <TeamDot abbr={m.right} size={8} />
+                  <TeamLogo abbr={m.right} size={20} />
                 </span>
                 <span className="matchup-list__date">{m.season}</span>
                 <span />
@@ -375,7 +375,7 @@ function HeaderTeam({ side, season, dir, other }: { side: MatchupSide; season: n
         onClick={() => setOpen((o) => !o)}
         onContextMenu={(e) => void showMenu(e, teamMenu(season, t.abbr))}
       >
-        <TeamBadge abbr={t.abbr} />
+        <TeamBadge abbr={t.abbr} size={64} />
         <span className="matchup-header__names">
           <span className="matchup-header__name">{t.name}</span>
           <span className="matchup-header__sub">{[s ? recordLabel(s.wins, s.losses, s.ties) : '', t.division].filter(Boolean).join(' · ')}</span>
@@ -421,7 +421,7 @@ function Possession({
   })
   const ungraded = [L, R].filter((s, i) => !hasGradedUnit(s.players, (i === 0 ? leftUnit : rightUnit) as 'offense' | 'defense'))
   return (
-    <Section title={`When the ${nick(off.team.abbr)} Have the Ball`} className="matchup-section" test={`matchup-possession-${offense}`}>
+    <Section title={`When the ${nick(off.team.abbr)} have the ball`} className="matchup-section" test={`matchup-possession-${offense}`}>
       <div className="matchup-sub">League ranks</div>
       <div className="matchup-versus">
         {RANK_ROWS.map((r) => {
@@ -516,7 +516,7 @@ function FilmBlock({ m, season, latestPlayed }: { m: MatchupData; season: number
         <FilmColumn side={m.left} season={season} latestPlayed={latestPlayed} />
         <FilmColumn side={m.right} season={season} latestPlayed={latestPlayed} />
       </div>
-      <div className="matchup-sub matchup-sub--spaced">Previous Meetings</div>
+      <div className="matchup-sub matchup-sub--spaced">Previous meetings</div>
       {m.meetings.filter((x) => played(x.game)).length === 0 ? (
         <div className="matchup-watch__none">These teams haven’t met in your downloaded seasons.</div>
       ) : (
@@ -539,7 +539,7 @@ function FilmBlock({ m, season, latestPlayed }: { m: MatchupData; season: number
                     {g.season} · {weekName(g)}
                   </span>
                   <span className="matchup-list__teams">
-                    <TeamDot abbr={g.awayTeam} size={8} />
+                    <TeamLogo abbr={g.awayTeam} size={20} />
                     <span>
                       {g.awayTeam} @ {g.homeTeam}
                     </span>
@@ -611,7 +611,7 @@ function FilmRow({ game, team }: { game: TeamGame; team: string }) {
     <div className="matchup-film-row" data-test="matchup-film-row" onDoubleClick={() => navigate(links.tape(game.gameId, team))}>
       <span className="matchup-film-row__week">{weekCode(game)}</span>
       <span className="matchup-list__teams">
-        <TeamDot abbr={opp} size={8} />
+        <TeamLogo abbr={opp} size={20} />
         <span>
           {game.homeTeam === team ? 'vs' : '@'} {opp}
         </span>

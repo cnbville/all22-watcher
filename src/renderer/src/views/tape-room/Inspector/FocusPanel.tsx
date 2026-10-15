@@ -1,26 +1,17 @@
-import type { CSSProperties } from 'react'
 import { critCount, gradeScore, tallyOf } from '@shared/stats'
 import { sideOfGroup } from '@shared/teams'
 import type { Grade } from '@shared/types'
 import { downDistance, lastName, quarterLabel } from '../../../format'
 import { Avatar } from '../../../ui/Avatar'
 import { Button } from '../../../ui/Button'
-import { RingGauge } from '../../../ui/charts/RingGauge'
-import { GRADE_GLYPH } from '../../../ui/Grade'
-import { gradeGlyphScore, heatVars, ink } from '../../../ui/heat'
-import { Keycap } from '../../../ui/Keycap'
-import { noMouseFocus } from '../../../ui/keyboard'
+import { gradeGlyphScore, ink } from '../../../ui/heat'
+import { Icon } from '../../../ui/Icon'
 import { ProgressBar } from '../../../ui/Progress'
 import { TextField } from '../../../ui/TextField'
 import { tagsFor } from '../grading'
 import type { Room } from '../model'
+import { GradeSegments } from './GradeSegments'
 import { SmallToggle, TagChip } from './GradingRow'
-
-const BIG: { grade: Grade; key: string; label: string; test: string }[] = [
-  { grade: -1, key: '−', label: 'Minus', test: 'grade-minus' },
-  { grade: 0, key: '0', label: 'Zero', test: 'grade-zero' },
-  { grade: 1, key: '=', label: 'Plus', test: 'grade-plus' }
-]
 
 /** The Focus panel (02 §9.5): the focus player's game so far and this snap's grade, toggles, tags and note. */
 export function FocusPanel({ room }: { room: Room }) {
@@ -59,26 +50,7 @@ export function FocusPanel({ room }: { room: Room }) {
           This snap · {quarterLabel(current.qtr)} {current.time}
           {current.down ? ` · ${downDistance(current)}` : ''}
         </div>
-        <div className="big-grade" role="group" aria-label="Grade">
-          {BIG.map((b) => (
-            <div key={b.grade} className="big-grade__cell">
-              <button
-                type="button"
-                className="big-grade__segment"
-                aria-pressed={grade === b.grade}
-                aria-label={b.label}
-                title={`${b.label} (${b.key})`}
-                data-test={b.test}
-                style={heatVars(gradeGlyphScore(b.grade)) as CSSProperties}
-                onMouseDown={noMouseFocus}
-                onClick={() => room.grade(player.id, b.grade, { toggle: true })}
-              >
-                {GRADE_GLYPH[b.grade]}
-              </button>
-              <Keycap small>{b.key}</Keycap>
-            </div>
-          ))}
-        </div>
+        <GradeSegments variant="large" value={grade} onChange={(g) => room.grade(player.id, g, { toggle: true })} />
         <div className="focus-panel__toggles">
           <SmallToggle
             size="md"
@@ -147,15 +119,21 @@ export function FocusPanel({ room }: { room: Room }) {
         <Button variant="borderless" size="sm" label="Exit" title="Exit Player Focus (⇧G)" onClick={room.exitFocus} />
       </div>
       <div className="focus-panel__summary">
-        <div className="focus-panel__ring">
-          <RingGauge score={score} size={72} label="Game grade" />
+        <div className="focus-panel__score" data-test="focus-score">
+          <span className="focus-panel__score-value" style={score === null ? undefined : { color: ink(score) }}>
+            {score === null ? '—' : Math.round(score)}
+          </span>
+          <span className="focus-panel__count-label">Game grade</span>
         </div>
         <div className="focus-panel__counts">
           {count(tally.plus, 'Plus', 1)}
-          {count(tally.zero, 'Zero', 0)}
+          {count(tally.zero, 'Even', 0)}
           {count(tally.minus, 'Minus', -1)}
           <div className="focus-panel__count">
-            <span className="focus-panel__count-value">⚡{crit}</span>
+            <span className="focus-panel__count-value focus-panel__count-value--crit">
+              <Icon name="zap" size={12} />
+              {crit}
+            </span>
             <span className="focus-panel__count-label">Critical</span>
           </div>
         </div>

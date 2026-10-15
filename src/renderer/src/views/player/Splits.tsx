@@ -234,7 +234,7 @@ function ByOpponent({ ctx }: { ctx: PlayerCtx }) {
   ]
   return (
     <Section
-      title="By Opponent"
+      title="By opponent"
       test="opponents-chart"
       trailing={<PopupButton<Measure> size="sm" value={measure} onChange={setMeasure} options={choices.map((c) => ({ value: c, label: MEASURES[c].label }))} />}
     >
@@ -294,7 +294,7 @@ function GradeVsEpa({ ctx }: { ctx: PlayerCtx }) {
         </div>
       </div>
       <div className="second-look">
-        <div className="second-look__title">Worth a Second Look</div>
+        <div className="second-look__title">Worth a second look</div>
         <div className="second-look__sub">Plays where your grade and EPA point opposite ways.</div>
         {look.length ? <PlayList entries={look} playerId={ctx.playerId} rowTest="second-look-row" /> : <div className="player-quiet">Your grades and EPA agree on every play.</div>}
       </div>

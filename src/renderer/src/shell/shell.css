@@ -17,7 +17,7 @@
   height: 100%;
   width: var(--sidebar-w);
   background: var(--transparent);
-  border-right: 1px solid var(--sep);
+  border-right: 0.5px solid var(--sep);
   transition: margin-left var(--dur-slow) var(--ease-in-out);
 }
 html[data-vibrancy='off'] .shell-sidebar,
@@ -53,7 +53,7 @@ html[data-reduce-transparency='true'] .shell-sidebar {
   display: flex;
   align-items: center;
   width: 100%;
-  height: 28px;
+  height: 30px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--r-md);
@@ -88,17 +88,24 @@ html[data-reduce-transparency='true'] .shell-sidebar {
   position: relative;
   display: flex;
   align-items: center;
-  height: var(--row-h);
-  margin: 0 10px;
+  height: 30px;
+  margin: 1px 10px;
   padding: 0 8px 0 10px;
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
+  color: var(--label-2);
+  font: 400 13px/16px var(--font-text);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.sidebar-row:hover {
+  background: var(--fill-4);
   color: var(--label);
 }
 .sidebar-row:active {
-  background: var(--fill-2);
+  background: var(--fill-3);
 }
 .sidebar-row[aria-selected='true'] {
-  background: var(--selection);
+  background: var(--fill-2);
+  color: var(--label);
 }
 html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
   background: var(--selection-inactive);
@@ -111,10 +118,10 @@ html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
   display: grid;
   place-items: center;
   flex: none;
-  width: 16px;
-  height: 16px;
-  margin-right: 8px;
-  color: var(--label-2);
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  color: var(--label-3);
 }
 .sidebar-row[aria-selected='true'] .sidebar-row__icon {
   color: var(--label);
@@ -147,7 +154,7 @@ html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
   user-select: text;
 }
 .sidebar-section {
-  margin-top: 12px;
+  margin-top: 20px;
 }
 .sidebar-section__header {
   display: flex;
@@ -158,8 +165,7 @@ html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
 }
 .sidebar-section__label {
   flex: 1;
-  font: var(--t-subheadline);
-  font-weight: 600;
+  font: 500 11px/14px var(--font-text);
   color: var(--label-3);
 }
 .sidebar-section__label[data-link]:hover {
@@ -186,8 +192,8 @@ html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
 }
 .shell-sidebar__footer {
   flex: none;
-  padding: 8px 0;
-  border-top: 1px solid var(--sep);
+  padding: 8px 0 10px;
+  border-top: 0.5px solid var(--sep);
 }
 .shell-sidebar__footer:empty {
   display: none;
@@ -254,6 +260,14 @@ html[data-window-focused='false'] .sidebar-row[aria-selected='true'] {
 }
 .shell-toolbar[data-separator] {
   border-bottom-color: var(--sep);
+}
+/* Over a page's key art (Theater) the toolbar is clear until the page scrolls under it. */
+.shell:has([data-keyart]) .shell-toolbar:not([data-separator]) {
+  background: var(--transparent);
+  backdrop-filter: none;
+}
+.shell-toolbar {
+  transition: border-color var(--dur-fast), background var(--dur-base), padding-left var(--dur-slow) var(--ease-in-out);
 }
 .shell[data-takeover] .shell-toolbar {
   background: var(--bg-content);
@@ -334,7 +348,26 @@ html[data-fullscreen='true'] .shell[data-sidebar='hidden'] .shell-toolbar {
   flex: none;
   display: flex;
   justify-content: center;
-  max-width: 360px;
+  max-width: 440px;
+}
+/* The centered section switch (Theater): a glass pill with a soft thumb, like the Apple TV app's tabs. */
+.shell-toolbar__center > .segmented {
+  height: 30px;
+  padding: 2px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-window) 62%, var(--transparent));
+  backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: inset 0 0 0 0.5px var(--hairline-inner);
+  font: 500 13px/16px var(--font-text);
+}
+.shell-toolbar__center > .segmented .segmented__thumb {
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--label) 16%, var(--transparent));
+  box-shadow: none;
+}
+.shell-toolbar__center > .segmented .segmented__item {
+  padding: 0 13px;
+  border-radius: 7px;
 }
 .shell-toolbar__center:empty {
   display: none;
@@ -726,7 +759,7 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
   color: var(--label-3);
 }
 
-/* ── Quick Open (01 §6.24) ───────────────────────────────────────────────── */
+/* ── Quick Open (01 §6.24), Theater: a Spotlight-like glass panel ───────── */
 
 .quick-open-backdrop {
   position: fixed;
@@ -735,29 +768,33 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: max(72px, 18vh);
-  background: var(--dim);
+  padding-top: max(72px, 16vh);
+  background: color-mix(in srgb, var(--video-black) 30%, var(--transparent));
   animation: fade-in var(--dur-fast) var(--ease-out);
 }
 .quick-open {
   display: flex;
   flex-direction: column;
-  width: 640px;
+  width: 600px;
   max-width: calc(100vw - 32px);
   overflow: hidden;
-  background: var(--mat-popover);
-  backdrop-filter: var(--mat-popover-filter);
-  border: 0.5px solid var(--mat-popover-border);
-  border-radius: var(--r-2xl);
-  box-shadow: var(--shadow-sheet);
+  background: color-mix(in srgb, var(--bg-window) 66%, var(--transparent));
+  backdrop-filter: blur(30px) saturate(1.6);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 0.5px var(--mat-popover-border), var(--shadow-sheet);
+}
+html[data-reduce-transparency='true'] .quick-open {
+  background: var(--mat-popover-solid);
+  backdrop-filter: none;
 }
 .quick-open__field {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 52px;
-  padding: 0 16px;
-  color: var(--label-3);
+  height: 54px;
+  padding: 0 18px;
+  color: var(--label-2);
 }
 .quick-open__field input {
   flex: 1;
@@ -774,64 +811,89 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
   color: var(--label-3);
 }
 .quick-open__results {
-  max-height: 420px;
+  max-height: 440px;
   overflow-y: auto;
-  padding: 4px 8px 8px;
-  border-top: 1px solid var(--sep);
+  padding: 2px 0 8px;
+  border-top: 0.5px solid var(--sep);
 }
 .quick-open__section {
   display: flex;
   align-items: flex-end;
-  height: 24px;
-  padding: 0 8px 4px;
-  font: var(--t-subheadline);
-  font-weight: 600;
+  height: 28px;
+  padding: 0 18px 5px;
+  font: 600 11px/14px var(--font-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--label-3);
 }
 .quick-open__row {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 40px;
-  padding: 0 8px;
-  border-radius: var(--r-md);
+  min-height: 46px;
+  padding: 6px 18px;
 }
 .quick-open__row[aria-selected='true'] {
-  background: var(--accent-fill);
-  color: var(--label-on-accent);
+  background: color-mix(in srgb, var(--label) 12%, var(--transparent));
 }
 .quick-open__leading {
   display: grid;
   place-items: center;
   flex: none;
-  width: 24px;
+  width: 54px;
   color: var(--label-2);
 }
-.quick-open__row[aria-selected='true'] .quick-open__leading,
-.quick-open__row[aria-selected='true'] .quick-open__detail {
-  color: var(--label-on-accent-2);
+.quick-open__tile {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-lg);
+  background: var(--fill-3);
+  color: var(--label-2);
 }
-.quick-open__title {
+.quick-open__still {
+  width: 54px;
+  border-radius: var(--r-sm);
+
+  .poster__placeholder svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+.quick-open__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   flex: 1;
   min-width: 0;
+}
+.quick-open__title {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font: var(--t-body);
+  font: 500 13px/17px var(--font-text);
+  color: var(--label);
 }
 .quick-open__detail {
-  flex: none;
-  max-width: 50%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font: var(--t-callout);
   color: var(--label-2);
 }
+.quick-open__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font: var(--t-callout);
+  color: var(--label-3);
+}
 .quick-open__empty {
-  padding: 28px 16px 32px;
+  padding: 28px 18px 32px;
   text-align: center;
-  border-top: 1px solid var(--sep);
+  border-top: 0.5px solid var(--sep);
 }
 .quick-open__empty-title {
   font: var(--t-body);
@@ -846,16 +908,19 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
   display: flex;
   align-items: center;
   gap: 16px;
-  height: 28px;
-  padding: 0 16px;
-  border-top: 1px solid var(--sep);
-  font: var(--t-subheadline);
+  height: 34px;
+  padding: 0 18px;
+  border-top: 0.5px solid var(--sep);
+  font: var(--t-callout);
   color: var(--label-3);
 }
 .quick-open__footer > span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+.quick-open__footer-end {
+  margin-left: auto;
 }
 
 /* ── Keyboard Shortcuts (01 §6.25) ───────────────────────────────────────── */
