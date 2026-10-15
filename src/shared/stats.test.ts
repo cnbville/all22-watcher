@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { addToTally, emptyTally, gradeScore, summarizeTeams } from './stats'
+import {
+  addToTally,
+  critCount,
+  emptyTally,
+  gradeScore,
+  meanTeamEpa,
+  netScore,
+  plusRate,
+  summarizeTeams,
+  tallyOf,
+  teamEpa,
+  teamSuccess
+} from './stats'
 import type { GameInfo, Play } from './types'
 
 const game = (home: string, away: string, hs: number, as: number): GameInfo => ({
@@ -62,7 +74,52 @@ describe('grade tallies', () => {
     addToTally(t, 1)
     addToTally(t, 0)
     addToTally(t, -1)
-    expect(t).toEqual({ graded: 4, plus: 2, zero: 1, minus: 1 })
+    expect(t).toEqual({ graded: 4, plus: 2, zero: 1, minus: 1, critical: 0, critPlus: 0, critMinus: 0 })
     expect(gradeScore(t)).toBe(63)
+  })
+
+  type G = [1 | 0 | -1 | null, boolean]
+  const score = (grades: G[]) => gradeScore(tallyOf(grades.map(([grade, critical]) => ({ grade, critical }))))
+  // 02 §12.4 reference values.
+  it.each([
+    ['+, +, 0, −', [[1, false], [1, false], [0, false], [-1, false]], 63],
+    ['+c, +, 0, −', [[1, true], [1, false], [0, false], [-1, false]], 70],
+    ['+, +, +, −c', [[1, false], [1, false], [1, false], [-1, true]], 60],
+    ['+c', [[1, true]], 100],
+    ['0c, +', [[0, true], [1, false]], 67],
+    ['−c, 0, 0', [[-1, true], [0, false], [0, false]], 25],
+    ['critical set, grade null', [[null, true]], null]
+  ] as [string, G[], number | null][])('weights critical grades double: %s', (_label, grades, expected) => {
+    expect(score(grades)).toBe(expected)
+  })
+
+  it('ignores critical on an ungraded entry and keeps displayed counts raw', () => {
+    const t = addToTally(emptyTally(), null, true)
+    expect(t).toEqual(emptyTally())
+    addToTally(t, 1, true)
+    addToTally(t, -1)
+    expect([t.plus, t.minus, t.critical, t.critPlus, netScore(t), plusRate(t)]).toEqual([1, 1, 1, 1, 0, 0.5])
+    expect(critCount([{ grade: 1, critical: true }, { grade: null, critical: true }, { grade: 0, critical: false }])).toBe(1)
+  })
+})
+
+describe('team EPA and success', () => {
+  const play = (extra: Partial<Play>): Play => p('PHI', 'DAL', 0.5, true, { special: false, ...extra })
+  it('negates EPA and success for the defense', () => {
+    expect(teamEpa(play({}), 'PHI')).toBe(0.5)
+    expect(teamEpa(play({}), 'DAL')).toBe(-0.5)
+    expect(teamEpa(play({}), 'NYG')).toBeNull()
+    expect(teamSuccess(play({ success: true }), 'PHI')).toBe(true)
+    expect(teamSuccess(play({ success: true }), 'DAL')).toBe(false)
+  })
+  it('has no team EPA on special teams, no-plays or missing EPA', () => {
+    expect(teamEpa(play({ special: true }), 'PHI')).toBeNull()
+    expect(teamEpa(play({ playType: 'no_play' }), 'PHI')).toBeNull()
+    expect(teamEpa(play({ epa: null }), 'PHI')).toBeNull()
+    expect(teamSuccess(play({ special: true }), 'PHI')).toBeNull()
+  })
+  it('averages team EPA over plays that have one', () => {
+    expect(meanTeamEpa([play({ epa: 1 }), play({ epa: -0.5 }), play({ special: true })], 'DAL')).toBeCloseTo(-0.25)
+    expect(meanTeamEpa([play({ special: true })], 'PHI')).toBeNull()
   })
 })

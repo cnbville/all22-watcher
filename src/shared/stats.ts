@@ -155,35 +155,101 @@ export function summarizeTeams(games: GameInfo[], plays: Iterable<Play>): TeamSu
 }
 
 export function emptyTally(): GradeTally {
-  return { graded: 0, plus: 0, zero: 0, minus: 0 }
+  return { graded: 0, plus: 0, zero: 0, minus: 0, critical: 0, critPlus: 0, critMinus: 0 }
 }
 
-export function addToTally(t: GradeTally, grade: Grade | null): GradeTally {
+/** Counts one entry. A null grade changes nothing (critical only counts once the entry has a grade). */
+export function addToTally(t: GradeTally, grade: Grade | null, critical = false): GradeTally {
   if (grade === null) return t
   t.graded++
   if (grade === 1) t.plus++
   else if (grade === -1) t.minus++
   else t.zero++
+  if (critical) {
+    t.critical++
+    if (grade === 1) t.critPlus++
+    else if (grade === -1) t.critMinus++
+  }
   return t
 }
 
-/** Net plays (plus minus minus). */
+/** Adds every count of `b` into `a`. */
+export function mergeTally(a: GradeTally, b: GradeTally): GradeTally {
+  a.graded += b.graded
+  a.plus += b.plus
+  a.zero += b.zero
+  a.minus += b.minus
+  a.critical += b.critical
+  a.critPlus += b.critPlus
+  a.critMinus += b.critMinus
+  return a
+}
+
+/** A tally of entries (grade + critical flag). */
+export function tallyOf(entries: Iterable<{ grade: Grade | null; critical?: boolean }>): GradeTally {
+  const t = emptyTally()
+  for (const e of entries) addToTally(t, e.grade, !!e.critical)
+  return t
+}
+
+/** Graded entries marked critical. */
+export function critCount(entries: Iterable<{ grade: Grade | null; critical?: boolean }>): number {
+  let n = 0
+  for (const e of entries) if (e.grade !== null && e.critical) n++
+  return n
+}
+
+/** Net plays (plus minus minus), raw counts. */
 export function netScore(t: GradeTally): number {
   return t.plus - t.minus
 }
 
-/** Share of graded plays that were positive, 0–1. */
+/** Share of graded plays that were positive, 0–1, raw counts. */
 export function plusRate(t: GradeTally): number {
   return t.graded ? t.plus / t.graded : 0
 }
 
 /**
- * A 0–100 grade: 50 is a neutral player, every play graded + pushes toward 100 and every – toward 0.
- * Plays graded 0 count as neutral.
+ * A 0–100 grade: 50 is a neutral player, every + pushes toward 100 and every − toward 0, 0 grades pull toward 50.
+ * A critical grade counts double: score = round(50 + 50 × Σ(w·g) / Σw) with w = 2 for critical entries.
  */
 export function gradeScore(t: GradeTally): number | null {
   if (!t.graded) return null
-  return Math.round(50 + (50 * (t.plus - t.minus)) / t.graded)
+  const num = t.plus - t.minus + t.critPlus - t.critMinus
+  const den = t.graded + t.critical
+  return Math.round(50 + (50 * num) / den)
+}
+
+/**
+ * EPA from `team`'s side: nflverse EPA is the offense's, so it is negated for the defense. Special teams plays,
+ * no-plays and plays without EPA have none.
+ */
+export function teamEpa(play: Play, team: string): number | null {
+  if (play.special || play.playType === 'no_play' || play.epa === null) return null
+  if (play.posteam === team) return play.epa
+  if (play.defteam === team) return play.epa === 0 ? 0 : -play.epa
+  return null
+}
+
+/** Offensive success from `team`'s side (negated for the defense); null when unknown or special teams. */
+export function teamSuccess(play: Play, team: string): boolean | null {
+  if (play.special || play.playType === 'no_play' || play.success === null) return null
+  if (play.posteam === team) return play.success
+  if (play.defteam === team) return !play.success
+  return null
+}
+
+/** Mean team EPA over the plays that have one; null when none does. */
+export function meanTeamEpa(plays: Play[], team: string): number | null {
+  let sum = 0
+  let n = 0
+  for (const p of plays) {
+    const v = teamEpa(p, team)
+    if (v === null) continue
+    sum += v
+    n++
+  }
+  return n ? sum / n : null
 }
 
 export function formatStat(value: number, format: TeamRankedStat['format']): string {
