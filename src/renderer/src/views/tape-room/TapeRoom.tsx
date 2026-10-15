@@ -226,7 +226,7 @@ function Room({
   settings,
   routeTeam,
   initialPlay,
-  reload
+  reload: reloadFilm
 }: {
   film: GameFilm
   tags: TagDef[]
@@ -308,6 +308,11 @@ function Room({
   // ── Data ──────────────────────────────────────────────────────────────────
   const revealRef = useRef<(t: UndoTarget) => void>(() => {})
   const data = useTapeData(film, undo, (t) => revealRef.current(t))
+  // A reload replaces the room's notes with the database's: drawing edits still waiting to save go first.
+  const reload = () => {
+    data.flushNotes()
+    reloadFilm()
+  }
   useDataEvent('film', () => {
     if (!data.consumeOwnFilmEvent()) reload()
   })
