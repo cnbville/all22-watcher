@@ -66,7 +66,7 @@ function HomeBody({ season, downloaded }: { season: number; downloaded: boolean 
     graded.reload()
     cards.reload()
   })
-  useDataEvent('cutups', cutups.reload)
+  useDataEvent(['cutups', 'grades', 'notes', 'film', 'season'], cutups.reload)
   useDataEvent('season', () => {
     cards.reload()
     summaries.reload()

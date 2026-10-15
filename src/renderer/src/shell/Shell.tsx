@@ -158,7 +158,8 @@ export function Shell({ children }: { children: ReactNode }) {
     rawApi.cutups().then(setCutups, () => setCutups([]))
   }, [])
   useEffect(loadCutups, [loadCutups])
-  useDataEvent('cutups', loadCutups)
+  // Smart cut-up counts change with grades, notes, film and seasons too.
+  useDataEvent(['cutups', 'grades', 'notes', 'film', 'season'], loadCutups)
   const loadBadges = useCallback(() => {
     if (!season) return
     rawApi.sidebarBadges(season).then(setBadges, () => undefined)

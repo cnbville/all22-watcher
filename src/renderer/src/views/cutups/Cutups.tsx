@@ -42,7 +42,7 @@ function useCutupList() {
     )
   }, [])
   useEffect(load, [load])
-  useDataEvent(['cutups', 'grades', 'film', 'season'], load)
+  useDataEvent(['cutups', 'grades', 'notes', 'film', 'season'], load)
   return { list, error, reload: load }
 }
 
