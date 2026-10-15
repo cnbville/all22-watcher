@@ -142,7 +142,9 @@ export function playFromRow(r: Row): Play {
     manZone: null,
     wasPressure: null,
     offensePlayers: [],
-    defensePlayers: []
+    defensePlayers: [],
+    drive: num(r.fixed_drive),
+    driveResult: str(r.fixed_drive_result)
   }
 }
 
@@ -384,7 +386,9 @@ export async function loadSeason(cacheDir: string, season: number): Promise<Seas
 export async function loadGamePlays(cacheDir: string, gameId: string): Promise<Play[]> {
   const season = gameId.slice(0, 4)
   const file = join(cacheDir, season, 'plays', `${gameId}.json`)
-  return existsSync(file) ? readJson<Play[]>(file) : []
+  if (!existsSync(file)) return []
+  // Seasons cached before drives were read have no drive fields; they fill in on the next season update.
+  return (await readJson<Play[]>(file)).map((p) => ({ ...p, drive: p.drive ?? null, driveResult: p.driveResult ?? null }))
 }
 
 export async function seasonStatuses(cacheDir: string, seasons: number[]): Promise<SeasonStatus[]> {
