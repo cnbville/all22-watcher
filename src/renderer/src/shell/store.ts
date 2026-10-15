@@ -110,7 +110,8 @@ const SEASON_KEY = 'ui.season'
 
 function storedSeason(): number | null {
   try {
-    const v = Number(localStorage.getItem(SEASON_KEY))
+    // v1 kept the season under 'season'; carry it over until v2 saves its own.
+    const v = Number(localStorage.getItem(SEASON_KEY) ?? localStorage.getItem('season'))
     return v > 2000 ? v : null
   } catch {
     return null
