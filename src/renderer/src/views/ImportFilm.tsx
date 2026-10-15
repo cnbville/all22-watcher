@@ -32,6 +32,8 @@ export function ImportFilm({
   const [converting, setConverting] = useState<{ done: number; total: number } | null>(null)
   // The checkboxes the user set themselves; the rest are guessed from the clip count.
   const [chosen, setChosen] = useState<MatchOptions>({})
+  // When fixing saved matches, their angles stay as saved; choosing different clips detects them afresh.
+  const [savedAngles, setSavedAngles] = useState(() => (existing?.length ? Object.fromEntries(existing.map((r) => [r.path, r.angle])) : undefined))
   const locked = busy || !!converting
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export function ImportFilm({
       if (res.failed.length) setError(new Error(`${res.failed.length} clip(s) couldn’t be converted: ${res.failed[0].error}`))
       // Re-match, guessing again from the full clip count unless the user set the checkboxes, and keep any matches
       // already fixed by hand (the ones that differ from the automatic match); the rest shift to make room for the new clips.
-      const next = await api.previewMatch(game.gameId, paths, chosen)
+      const next = await api.previewMatch(game.gameId, paths, { ...chosen, angles: savedAngles })
       const auto = new Map(preview.rows.map((r) => [r.path, r.playId]))
       const kept = new Map(rows.filter((r) => auto.get(r.path) !== r.playId).map((r) => [r.path, r.playId]))
       setPreview(next)
@@ -86,6 +88,7 @@ export function ImportFilm({
     if (!picked?.length) return
     setPaths(picked)
     setChosen({})
+    setSavedAngles(undefined)
     await load(picked)
   }
 
@@ -113,7 +116,7 @@ export function ImportFilm({
   const setOption = (o: MatchOptions) => {
     if (!preview) return
     setChosen({ ...chosen, ...o })
-    void load(paths, { includeSpecialTeams: preview.includeSpecialTeams, includeNoPlays: preview.includeNoPlays, ...o })
+    void load(paths, { includeSpecialTeams: preview.includeSpecialTeams, includeNoPlays: preview.includeNoPlays, ...o, angles: savedAngles })
   }
 
   const title = `${existing ? 'Fix clip matches' : 'Import film'} · ${game.awayTeam} @ ${game.homeTeam}, week ${game.week}`

@@ -1,4 +1,5 @@
 import type {
+  Angle,
   ChartField,
   ClipMatchRow,
   DataProgress,
@@ -18,6 +19,8 @@ import type {
 export interface MatchOptions {
   includeSpecialTeams?: boolean
   includeNoPlays?: boolean
+  /** Angles of clips already saved, kept as they are when fixing matches. */
+  angles?: Record<string, Angle>
 }
 
 /** Everything the window can ask of the app; implemented in main, exposed by preload as window.api. */

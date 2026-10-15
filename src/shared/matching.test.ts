@@ -177,6 +177,16 @@ describe('matching', () => {
     const quarters = ['Q1', 'Q2'].flatMap((q) => ['1.mp4', '2.mp4'].map((f) => `${game}/${q}/${f}`))
     expect(angles([`${game}/Q1`, `${game}/Q2`], quarters)).toEqual(Array(4).fill('sideline'))
     expect(angles(quarters, quarters)).toEqual(Array(4).fill('sideline'))
+
+    // One clip that names its angle in the file name doesn't stop the picked "End Zone" folder counting for the rest.
+    const ez = '/Users/me/Film/DAL at PHI/End Zone'
+    const clips = [`${ez}/001.mp4`, `${ez}/002.mp4`, `${ez}/OT 1 EZ.mp4`]
+    expect(angles([ez], clips)).toEqual(Array(3).fill('endzone'))
+  })
+
+  it('keeps saved angles when fixing matches', () => {
+    const r = matchClips(['/c/a/1.mp4', '/c/a/2.mp4'], plays, { includeSpecialTeams: false, includeNoPlays: false, angles: { '/c/a/1.mp4': 'endzone', '/c/a/2.mp4': 'endzone' } })
+    expect(r.rows.map((x) => [x.angle, x.playId])).toEqual([['endzone', 71], ['endzone', 112]])
   })
 
   it('places converted copies by their original path', () => {

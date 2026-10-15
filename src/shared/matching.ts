@@ -83,6 +83,7 @@ export interface MatchResult {
  * Angles are detected from these, so a "Side Projects" folder the film sits in isn't taken for the sideline. The holding
  * folder's own name counts, so picking "Sideline", or Q1..Q4 inside it, reads as the sideline, unless what's inside it
  * already names angles: then it only holds them, like "Eagles Wide Receivers" around All-22 and Sideline picked together.
+ * Only folders count for that, so one clip named "OT 1 EZ.mp4" inside a picked "End Zone" doesn't unname the rest.
  */
 export function pickedPaths(picked: string[], files: string[]): Map<string, string> {
   const isFile = new Set(files)
@@ -93,7 +94,8 @@ export function pickedPaths(picked: string[], files: string[]): Map<string, stri
     const parts = f.split(/[\\/]/).filter(Boolean)
     return [f, parts.slice(0, shared).every((name, i) => name === first[i]) ? parts.slice(shared).join('/') : null]
   })
-  const holder = below.some(([, p]) => p !== null && angleSource(p).depth >= 0) ? [] : first.slice(Math.max(0, shared - 1), shared)
+  const namesAngle = (p: string | null) => p !== null && p.includes('/') && angleSource(p.slice(0, p.lastIndexOf('/'))).depth >= 0
+  const holder = below.some(([, p]) => namesAngle(p)) ? [] : first.slice(Math.max(0, shared - 1), shared)
   return new Map(below.map(([f, p]): [string, string] => [f, p === null ? f : [...holder, p].join('/')]))
 }
 
@@ -139,12 +141,12 @@ function sortClips(list: string[], nameOf: (path: string) => string) {
 export function matchClips(
   paths: string[],
   plays: Play[],
-  opts: { includeSpecialTeams?: boolean; includeNoPlays?: boolean } = {},
+  opts: { includeSpecialTeams?: boolean; includeNoPlays?: boolean; angles?: Record<string, Angle> } = {},
   nameOf: (path: string) => string = (p) => p
 ): MatchResult {
   const byAngle = new Map<Angle, string[]>()
   for (const p of paths) {
-    const angle = detectAngle(nameOf(p))
+    const angle = opts.angles?.[p] ?? detectAngle(nameOf(p))
     byAngle.set(angle, [...(byAngle.get(angle) ?? []), p])
   }
   for (const list of byAngle.values()) sortClips(list, nameOf)
