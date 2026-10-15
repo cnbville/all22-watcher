@@ -1,0 +1,65 @@
+@layer screens {
+  .screen-teams {
+    .teams-divisions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 24px;
+    }
+    .teams-division {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+    .teams-division__title {
+      height: 24px;
+      font: var(--t-headline);
+      color: var(--label-2);
+    }
+    .team-tile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 60px;
+    }
+    .team-tile__names {
+      flex: 1;
+      min-width: 0;
+    }
+    .team-tile__nickname {
+      font: var(--t-headline);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .team-tile__city {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .team-tile__record {
+      text-align: right;
+    }
+    .team-tile__wl {
+      font: var(--t-title-3);
+    }
+    .team-tile__diff {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .standings-team {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+  }
+  @media (max-width: 1279px) {
+    .screen-teams .teams-divisions {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+}

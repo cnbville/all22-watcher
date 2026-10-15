@@ -3,8 +3,9 @@ import { plusRate } from '@shared/stats'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import { api } from '../api'
 import { Score, useAsync } from '../components/common'
+import '../styles/report.css'
 import { downDistance, gradeSymbol, pct, quarterLabel, shortDesc } from '../format'
-import { GameLog, GradeTrend, reelGameLabel, SeasonLine } from './PlayerPage'
+import { GameLog, GradeTrend, reelGameLabel, SeasonLine } from './player/Player'
 
 /** A printable one-player scouting report; the main process turns this page into a PDF. */
 export function Report({ season, playerId }: { season: number; playerId: string }) {

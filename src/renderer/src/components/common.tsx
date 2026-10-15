@@ -48,20 +48,10 @@ export function Kbd({ children }: { children: ReactNode }) {
   return <span className="kbd">{children}</span>
 }
 
-export function Loading({ label = 'Loading…' }: { label?: string }) {
-  return <div className="empty">{label}</div>
-}
-
-/** An error's message without Electron's IPC prefix. */
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message.replace(/^Error invoking remote method 'api': (Error: )?/, '') : String(error)
 }
 
-export function ErrorBox({ error }: { error: unknown }) {
-  return <div className="err">{errorText(error)}</div>
-}
-
-/** Runs an async loader whenever deps change; returns data, error, and a reload function. */
 export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   const [state, setState] = useState<{ data: T | null; error: unknown; loading: boolean }>({ data: null, error: null, loading: true })
   const counter = useRef(0)
@@ -76,61 +66,4 @@ export function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
   }, deps)
   useEffect(run, [run])
   return { ...state, reload: run, setData: (d: T) => setState({ data: d, error: null, loading: false }) }
-}
-
-let toastTimer: ReturnType<typeof setTimeout> | undefined
-const toastListeners = new Set<(msg: string | null) => void>()
-
-export function toast(msg: string) {
-  toastListeners.forEach((l) => l(msg))
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toastListeners.forEach((l) => l(null)), 3000)
-}
-
-export function ToastHost() {
-  const [msg, setMsg] = useState<string | null>(null)
-  useEffect(() => {
-    toastListeners.add(setMsg)
-    return () => void toastListeners.delete(setMsg)
-  }, [])
-  return msg ? <div className="toast">{msg}</div> : null
-}
-
-export function Modal({ title, onClose, children, footer, width }: {
-  title: ReactNode
-  onClose: () => void
-  children: ReactNode
-  footer?: ReactNode
-  width?: number
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  return (
-    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={width ? { width } : undefined}>
-        <div className="modal-head">
-          <h2>{title}</h2>
-          <span className="spacer" />
-          <button className="btn ghost small" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-foot">{footer}</div>}
-      </div>
-    </div>
-  )
-}
-
-const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'color', 'file', 'image', 'radio', 'range', 'reset', 'submit'])
-
-/** True when keys are going into a text field. A focused dropdown, slider or checkbox leaves hotkeys to the page. */
-export function isTyping(e: KeyboardEvent): boolean {
-  const t = e.target as HTMLElement | null
-  if (!t) return false
-  if (t instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(t.type)
-  return t.tagName === 'TEXTAREA' || t.isContentEditable
 }

@@ -1,0 +1,114 @@
+@layer screens {
+  .screen-team {
+    .team-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .team-header__text {
+      min-width: 0;
+    }
+    .team-header__sub {
+      margin-top: 2px;
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .team-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .team-stats__title {
+      margin-bottom: 8px;
+      font: var(--t-headline);
+      color: var(--label-2);
+    }
+    .team-stats__grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 1px;
+      border-radius: var(--r-xl);
+      overflow: hidden;
+      background: var(--sep);
+    }
+    .stat-tile {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      padding: 12px;
+      background: var(--bg-content);
+    }
+    .stat-tile__label {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .stat-tile__value {
+      font: var(--t-stat-md);
+    }
+    .team-units {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+    }
+    .unit-tile {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px;
+      border-radius: var(--r-xl);
+      background: var(--fill-4);
+    }
+    .unit-tile__value {
+      font: var(--t-stat-lg);
+    }
+    .unit-tile__sub {
+      margin-bottom: 4px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .team-games {
+      border-top: 1px solid var(--sep);
+    }
+    .game-row {
+      display: grid;
+      grid-template-columns: 72px auto 1fr 88px auto 12px;
+      align-items: center;
+      gap: 12px;
+      min-height: 44px;
+      padding: 0 8px;
+      border-bottom: 1px solid var(--sep);
+    }
+    .game-row:hover {
+      background: var(--fill-4);
+    }
+    .game-row__week {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .game-row__opp {
+      font: var(--t-body);
+    }
+    .game-row__result {
+      font: var(--t-headline);
+      color: var(--label-2);
+    }
+    .game-row__result[data-result='W'] {
+      color: var(--heat-hi);
+    }
+    .game-row__result[data-result='L'] {
+      color: var(--heat-lo);
+    }
+    .game-row__film {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      font: var(--t-callout);
+    }
+    .game-row__chevron {
+      color: var(--label-3);
+    }
+  }
+}

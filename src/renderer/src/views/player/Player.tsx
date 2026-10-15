@@ -3,143 +3,154 @@ import { clipUrl } from '@shared/api'
 import { gradeScore, plusRate } from '@shared/stats'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { Angle, PlayerGameLine, PlayerProfile, ReelItem } from '@shared/types'
-import { api } from '../api'
-import { Crumbs, useSeason } from '../App'
-import { ErrorBox, errorText, GradeBar, GradeSymbol, Headshot, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
-import { downDistance, opponentLabel, pct, quarterLabel, shortDesc, statColumns, weekLabel } from '../format'
-import { links, navigate } from '../router'
+import { api } from '../../api'
+import { GradeBar, GradeSymbol, Headshot, Score, TeamChip, useAsync } from '../../components/common'
+import { downDistance, opponentLabel, pct, quarterLabel, shortDesc, statColumns, weekLabel } from '../../format'
+import { EmptyState } from '../../ui/EmptyState'
+import { useCommand } from '../../shell/commands'
+import { exportReport } from '../../shell/contextMenus'
+import { useDataEvent } from '../../shell/dataEvents'
+import { links, navigate } from '../../shell/router'
+import { CollapsingTitle, Loading, LoadError, Screen, useScrollRestore } from '../../shell/Screen'
+import { Toolbar } from '../../shell/Toolbar'
+import { SeasonGate } from '../shared/SeasonGate'
+import '../legacy.css'
 
 export function PlayerPage({ season, playerId }: { season: number; playerId: string }) {
   const profile = useAsync(() => api.playerProfile(season, playerId), [season, playerId])
-  const [exporting, setExporting] = useState(false)
-  const { setSeason } = useSeason()
-  if (profile.error) return <div className="page"><ErrorBox error={profile.error} /></div>
-  if (profile.loading && !profile.data) return <Loading />
-  if (!profile.data) return <div className="page"><div className="empty">Player not found in the {season} data.</div></div>
+  useDataEvent(['grades', 'notes', 'film', 'season'], profile.reload)
+  useCommand('file.exportReport', () => void exportReport(season, playerId))
   const p = profile.data
+  const player = p?.player
+  const team = player ? TEAM_BY_ABBR[player.team] : undefined
+  const subtitle = player ? [player.jersey ? `#${player.jersey}` : '', player.depthPos || player.position, team?.name ?? player.team, String(season)].filter(Boolean).join(' · ') : String(season)
+  return (
+    <Screen name="player" className="legacy">
+      <Toolbar
+        title={player?.name ?? 'Player'}
+        subtitle={subtitle}
+        windowTitle={player ? `${player.name} — ${season}` : 'Player'}
+        collapsesLargeTitle
+        trailing={[
+          {
+            kind: 'pulldown',
+            icon: 'share',
+            label: 'Export',
+            test: 'toolbar-export',
+            items: [
+              { label: 'Export Reel Video…', disabled: true, run: () => {} },
+              { label: 'Export Scouting Report (PDF)…', shortcut: '⌥⌘E', run: () => void exportReport(season, playerId), test: 'export-report' }
+            ]
+          }
+        ]}
+      />
+      <SeasonGate season={season}>
+        {profile.error ? (
+          <LoadError what="this player" error={profile.error} retry={profile.reload} />
+        ) : !p || !player ? (
+          profile.loading ? <Loading /> : <EmptyState icon="user-round-x" title={`Not in the ${season} data`} body="This player isn’t on a roster that season. Choose another season in the sidebar." />
+        ) : (
+          <PlayerBody p={p} season={season} />
+        )}
+      </SeasonGate>
+    </Screen>
+  )
+}
+
+function PlayerBody({ p, season }: { p: PlayerProfile; season: number }) {
   const { player } = p
   const team = TEAM_BY_ABBR[player.team]
-
-  const exportReport = async () => {
-    setExporting(true)
-    try {
-      const path = await api.exportPlayerReport(season, playerId)
-      if (path) toast(`Saved ${path.split('/').pop()}`)
-    } catch (e) {
-      toast(`Couldn’t save the report: ${errorText(e)}`)
-    } finally {
-      setExporting(false)
-    }
-  }
-
+  useScrollRestore(true)
   return (
-    <div className="page">
-      <Crumbs>
-        <span className="sep">/</span>
-        <a
-          onClick={() => {
-            setSeason(season)
-            navigate(links.home())
-          }}
-        >
-          {season}
-        </a>
-        <span className="sep">/</span>
-        <a onClick={() => navigate(links.team(season, player.team))}>{team?.name ?? player.team}</a>
-        <span className="sep">/</span>
-        <span>{player.name}</span>
-      </Crumbs>
-      <div className="page-narrow">
-        <div className="player-hero">
-          <Headshot url={player.headshot} name={player.name} />
-          <div>
-            <h1>{player.name}</h1>
-            <div className="row muted" style={{ marginTop: 4 }}>
-              <TeamChip abbr={player.team} size="sm" />
-              <span>
-                {player.jersey ? `#${player.jersey} · ` : ''}
-                {player.depthPos || player.position} · {team?.name ?? player.team}
-              </span>
-            </div>
-            <div className="faint" style={{ marginTop: 4 }}>
-              {[
-                player.college,
-                player.height && `${Math.floor(Number(player.height) / 12)}'${Number(player.height) % 12}"`,
-                player.weight && `${player.weight} lb`,
-                player.yearsExp !== '' && (player.yearsExp === '0' ? 'Rookie' : `${player.yearsExp} yrs exp`)
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </div>
+    <>
+      <CollapsingTitle className="player-hero" test="player-header">
+        <Headshot url={player.headshot} name={player.name} />
+        <div>
+          <h1>{player.name}</h1>
+          <div className="row muted" style={{ marginTop: 4 }}>
+            <TeamChip abbr={player.team} size="sm" />
+            <span>
+              {player.jersey ? `#${player.jersey} · ` : ''}
+              {player.depthPos || player.position} ·{' '}
+              <a className="link" onClick={() => navigate(links.team(season, player.team))}>
+                {team?.name ?? player.team}
+              </a>
+            </span>
           </div>
-          <span className="spacer" />
-          <div className="big-grade">
-            <h4>Your grade</h4>
-            <div className="v">
-              <Score tally={p.tally} />
-            </div>
-            <div className="faint" style={{ fontSize: 11 }}>
-              {p.tally.graded} {p.tally.graded === 1 ? 'play' : 'plays'} graded
-            </div>
-          </div>
-          <button className="btn" onClick={exportReport} disabled={exporting}>
-            {exporting ? 'Saving…' : 'Export report (PDF)'}
-          </button>
-        </div>
-
-        <SeasonLine profile={p} />
-
-        <div className="stat-grid">
-          <div className="card">
-            <div className="card-title">
-              <h3>Grade breakdown</h3>
-            </div>
-            {p.tally.graded ? (
-              <>
-                <div className="row" style={{ gap: 18, marginBottom: 10 }}>
-                  <Count label="Plus" value={p.tally.plus} color="var(--plus)" />
-                  <Count label="Zero" value={p.tally.zero} color="var(--zero)" />
-                  <Count label="Minus" value={p.tally.minus} color="var(--minus)" />
-                  <Count label="Plus rate" value={pct(plusRate(p.tally))} />
-                  <Count label="Net" value={(p.tally.plus - p.tally.minus).toString()} />
-                </div>
-                <GradeBar tally={p.tally} />
-                <h4 style={{ margin: '16px 0 8px' }}>Tags</h4>
-                <div className="tags">
-                  {p.reel.length === 0 || p.tagCounts.length === 0 ? (
-                    <span className="faint">No tags yet.</span>
-                  ) : (
-                    p.tagCounts.map((t) => (
-                      <span className="tag static" key={t.tag}>
-                        {t.tag} <b style={{ color: 'var(--text)' }}>{t.count}</b>
-                      </span>
-                    ))
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="faint">Grade {player.name.split(' ')[0]} in the tape room to see a breakdown here.</div>
-            )}
-          </div>
-          <div className="card">
-            <div className="card-title">
-              <h3>Grade by game</h3>
-              <span className="faint">0–100, 50 is neutral</span>
-            </div>
-            <GradeTrend games={p.games} />
+          <div className="faint" style={{ marginTop: 4 }}>
+            {[
+              player.college,
+              player.height && `${Math.floor(Number(player.height) / 12)}'${Number(player.height) % 12}"`,
+              player.weight && `${player.weight} lb`,
+              player.yearsExp !== '' && (player.yearsExp === '0' ? 'Rookie' : `${player.yearsExp} yrs exp`)
+            ]
+              .filter(Boolean)
+              .join(' · ')}
           </div>
         </div>
+        <span className="spacer" />
+        <div className="big-grade">
+          <h4>Your grade</h4>
+          <div className="v">
+            <Score tally={p.tally} />
+          </div>
+          <div className="faint" style={{ fontSize: 11 }}>
+            {p.tally.graded} {p.tally.graded === 1 ? 'play' : 'plays'} graded
+          </div>
+        </div>
+      </CollapsingTitle>
+      <SeasonLine profile={p} />
 
-        {p.reel.length > 0 && <Reel profile={p} />}
-
-        <div className="card" style={{ marginTop: 16 }}>
+      <div className="stat-grid">
+        <div className="card">
           <div className="card-title">
-            <h3>Game log</h3>
+            <h3>Grade breakdown</h3>
           </div>
-          <GameLog profile={p} />
+          {p.tally.graded ? (
+            <>
+              <div className="row" style={{ gap: 18, marginBottom: 10 }}>
+                <Count label="Plus" value={p.tally.plus} color="var(--plus)" />
+                <Count label="Zero" value={p.tally.zero} color="var(--zero)" />
+                <Count label="Minus" value={p.tally.minus} color="var(--minus)" />
+                <Count label="Plus rate" value={pct(plusRate(p.tally))} />
+                <Count label="Net" value={(p.tally.plus - p.tally.minus).toString()} />
+              </div>
+              <GradeBar tally={p.tally} />
+              <h4 style={{ margin: '16px 0 8px' }}>Tags</h4>
+              <div className="tags">
+                {p.reel.length === 0 || p.tagCounts.length === 0 ? (
+                  <span className="faint">No tags yet.</span>
+                ) : (
+                  p.tagCounts.map((t) => (
+                    <span className="tag static" key={t.tag}>
+                      {t.tag} <b style={{ color: 'var(--text)' }}>{t.count}</b>
+                    </span>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="faint">Grade {player.name.split(' ')[0]} in the tape room to see a breakdown here.</div>
+          )}
+        </div>
+        <div className="card">
+          <div className="card-title">
+            <h3>Grade by game</h3>
+            <span className="faint">0–100, 50 is neutral</span>
+          </div>
+          <GradeTrend games={p.games} />
         </div>
       </div>
-    </div>
+
+      {p.reel.length > 0 && <Reel profile={p} />}
+
+      <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-title">
+          <h3>Game log</h3>
+        </div>
+        <GameLog profile={p} />
+      </div>
+    </>
   )
 }
 
@@ -378,7 +389,7 @@ function Reel({ profile }: { profile: PlayerProfile }) {
                 {index + 1} / {items.length}
               </span>
               <span className="spacer" />
-              <a onClick={() => navigate(links.film(item.gameId, item.team, item.playId))}>
+              <a onClick={() => navigate(links.tape(item.gameId, item.team, { play: item.playId }))}>
                 Open in tape room
               </a>
             </div>
@@ -387,7 +398,7 @@ function Reel({ profile }: { profile: PlayerProfile }) {
         </div>
         <div className="reel-list" ref={listRef}>
           {items.map((r, i) => (
-            <div key={`${r.gameId}-${r.playId}`} className={`reel-item ${i === index ? 'current' : ''}`} onClick={() => setIndex(i)}>
+            <div key={`${r.gameId}-${r.playId}`} className={`reel-item ${i === index ? 'current' : ''}`} data-test="reel-item" onClick={() => setIndex(i)}>
               <GradeSymbol grade={r.grade} />
               <div style={{ minWidth: 0 }}>
                 <div className="faint" style={{ fontSize: 11 }}>

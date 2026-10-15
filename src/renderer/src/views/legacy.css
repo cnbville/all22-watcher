@@ -1,0 +1,936 @@
+/* v1 view styles kept for the screens later work rewrites (tape room, player page), scoped to .legacy and
+   mapped onto v2 tokens. Generated from the v1 stylesheet; delete with the last legacy screen. */
+@layer screens {
+.legacy {
+  --bg: var(--bg-content);
+  --bg-2: var(--bg-raised);
+  --panel: var(--bg-raised);
+  --panel-2: var(--bg-window);
+  --line: var(--sep);
+  --line-2: var(--sep-strong);
+  --text: var(--label);
+  --text-2: var(--label-2);
+  --text-3: var(--label-3);
+  --accent-2: var(--accent-fill);
+  --plus: var(--heat-hi);
+  --plus-bg: var(--heat-hi-tint);
+  --minus: var(--heat-lo);
+  --minus-bg: var(--heat-lo-tint);
+  --zero: var(--heat-mid);
+  --zero-bg: var(--heat-mid-tint);
+  --radius: var(--r-lg);
+  --mono: var(--font-mono);
+}
+.legacy input,
+.legacy textarea,
+.legacy select,
+.legacy button {
+  font: inherit;
+  color: inherit;
+}
+.legacy a {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.legacy h1,
+.legacy h2,
+.legacy h3,
+.legacy h4 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.legacy h1 {
+  font-size: 24px;
+}
+.legacy h2 {
+  font-size: 17px;
+}
+.legacy h3 {
+  font-size: 14px;
+}
+.legacy h4 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.legacy .muted {
+  color: var(--text-2);
+}
+.legacy .faint {
+  color: var(--text-3);
+}
+.legacy .mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.legacy .num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.legacy .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legacy .col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.legacy .spacer {
+  flex: 1;
+}
+.legacy .wrap {
+  flex-wrap: wrap;
+}
+.legacy .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.legacy .btn:hover:not(:disabled) {
+  background: var(--fill-2);
+  border-color: var(--sep-strong);
+}
+.legacy .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.legacy .btn.primary {
+  background: var(--accent-2);
+  border-color: var(--accent);
+  color: var(--label);
+}
+.legacy .btn.primary:hover:not(:disabled) {
+  background: var(--accent-fill-hover);
+}
+.legacy .btn.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.legacy .btn.ghost:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+.legacy .btn.small {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.legacy .btn.danger {
+  color: var(--minus);
+}
+.legacy .btn.active {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--label);
+}
+.legacy .input,
+.legacy select.input,
+.legacy textarea.input {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  outline: none;
+  user-select: text;
+}
+.legacy textarea.input {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.4;
+}
+.legacy .input:focus {
+  border-color: var(--accent);
+}
+.legacy select.input {
+  padding-right: 4px;
+}
+.legacy .seg {
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.legacy .seg button {
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  height: 26px;
+  cursor: pointer;
+  color: var(--text-2);
+  border-right: 1px solid var(--line-2);
+}
+.legacy .seg button:last-child {
+  border-right: 0;
+}
+.legacy .seg button.on {
+  background: var(--accent-tint);
+  color: var(--label);
+}
+.legacy .kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  background: var(--bg-2);
+  font: 600 10px/17px var(--mono);
+  text-align: center;
+  color: var(--text-2);
+}
+.legacy .card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+.legacy .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.legacy .badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.legacy .badge.good {
+  color: var(--plus);
+  background: var(--plus-bg);
+  border-color: transparent;
+}
+.legacy .badge.bad {
+  color: var(--minus);
+  background: var(--minus-bg);
+  border-color: transparent;
+}
+.legacy .badge.info {
+  color: var(--label);
+  background: var(--accent-tint);
+  border-color: transparent;
+}
+.legacy .team-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-weight: 800;
+  font-size: 11px;
+  color: var(--label);
+  letter-spacing: 0.02em;
+  flex: none;
+  box-shadow: inset 0 0 0 1px var(--sep-strong);
+}
+.legacy .team-chip.sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 9px;
+}
+.legacy .team-chip.lg {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  font-size: 19px;
+}
+.legacy .table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.legacy .table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+}
+.legacy .table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--sep);
+  white-space: nowrap;
+}
+.legacy .table tr.click {
+  cursor: pointer;
+}
+.legacy .table tr.click:hover td {
+  background: var(--fill-4);
+}
+.legacy .table th.num,
+.legacy .table td.num {
+  text-align: right;
+}
+.legacy .table .group-row td {
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: 10px;
+}
+.legacy .empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-3);
+}
+.legacy .progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.legacy .progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s;
+}
+.legacy .grade-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel-2);
+  min-width: 60px;
+}
+.legacy .grade-bar .p {
+  background: var(--plus);
+}
+.legacy .grade-bar .z {
+  background: var(--label-4);
+}
+.legacy .grade-bar .m {
+  background: var(--minus);
+}
+.legacy .score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.legacy .score.hi {
+  color: var(--plus);
+}
+.legacy .score.lo {
+  color: var(--minus);
+}
+.legacy .season-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.legacy .division-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1250px) {
+.legacy .division-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.legacy .division h4 {
+  margin-bottom: 8px;
+}
+.legacy .team-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.legacy .team-card:hover {
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+}
+.legacy .team-card .name {
+  font-weight: 600;
+}
+.legacy .team-card .rec {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+.legacy .team-hero {
+  border-radius: 14px;
+  padding: 22px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+}
+.legacy .team-hero .record {
+  font-size: 28px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.legacy .stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.legacy .stat-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.legacy .stat-tile {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.legacy .stat-tile .label {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.legacy .stat-tile .value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.legacy .stat-tile .rank {
+  font-size: 11px;
+  font-weight: 600;
+}
+.legacy .rank.top {
+  color: var(--plus);
+}
+.legacy .rank.bottom {
+  color: var(--minus);
+}
+.legacy .rank.mid {
+  color: var(--text-2);
+}
+.legacy .two-col {
+  display: grid;
+  grid-template-columns: 430px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.legacy .tape {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 300px 1fr 360px;
+  min-height: 0;
+}
+.legacy .tape-list {
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-2);
+}
+.legacy .tape-filters {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.legacy .tape-filters .row select {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  font-size: 12px;
+}
+.legacy .plays {
+  flex: 1;
+  overflow: auto;
+}
+.legacy .play-row {
+  padding: 7px 10px 7px 12px;
+  border-bottom: 1px solid var(--sep);
+  cursor: pointer;
+  position: relative;
+}
+.legacy .play-row:hover {
+  background: var(--fill-4);
+}
+.legacy .play-row.current {
+  background: var(--accent-tint);
+}
+.legacy .play-row.current::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+.legacy .play-row.noclip {
+  opacity: 0.55;
+}
+.legacy .play-row .top {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.legacy .play-row .desc {
+  font-size: 12px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.legacy .play-row .result {
+  margin-left: auto;
+  font-weight: 650;
+  color: var(--text-2);
+}
+.legacy .play-row .result.good {
+  color: var(--plus);
+}
+.legacy .play-row .result.bad {
+  color: var(--minus);
+}
+.legacy .kind-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.legacy .kind-dot.pass {
+  background: var(--accent);
+}
+.legacy .kind-dot.run {
+  background: var(--warning);
+}
+.legacy .kind-dot.special {
+  background: var(--label-2);
+}
+.legacy .kind-dot.other {
+  background: var(--label-3);
+}
+.legacy .grade-pips {
+  display: inline-flex;
+  gap: 2px;
+}
+.legacy .grade-pips i {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+}
+.legacy .tape-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--video-black);
+}
+.legacy .video-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+}
+.legacy .video-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--video-black);
+  display: block;
+}
+.legacy .video-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.legacy .video-wrap canvas.drawing {
+  cursor: crosshair;
+}
+.legacy .video-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.legacy .video-overlay .badge {
+  background: var(--mat-hud);
+  border-color: var(--mat-hud-border);
+  color: var(--label);
+}
+.legacy .no-clip {
+  color: var(--text-3);
+  text-align: center;
+  padding: 24px;
+}
+.legacy .transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+}
+.legacy .scrub {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.legacy .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.legacy .swatch.on {
+  border-color: var(--label);
+}
+.legacy .tape-side {
+  border-left: 1px solid var(--line);
+  overflow: auto;
+  background: var(--bg-2);
+  min-height: 0;
+}
+.legacy .side-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.legacy .play-head {
+  font-size: 15px;
+  font-weight: 700;
+}
+.legacy .play-desc {
+  font-size: 12.5px;
+  color: var(--text-2);
+  margin-top: 6px;
+  user-select: text;
+}
+.legacy .facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.legacy .facts dt {
+  color: var(--text-3);
+}
+.legacy .facts dd {
+  margin: 0;
+}
+.legacy .player-row {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: 0 -8px 2px;
+  cursor: pointer;
+}
+.legacy .player-row:hover {
+  background: var(--fill-4);
+}
+.legacy .player-row.selected {
+  border-color: var(--accent-2);
+  background: var(--accent-tint);
+}
+.legacy .player-row .line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legacy .player-row .hot {
+  width: 16px;
+  color: var(--text-3);
+  font: 600 11px var(--mono);
+}
+.legacy .player-row .jersey {
+  width: 24px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.legacy .player-row .pname {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.legacy .player-row .ppos {
+  color: var(--text-3);
+  font-size: 11px;
+  width: 26px;
+}
+.legacy .player-row .star {
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 13px;
+}
+.legacy .player-row .star.on {
+  color: var(--flag);
+}
+.legacy .gbtns {
+  display: inline-flex;
+  gap: 3px;
+}
+.legacy .gbtn {
+  width: 26px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  cursor: pointer;
+  font-weight: 800;
+  color: var(--text-3);
+  padding: 0;
+}
+.legacy .gbtn.plus.on {
+  background: var(--plus);
+  border-color: var(--plus);
+  color: var(--label-on-light);
+}
+.legacy .gbtn.zero.on {
+  background: var(--zero);
+  border-color: var(--zero);
+  color: var(--label-on-light);
+}
+.legacy .gbtn.minus.on {
+  background: var(--minus);
+  border-color: var(--minus);
+  color: var(--label-on-light);
+}
+.legacy .tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.legacy .tag {
+  flex: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  font-size: 11.5px;
+  border: 1px solid var(--line-2);
+  background: var(--panel);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.legacy .tag .k {
+  font: 600 9.5px var(--mono);
+  color: var(--text-3);
+}
+.legacy .tag.pos.on {
+  background: var(--plus-bg);
+  border-color: var(--plus);
+  color: var(--heat-hi);
+}
+.legacy .tag.neg.on {
+  background: var(--minus-bg);
+  border-color: var(--minus);
+  color: var(--heat-lo);
+}
+.legacy .tag.neutral.on {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  color: var(--label);
+}
+.legacy .tag.static {
+  cursor: default;
+}
+.legacy .chart-fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+.legacy .chart-fields select {
+  height: 26px;
+  font-size: 12px;
+}
+.legacy .match-table td.file {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.legacy .match-table td.play {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.legacy .match-table select {
+  max-width: 360px;
+  height: 24px;
+  font-size: 12px;
+}
+.legacy .warn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--flag-tint);
+  border: 1px solid var(--flag);
+  color: var(--flag);
+  font-size: 12.5px;
+}
+.legacy .err {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--minus-bg);
+  border: 1px solid var(--danger);
+  color: var(--heat-lo);
+}
+.legacy .help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 24px;
+}
+.legacy .help-grid > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+}
+.legacy .help-grid .keys {
+  width: 120px;
+  display: flex;
+  gap: 3px;
+}
+.legacy .player-hero {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+.legacy .headshot {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--panel-2);
+  border: 2px solid var(--line-2);
+  display: grid;
+  place-items: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-2);
+  flex: none;
+}
+.legacy .big-grade {
+  text-align: center;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.legacy .big-grade .v {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.legacy .reel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 14px;
+}
+.legacy .reel-video {
+  background: var(--video-black);
+  border-radius: 10px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+.legacy .reel-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.legacy .reel-list {
+  max-height: 460px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.legacy .reel-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+}
+.legacy .reel-item:hover {
+  background: var(--fill-4);
+}
+.legacy .reel-item.current {
+  background: var(--accent-tint);
+}
+.legacy .gsym {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  flex: none;
+}
+.legacy .gsym.p {
+  background: var(--plus-bg);
+  color: var(--plus);
+}
+.legacy .gsym.m {
+  background: var(--minus-bg);
+  color: var(--minus);
+}
+.legacy .gsym.z {
+  background: var(--zero-bg);
+  color: var(--zero);
+}
+.legacy .gsym.n {
+  background: var(--panel-2);
+  color: var(--text-3);
+}
+}

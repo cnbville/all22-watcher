@@ -1,0 +1,131 @@
+@layer screens {
+  .import-picker {
+    display: flex;
+    gap: 24px;
+    padding: 4px 0 16px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--sep);
+  }
+  .import-picker__field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: var(--t-body);
+    color: var(--label-2);
+  }
+  .import-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .import-options {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .import-options__count {
+    margin-left: auto;
+    font: var(--t-callout);
+    color: var(--label-3);
+  }
+  .import-warning,
+  .import-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: var(--r-lg);
+    background: var(--flag-tint);
+    font: var(--t-callout);
+    color: var(--label);
+  }
+  .import-warning .icon {
+    flex: none;
+    color: var(--flag);
+  }
+  .import-warning__text {
+    flex: 1;
+  }
+  .import-error {
+    margin-bottom: 12px;
+    background: var(--danger-tint);
+  }
+  .import-error .icon {
+    color: var(--danger);
+  }
+  .import-note {
+    font: var(--t-callout);
+    color: var(--label-3);
+  }
+  .match-table {
+    width: 100%;
+    border-collapse: collapse;
+    font: var(--t-body);
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: var(--z-sticky);
+      height: 28px;
+      padding: 0 8px;
+      background: var(--bg-sheet);
+      border-bottom: 1px solid var(--sep);
+      font: var(--t-callout);
+      font-weight: 600;
+      color: var(--label-2);
+      text-align: left;
+    }
+    td {
+      height: 32px;
+      padding: 0 8px;
+      border-bottom: 1px solid var(--sep);
+    }
+    tbody tr:nth-child(even) td {
+      background: var(--fill-4);
+    }
+    .num {
+      width: 40px;
+      text-align: right;
+    }
+  }
+  .match-table__file {
+    max-width: 240px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font: var(--t-mono-sm);
+    color: var(--label-2);
+  }
+  .match-table__play {
+    max-width: 0;
+    width: 100%;
+  }
+  .match-table__link {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--transparent);
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .match-table__link:hover:not(:disabled) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .match-table__select {
+    width: 100%;
+    height: 24px;
+    border: 0.5px solid var(--field-border);
+    border-radius: var(--r-sm);
+    background: var(--field-bg);
+    color: var(--label);
+  }
+  .match-table__shift {
+    width: 64px;
+    white-space: nowrap;
+  }
+}

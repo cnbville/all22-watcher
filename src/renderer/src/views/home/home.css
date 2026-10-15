@@ -1,0 +1,48 @@
+@layer screens {
+  .screen-home {
+    .home-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
+      gap: 8px;
+    }
+    .home-film-tile,
+    .home-team-tile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 60px;
+    }
+    .home-film-tile__text {
+      flex: 1;
+      min-width: 0;
+    }
+    .home-film-tile__title {
+      font: var(--t-headline);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .home-film-tile__sub {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .home-film-tile__count {
+      font: var(--t-title-3);
+      color: var(--label);
+
+      span {
+        font: var(--t-subheadline);
+        color: var(--label-3);
+      }
+    }
+    .home-hint {
+      max-width: 560px;
+      font: var(--t-body-prose);
+      color: var(--label-3);
+    }
+  }
+}
