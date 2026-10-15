@@ -1627,54 +1627,52 @@ body:has(.sheet-backdrop) .popover {
 }
 
 /* 6.32 Team chip and badge */
-.team-dot {
-  display: inline-block;
-  flex: none;
-  border-radius: 50%;
-  background: var(--team);
-}
-.team-chip {
+.team-logo {
   position: relative;
   display: inline-grid;
   place-items: center;
   flex: none;
-  border-radius: var(--r-sm);
-  background: var(--fill-2);
+  border-radius: 50%;
   overflow: hidden;
-  font-weight: 600;
-  color: var(--label);
-  padding-left: 3px;
+  vertical-align: middle;
 }
-.team-chip::before {
-  content: '';
+.team-logo img {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--team);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.team-logo[data-fallback] img {
+  opacity: 0;
+}
+.team-logo:not([data-fallback]) {
+  border-radius: 0;
+}
+.team-logo__abbr {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.team-logo--badge[data-fallback] {
+  box-shadow: inset 0 0 0 0.5px var(--badge-border);
+}
+.team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
 }
 .team-chip--sm {
-  width: 32px;
-  height: 18px;
-  font-size: 10px;
-  line-height: 18px;
+  font-size: 11px;
+  line-height: 16px;
 }
 .team-chip--md {
-  width: 40px;
-  height: 22px;
-  font-size: 11px;
-  line-height: 22px;
-}
-.team-badge {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--r-2xl);
-  box-shadow: inset 0 0 0 0.5px var(--badge-border);
-  font: 700 18px/22px var(--font-text);
+  font-size: 12px;
+  line-height: 20px;
 }
 
 /* 6.33 Avatar */

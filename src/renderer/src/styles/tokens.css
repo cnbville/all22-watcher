@@ -4,7 +4,7 @@
   color-scheme: dark;
 
   /* 5.1 Backgrounds */
-  --bg-content: #121214;
+  --bg-content: #101012;
   --bg-raised: #18181b;
   --bg-window: #1c1c1f;
   --bg-sheet: #1c1c1f;
@@ -43,47 +43,47 @@
   --label-2: #a4a4ad;
   --label-3: #808089;
   --label-4: #5c5c64;
-  --label-on-accent: #ffffff;
+  --label-on-accent: #111113;
   --label-on-light: #111113;
-  --label-on-accent-2: rgba(255, 255, 255, 0.7);
+  --label-on-accent-2: rgba(17, 17, 19, 0.6);
 
   /* Selection */
   --selection: rgba(255, 255, 255, 0.1);
   --selection-inactive: rgba(255, 255, 255, 0.06);
   --selection-rule: var(--accent);
-  --text-selection: rgba(125, 140, 255, 0.32);
+  --text-selection: rgba(170, 186, 210, 0.3);
 
-  /* Accent (indigo) */
-  --accent: #7d8cff;
-  --accent-fill: #5562e6;
-  --accent-fill-hover: #6170f0;
-  --accent-fill-pressed: #4a56d6;
-  --accent-tint: rgba(125, 140, 255, 0.14);
-  --focus-ring: rgba(125, 140, 255, 0.55);
+  /* Accent: Apple TV style, a near-white primary and a soft steel tint for text */
+  --accent: #b9c6da;
+  --accent-fill: #ededf0;
+  --accent-fill-hover: #ffffff;
+  --accent-fill-pressed: #d6d6db;
+  --accent-tint: rgba(255, 255, 255, 0.1);
+  --focus-ring: rgba(255, 255, 255, 0.5);
 
   /* Status */
-  --flag: #f0b43c;
-  --flag-tint: rgba(240, 180, 60, 0.14);
+  --flag: #d9b26a;
+  --flag-tint: rgba(217, 178, 106, 0.14);
   --warning: #f0b43c;
-  --danger: #f2555a;
-  --danger-tint: rgba(242, 85, 90, 0.14);
+  --danger: #e0706a;
+  --danger-tint: rgba(224, 112, 106, 0.14);
 
   /* 5.2 Heat scale anchors (ui/heat.ts mixes between them) */
-  --heat-lo: #ef5a5f;
-  --heat-mid: #9b9ba4;
-  --heat-hi: #4fc98c;
-  --heat-lo-fill: #8a3a3e;
-  --heat-mid-fill: #4a4a52;
-  --heat-hi-fill: #2c7a55;
-  --heat-lo-tint: rgba(239, 90, 95, 0.14);
-  --heat-mid-tint: rgba(155, 155, 164, 0.14);
-  --heat-hi-tint: rgba(79, 201, 140, 0.14);
+  --heat-lo: #cf8a80;
+  --heat-mid: #8e8e93;
+  --heat-hi: #86b596;
+  --heat-lo-fill: #6e4440;
+  --heat-mid-fill: #46464c;
+  --heat-hi-fill: #3d5f49;
+  --heat-lo-tint: rgba(207, 138, 128, 0.14);
+  --heat-mid-tint: rgba(142, 142, 147, 0.14);
+  --heat-hi-tint: rgba(134, 181, 150, 0.14);
 
   /* 5.4 Type */
   --font-text: -apple-system, BlinkMacSystemFont, 'Inter Variable', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace;
-  --t-large-title: 700 26px/32px var(--font-text);
-  --t-title-1: 700 22px/28px var(--font-text);
+  --t-large-title: 700 34px/40px var(--font-text);
+  --t-title-1: 700 24px/30px var(--font-text);
   --t-title-2: 600 17px/22px var(--font-text);
   --t-title-3: 600 15px/20px var(--font-text);
   --t-headline: 600 13px/16px var(--font-text);
@@ -99,7 +99,7 @@
   --t-mono-md: 400 13px/16px var(--font-mono);
   --t-mono-sm: 400 12px/16px var(--font-mono);
   --t-mono-xs: 400 11px/14px var(--font-mono);
-  --track-large: 0;
+  --track-large: -0.6px;
   --track-title-2: -0.43px;
   --track-title-3: -0.23px;
   --track-13: -0.08px;
