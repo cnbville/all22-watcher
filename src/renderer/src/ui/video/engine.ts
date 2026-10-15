@@ -261,7 +261,11 @@ export class VideoEngine {
     for (const p of panes) {
       const s = this.slot(p.id)
       if ((s.clip?.id ?? null) !== (p.clip?.id ?? null)) this.load(s, p.clip)
-      else s.clip = p.clip
+      else if (p.clip) {
+        // Same clip, new data (a snap point moved): start points, Replay and Loop read the media's clip.
+        s.clip = p.clip
+        for (const m of [s.shown, s.incoming]) if (m && m.clip.id === p.clip.id) m.clip = p.clip
+      }
     }
     this.rewire()
   }
@@ -296,7 +300,9 @@ export class VideoEngine {
       }
     }
     for (const c of clips.slice(0, POOL_MAX)) {
-      if (this.pool.has(c.id) || this.inUse(c.id)) continue
+      const pooled = this.pool.get(c.id)
+      if (pooled) pooled.clip = c
+      if (pooled || this.inUse(c.id)) continue
       const m = this.create(c)
       m.pooled = true
       this.pool.set(c.id, m)
