@@ -5,7 +5,7 @@
 //   APP="dist/mac-arm64/All-22 Watcher.app/Contents/MacOS/All-22 Watcher" node e2e/smoke.mjs
 //
 // NFLVERSE_MIRROR=/folder/of/release/files reads nflverse data from disk instead of the network.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -132,6 +132,27 @@ try {
     await win.click('[data-test="export-report"]')
     for (let i = 0; i < 120 && !(existsSync(pdf) && statSync(pdf).size > 0); i++) await win.waitForTimeout(250)
     if (!existsSync(pdf) || statSync(pdf).size < 10_000) throw new Error('PDF missing or empty')
+  })
+
+  // Improvement 13: a game folder dropped into the watch folder imports on its own once its clips settle (~10 s).
+  await step('imports from the watch folder', async () => {
+    const watch = mkdtempSync(join(tmpdir(), 'all22-watch-'))
+    const game = join(watch, 'PHI at KC')
+    mkdirSync(game)
+    for (const f of readdirSync(fixtures)) copyFileSync(join(fixtures, f), join(game, f))
+    await win.evaluate((folder) => window.api.saveSettings({ watchFolder: folder, watchPaused: false }), watch)
+    await win.waitForSelector('[data-test="watch-status"]', { timeout: 10_000 })
+    // Polled from here: waitForFunction would treat the pending promise of an async predicate as truthy.
+    let entry
+    for (let i = 0; i < 60 && !entry; i++) {
+      const log = await win.evaluate(() => window.api.importLog(5))
+      entry = log.find((e) => e.source === 'watch')
+      if (!entry) await win.waitForTimeout(1_000)
+    }
+    if (!entry) throw new Error('No watch-folder import within 60 s')
+    if (entry.state !== 'done' || !entry.gameId || entry.clipCount !== 3) throw new Error(`Watch-folder import: ${JSON.stringify(entry)}`)
+    await win.waitForSelector('[data-test="watch-status"]:has-text("1 game imported")', { timeout: 10_000 })
+    await shot('5-watch-folder')
   })
 
   if (errors.length) throw new Error(`Page errors: ${errors.join('; ')}`)

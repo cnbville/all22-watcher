@@ -51,9 +51,15 @@ export function ago(iso: string | null): string {
 /** Follows main's data status for one season. */
 export function useDataStatus(season: number | null): [DataStatus | null, () => void] {
   const [status, setStatus] = useState<DataStatus | null>(null)
+  // As in useWatchStatus: a pushed status beats a fetch that was already in flight.
+  const seq = useRef(0)
   const load = useCallback(() => {
     if (season === null) return
-    rawApi.dataStatus(season).then(setStatus, () => setStatus(null))
+    const at = ++seq.current
+    rawApi.dataStatus(season).then(
+      (s) => at === seq.current && setStatus(s),
+      () => at === seq.current && setStatus(null)
+    )
   }, [season])
   useEffect(load, [load])
   useDataEvent(['season', 'settings'], load)
@@ -61,6 +67,7 @@ export function useDataStatus(season: number | null): [DataStatus | null, () => 
     () =>
       rawApi.onApiEvent((e) => {
         if (e.type === 'dataStatus' && e.status.season === season) {
+          seq.current++
           // Progress events carry no dates; keep the last known ones.
           setStatus((cur) => (e.status.state === 'updating' && cur ? { ...e.status, downloadedAt: cur.downloadedAt, hasParticipation: cur.hasParticipation } : e.status))
           if (e.status.state !== 'updating') void refreshSeasons()
@@ -74,15 +81,25 @@ export function useDataStatus(season: number | null): [DataStatus | null, () => 
 /** Follows main's watch-folder status. */
 export function useWatchStatus(): [WatchStatus | null, () => void] {
   const [status, setStatus] = useState<WatchStatus | null>(null)
+  // A pushed status is newer than any fetch already in flight (main pushes after it logs the import and sends
+  // `changed`), so a fetch that started before the last push is dropped.
+  const seq = useRef(0)
   const load = useCallback(() => {
-    rawApi.watchStatus().then(setStatus, () => setStatus(null))
+    const at = ++seq.current
+    rawApi.watchStatus().then(
+      (s) => at === seq.current && setStatus(s),
+      () => at === seq.current && setStatus(null)
+    )
   }, [])
   useEffect(load, [load])
   useDataEvent(['film', 'settings'], load)
   useEffect(
     () =>
       rawApi.onApiEvent((e) => {
-        if (e.type === 'watchStatus') setStatus(e.status)
+        if (e.type === 'watchStatus') {
+          seq.current++
+          setStatus(e.status)
+        }
       }),
     []
   )
