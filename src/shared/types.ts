@@ -184,6 +184,9 @@ export interface Settings {
   autoAdvance: boolean
   defaultSpeed: number
   pinned: Record<string, string[]>
+  welcomeSeen: boolean
+  myTeams: string[]
+  myTeamsRemoved: string[]
 }
 
 export interface SeasonStatus {
@@ -292,4 +295,20 @@ export interface PlayerProfile {
   tally: GradeTally
   tagCounts: { tag: string; count: number }[]
   reel: ReelItem[]
+}
+
+/** A long-running task in main (download, import, convert, export, watch folder), shown in the sidebar footer and Dock. */
+export interface Activity {
+  id: string
+  kind: 'download' | 'import' | 'convert' | 'export' | 'watch'
+  title: string
+  detail?: string
+  done: number
+  total: number
+  state: 'running' | 'done' | 'failed' | 'cancelled'
+  error?: string
+  route?: string
+  cancellable?: boolean
+  resultPath?: string
+  notification?: { title: string; body?: string; route?: string; revealPath?: string }
 }

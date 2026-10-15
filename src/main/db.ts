@@ -77,7 +77,10 @@ CREATE TABLE IF NOT EXISTS settings (
 const DEFAULT_SETTINGS: Settings = {
   autoAdvance: false,
   defaultSpeed: 1,
-  pinned: {}
+  pinned: {},
+  welcomeSeen: false,
+  myTeams: [],
+  myTeamsRemoved: []
 }
 
 type Params = SqlValue[] | Record<string, SqlValue>

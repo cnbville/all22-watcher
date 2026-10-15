@@ -9,6 +9,8 @@ import { convertClips, findFfmpeg } from './convert'
 import { Store } from './db'
 import { Library } from './library'
 import { mirrorFetcher, webFetcher } from './nflverse'
+import { registerShell } from './shell'
+import { createMainWindow, getMainWindow, showMainWindow } from './windows'
 
 // Lets tests and power users keep data somewhere other than ~/Library/Application Support.
 if (process.env.ALL22_USER_DATA) app.setPath('userData', process.env.ALL22_USER_DATA)
@@ -18,7 +20,6 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 let library: Library
-let mainWindow: BrowserWindow | null = null
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -66,30 +67,6 @@ function load(win: BrowserWindow, hash = '') {
   return target.url ? win.loadURL(target.url) : win.loadFile(target.file!, { hash })
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1480,
-    height: 920,
-    minWidth: 1100,
-    minHeight: 700,
-    show: false,
-    backgroundColor: '#0d1014',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
-      contextIsolation: true
-    }
-  })
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) shell.openExternal(url)
-    return { action: 'deny' }
-  })
-  mainWindow.on('closed', () => (mainWindow = null))
-  load(mainWindow)
-}
-
 async function renderPlayerReport(season: number, playerId: string): Promise<Buffer> {
   const win = new BrowserWindow({
     show: false,
@@ -124,7 +101,7 @@ function handlers(): Handlers {
     openedFilm: async (gameId, team) => library.store.touchFilm(gameId, team, true),
     recentFilm: () => library.recentFilm(),
     pickClips: async () => {
-      const res = await dialog.showOpenDialog(mainWindow!, {
+      const res = await dialog.showOpenDialog(getMainWindow()!, {
         title: 'Choose the clips (or the folder of clips) for this game',
         properties: ['openFile', 'openDirectory', 'multiSelections'],
         filters: [{ name: 'Video', extensions: VIDEO_EXTENSIONS.map((e) => e.slice(1)) }]
@@ -154,7 +131,7 @@ function handlers(): Handlers {
     settings: async () => library.store.settings(),
     saveSettings: async (patch) => library.store.saveSettings(patch),
     exportGradesCsv: async (season, team) => {
-      const res = await dialog.showSaveDialog(mainWindow!, {
+      const res = await dialog.showSaveDialog(getMainWindow()!, {
         title: 'Export grades',
         defaultPath: `${team}-${season}-grades.csv`,
         filters: [{ name: 'CSV', extensions: ['csv'] }]
@@ -165,7 +142,7 @@ function handlers(): Handlers {
     },
     exportPlayerReport: async (season, playerId) => {
       const profile = await library.playerProfile(season, playerId)
-      const res = await dialog.showSaveDialog(mainWindow!, {
+      const res = await dialog.showSaveDialog(getMainWindow()!, {
         title: 'Save scouting report',
         defaultPath: `${(profile?.player.name ?? playerId).replace(/[^\w .-]/g, '')} ${season}.pdf`,
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
@@ -209,9 +186,10 @@ app.whenReady().then(async () => {
     return fn(...args)
   })
 
-  createWindow()
+  registerShell({ recentFilm: () => library.recentFilm() })
+  createMainWindow()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!getMainWindow()) showMainWindow()
   })
 }).catch((e) => {
   // Otherwise a failed start leaves the app running with no window and no explanation.
