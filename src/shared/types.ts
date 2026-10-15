@@ -349,6 +349,10 @@ export interface ReelItem {
   playNote: string
   teamEpa: number | null
   teamSuccess: boolean | null
+  /** The play's charting (PlayNote.chart), for chart-field splits and tokens. */
+  chart: Record<string, string>
+  /** The play's drawings, for the reel player. */
+  drawing: Drawing | null
 }
 
 export interface PlayerProfile {
@@ -412,7 +416,8 @@ export interface PlayerSeasonLine {
   /** Same rules as PlayerProfile.totals. */
   totals: Record<string, number>
   tally: GradeTally
-  byGame: { gameId: string; week: number; grade: number }[]
+  /** Graded games in date order; `plays`, `opponent`, `gameType` and `home` describe the game for charts. */
+  byGame: { gameId: string; week: number; grade: number; plays?: number; opponent?: string; gameType?: string; home?: boolean }[]
 }
 
 export interface LeaderRow {
