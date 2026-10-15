@@ -55,7 +55,7 @@ export async function planExport(library: Library, cutups: CutupEngine, req: Exp
       caption: playCaption(item.game, item.team, item.play),
       description: item.play ? shortDesc(item.play.desc) : '',
       player: player
-        ? { id: player.id, name: player.name, jersey: player.jersey, position: player.position, team: entry?.team ?? player.team, color: TEAM_BY_ABBR[entry?.team ?? player.team]?.color ?? '#8E8E93' }
+        ? { id: player.id, name: player.name, jersey: player.jersey, position: player.depthPos || player.position, team: entry?.team ?? player.team, color: TEAM_BY_ABBR[entry?.team ?? player.team]?.color ?? '#8E8E93' }
         : null,
       grade: entry?.grade ?? null,
       critical: !!entry?.critical && entry.grade !== null,
@@ -77,7 +77,7 @@ export async function planExport(library: Library, cutups: CutupEngine, req: Exp
     const score = gradeScore(tallyOf(graded.map((d) => ({ grade: d.grade, critical: d.critical }))))
     plan.titleCard = {
       title: player.name,
-      line2: [player.jersey ? `#${player.jersey}` : '', player.position, team?.name ?? player.team].filter(Boolean).join(' · '),
+      line2: [player.jersey ? `#${player.jersey}` : '', player.depthPos || player.position, team?.name ?? player.team].filter(Boolean).join(' · '),
       line3: [`${src.season} season`, `${plan.playCount} plays`, score !== null ? `Grade ${score}` : ''].filter(Boolean).join(' · '),
       color: team?.color ?? null
     }
