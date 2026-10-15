@@ -20,6 +20,13 @@ export function SeasonGate({ season, children }: { season: number; children: Rea
   return <SeasonDownload season={season} />
 }
 
+/** True once the season's data is on disk and not being replaced; screens hide season controls until then. */
+export function useSeasonReady(season: number): boolean {
+  const seasons = useSeasons()
+  const dl = useDownload(season)
+  return !!seasons?.find((s) => s.season === season)?.downloaded && !dl?.busy
+}
+
 export function SeasonDownload({ season }: { season: number }) {
   const seasons = useSeasons() ?? []
   const dl = useDownload(season)

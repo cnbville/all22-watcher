@@ -1337,9 +1337,14 @@
   height: 100%;
   padding: 0 24px;
 }
-.empty-state::before {
+/* Free space splits 2:3 above and below, which puts the block's center near 40% of the region (01 §6.26). */
+.empty-state::before,
+.empty-state::after {
   content: '';
-  flex: 0 1 40%;
+  flex: 2 1 0;
+}
+.empty-state::after {
+  flex-grow: 3;
 }
 .empty-state__inner {
   display: flex;
@@ -1347,7 +1352,6 @@
   align-items: center;
   max-width: 360px;
   text-align: center;
-  transform: translateY(-50%);
 }
 .empty-state__icon {
   color: var(--label-3);
@@ -1378,11 +1382,9 @@
   min-height: 0;
   padding: 24px 16px;
 }
-.empty-state--small::before {
+.empty-state--small::before,
+.empty-state--small::after {
   display: none;
-}
-.empty-state--small .empty-state__inner {
-  transform: none;
 }
 .empty-state--small .empty-state__title {
   font: var(--t-headline);

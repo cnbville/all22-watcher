@@ -44,11 +44,13 @@ export function afterApi(method: keyof Api | string, hook: AfterHook) {
 
 /**
  * window.api with the shell's side effects: data events after writes, a settings broadcast after settings writes.
- * Methods added to the bridge later pass straight through.
+ * Methods added to the bridge later pass straight through. The bridged object is frozen, so the proxy
+ * wraps an empty target and reads window.api per access (a proxy over a frozen object may not wrap its values).
  */
-export const api: Api = new Proxy(rawApi ?? ({} as Api), {
-  get(target, prop: string) {
-    const value = (target as unknown as Record<string, unknown>)[prop]
+export const api: Api = new Proxy({} as Api, {
+  get(_, prop: string) {
+    const target = window.api
+    const value = (target as unknown as Record<string, unknown> | undefined)?.[prop]
     if (typeof value !== 'function') return value
     const kinds = EMITS[prop]
     const settings = SETTINGS_WRITES.has(prop)

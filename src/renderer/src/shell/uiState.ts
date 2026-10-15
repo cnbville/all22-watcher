@@ -56,7 +56,7 @@ let state: ShellUi = {
   inspectorVisible: true,
   inspectorWidth: 320,
   scrolled: false,
-  largeTitleVisible: true,
+  largeTitleVisible: false,
   filmOnly: false,
   windowFocused: typeof document !== 'undefined' ? document.hasFocus() : true,
   fullScreen: false,

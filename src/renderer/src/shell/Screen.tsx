@@ -33,7 +33,7 @@ export function Screen({
 }) {
   const hasInspector = inspector !== undefined
   useLayoutEffect(() => {
-    setUi({ screen: name, hasInspector, scrolled: false, largeTitleVisible: true })
+    setUi({ screen: name, hasInspector, scrolled: false, largeTitleVisible: false })
     if (hasInspector) loadInspector(name, inspectorWidth, inspectorMin)
   }, [name, hasInspector, inspectorWidth, inspectorMin])
 
@@ -101,6 +101,8 @@ export function CollapsingTitle({ children, className, test }: { children: React
     const el = ref.current
     const root = document.getElementById('content')
     if (!el || !root) return
+    // A screen starts with its title in the toolbar; a mounted large title takes it until it scrolls away.
+    setUi({ largeTitleVisible: true })
     const io = new IntersectionObserver(([e]) => setUi({ largeTitleVisible: e.isIntersecting }), { root, rootMargin: '-52px 0px 0px 0px', threshold: 0 })
     io.observe(el)
     return () => {

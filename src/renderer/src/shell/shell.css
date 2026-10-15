@@ -561,10 +561,28 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
 
 /* ── Page layout (01 §2.8) ───────────────────────────────────────────────── */
 
+.shell-content:not([data-scroll='none']) > .screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+/* The page column fills the viewport so an empty state can center in the space under the toolbar. */
 .page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  box-sizing: border-box;
+  width: 100%;
   max-width: calc(var(--page-max) + 2 * var(--page-pad-x));
   margin: 0 auto;
   padding: calc(var(--toolbar-h) + 24px) var(--page-pad-x) 48px;
+}
+.page > * {
+  flex: none;
+}
+.page > .empty-state {
+  flex: 1 0 auto;
+  height: auto;
 }
 .large-title {
   margin-bottom: 24px;
