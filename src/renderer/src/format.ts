@@ -175,3 +175,131 @@ export function initials(name: string): string {
     .join('')
     .toUpperCase()
 }
+
+// ── 03 §2.3 additions ────────────────────────────────────────────────────────
+
+export {
+  defPersonnelLabel,
+  defPersonnelShape,
+  durationLabel,
+  enumLabel,
+  gameLabel,
+  gameTitle,
+  personnelLabel,
+  playCaption,
+  weekName,
+  weekShort
+} from '@shared/labels'
+export { ordinal } from '@shared/stats'
+
+const MINUS = '−'
+
+/** "+0.42", "−1.16", "0.00"; null → "—". */
+export function formatEpa(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return '—'
+  const r = Math.round(v * 100) / 100
+  if (r === 0) return '0.00'
+  return `${r > 0 ? '+' : MINUS}${Math.abs(r).toFixed(2)}`
+}
+
+/** "+54", "−12", "0". */
+export function formatSigned(n: number): string {
+  const r = Math.round(n)
+  if (r === 0) return '0'
+  return `${r > 0 ? '+' : MINUS}${Math.abs(r)}`
+}
+
+/** "48%" (v1 `pct`). */
+export function formatPct(v: number): string {
+  return `${Math.round(v * 100)}%`
+}
+
+/** A formatted number with U+2212 for its sign: "−3", "−0.4". */
+export function minus(n: number | string): string {
+  return String(n).replace(/^-/, MINUS)
+}
+
+/** 72 → "6′0″". Blank or unreadable → ''. */
+export function heightLabel(inches: number | string | null | undefined): string {
+  if (inches === null || inches === undefined || (typeof inches === 'string' && !inches.trim())) return ''
+  const n = Number(inches)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  return `${Math.floor(n / 12)}′${Math.round(n % 12)}″`
+}
+
+/** "0" → "Rookie", "1" → "2nd season", "7" → "8th season", "" → ''. */
+export function experienceLabel(yearsExp: string | number | null | undefined): string {
+  if (yearsExp === null || yearsExp === undefined || String(yearsExp).trim() === '') return ''
+  const n = Number(yearsExp)
+  if (!Number.isFinite(n) || n < 0) return ''
+  if (n === 0) return 'Rookie'
+  return `${ordinalNumber(n + 1)} season`
+}
+
+function ordinalNumber(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd']
+  const v = n % 100
+  return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** "Today", "Yesterday", "Oct 12", "Oct 12, 2024" (another year). */
+export function relativeDay(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diff = Math.round((day(now) - day(d)) / 86_400_000)
+  if (diff === 0) return 'Today'
+  if (diff === 1) return 'Yesterday'
+  const md = `${MONTHS[d.getMonth()]} ${d.getDate()}`
+  return d.getFullYear() === now.getFullYear() ? md : `${md}, ${d.getFullYear()}`
+}
+
+/** A game day "2025-09-07" → "Sun, Sep 7" (a calendar date, no time zone shift). */
+export function gameDayLabel(gameday: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(gameday)
+  if (!m) return gameday
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`
+}
+
+/** "11–6", "7–9–1". */
+export function recordLabel(w: number, l: number, t = 0): string {
+  return t ? `${w}–${l}–${t}` : `${w}–${l}`
+}
+
+/** The result from `team`'s side, or null before the game is played. */
+export function gameOutcome(game: GameInfo, team: string): { letter: 'W' | 'L' | 'T'; score: string } | null {
+  if (game.homeScore === null || game.awayScore === null) return null
+  const us = team === game.homeTeam ? game.homeScore : game.awayScore
+  const them = team === game.homeTeam ? game.awayScore : game.homeScore
+  return { letter: us > them ? 'W' : us < them ? 'L' : 'T', score: `${us}–${them}` }
+}
+
+/** Week codes for narrow table columns: "1"–"18", "WC", "DIV", "CONF", "SB". */
+export function weekCode(game: Pick<GameInfo, 'week' | 'gameType'>): string {
+  switch (game.gameType) {
+    case 'WC':
+      return 'WC'
+    case 'DIV':
+      return 'DIV'
+    case 'CON':
+      return 'CONF'
+    case 'SB':
+      return 'SB'
+    default:
+      return String(game.week)
+  }
+}
+
+/** "1 play", "20 plays", "1,204 plays". */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+}
+
+/** "Cooper DeJean" → "Cooper". */
+export function firstName(name: string): string {
+  return name.split(/\s+/)[0] ?? name
+}

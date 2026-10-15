@@ -510,7 +510,7 @@ export async function confirmDeleteCutup(c: CutupSummary) {
   if (ok) await adapters.deleteCutup(c.cutup.id).catch((e) => errorBanner('Couldn’t delete the cut-up', e))
 }
 
-function cutupMenu(c: CutupSummary, rename: () => void) {
+export function cutupMenu(c: CutupSummary, rename: () => void) {
   const smart = c.cutup.kind === 'smart'
   return [
     action('Play', () => navigate(`${links.cutup(c.cutup.id)}?play=1`)),

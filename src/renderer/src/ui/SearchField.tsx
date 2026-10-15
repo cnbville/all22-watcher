@@ -16,6 +16,8 @@ export interface SearchSuggestion {
   token: SearchToken
   /** Runs instead of adding the token, and keeps the typed text ("Search descriptions for …"). */
   run?: () => void
+  /** Shown after the token in the menu only: a count ("6"). */
+  detail?: string
 }
 
 /**
@@ -80,7 +82,7 @@ export function SearchField({
         items.push({ kind: 'header', label: s.section })
       }
       items.push({
-        label: [s.token.keyLabel, s.token.label].filter(Boolean).join(' '),
+        label: `${[s.token.keyLabel, s.token.label].filter(Boolean).join(' ')}${s.detail ? ` · ${s.detail}` : ''}`,
         run: () => {
           if (s.run) {
             s.run()

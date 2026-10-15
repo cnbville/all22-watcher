@@ -6,6 +6,7 @@ import { clipStartTime } from '@shared/snap'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { Angle, ChartField, GameFilm, Grade, GradeEntry, Play, PlayNote, RosterPlayer, Settings, TagDef, TeamGame } from '@shared/types'
 import { api } from '../../api'
+import { quarterLabel } from '../../format'
 import { banner, errorBanner } from '../../shell/Banners'
 import { runCommand, useCommand, useDynamicMenus } from '../../shell/commands'
 import { action, playerMenu, sep, showMenu, submenu } from '../../shell/contextMenus'
@@ -19,7 +20,7 @@ import { Toolbar } from '../../shell/Toolbar'
 import { setUi, useUi } from '../../shell/uiState'
 import { EmptyState } from '../../ui/EmptyState'
 import { isTyping } from '../../ui/keyboard'
-import { type MenuItemSpec, openMenu } from '../../ui/Menu'
+import type { MenuItemSpec } from '../../ui/Menu'
 import { Segmented } from '../../ui/Segmented'
 import { Spinner } from '../../ui/Spinner'
 import { teamMarkFor } from '../../ui/teamMark'
@@ -28,6 +29,7 @@ import { quantize } from '../../ui/video/frameLength'
 import { secondsLabel } from '../../ui/video/time'
 import { viewerToast } from '../../ui/video/ViewerToast'
 import { checkClipAlignment, openFixMatches } from '../import/fixMatches'
+import { addToCutupMenu, requestAddToCutup, requestExportVideo, useExportVideoAvailable } from '../shared/requests'
 import { SeasonDownload, useSeasonReady } from '../shared/SeasonGate'
 import { AddPlayerPopover } from './Inspector/AddPlayerPopover'
 import { FocusPicker } from './Inspector/FocusPicker'
@@ -36,10 +38,8 @@ import { fromSearchTokens, lineupOptions, matchPlay, toSearchToken } from './fil
 import { focusProgress, focusSnaps } from './focus'
 import {
   emptyEntry,
-  entryKey,
   firstToGrade,
   gradeCounts,
-  isEmptyEntry,
   listedPlayers,
   playIsUngraded,
   playProgress,
@@ -49,7 +49,6 @@ import {
   withOffField,
   withTag
 } from './grading'
-import { tapeRoomHooks } from './hooks'
 import {
   ANGLE_ORDER,
   angleTitle,
@@ -922,16 +921,12 @@ function Room({
     const ordered = plays.filter((p) => ids.includes(p.playId))
     const flagged = data.noteOf(play.playId).flagged
     const clips = clipsByPlay.get(play.playId) ?? []
-    void api.cutups().then((cutups) => {
-      const manual = cutups.map((c) => c.cutup).filter((c) => c.kind === 'manual')
-      const refs = ordered.map((p) => ({ gameId, playId: p.playId }))
+    const refs = ordered.map((p) => ({ gameId, playId: p.playId }))
+    e.preventDefault()
+    void addToCutupMenu(refs).then((cutupItems) => {
       void showMenu(null, [
         action(flagged ? 'Unflag Play' : 'Flag Play', () => toggleFlag(ordered.map((p) => p.playId)), { accelerator: 'F' }),
-        submenu('Add to Cut-up', [
-          ...manual.map((c) => action(c.name, () => void addToCutup(c.id, c.name, refs))),
-          ...(manual.length ? [sep()] : []),
-          action(refs.length === 1 ? 'New Cut-up with This Play' : 'New Cut-up with These Plays', () => void newCutup(refs))
-        ]),
+        submenu('Add to Cut-up', cutupItems),
         sep(),
         action('Copy Description', () => void navigator.clipboard.writeText(ordered.map((p) => p.desc).join('\n'))),
         clips.length > 1
@@ -981,45 +976,19 @@ function Room({
     requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-test="player-note"]')?.focus())
   }
 
-  // Cut-ups (⌘D, the play row menu).
-  const addToCutup = async (id: string, name: string, refs: { gameId: string; playId: number }[]) => {
-    try {
-      const r = await api.addToCutup(id, refs)
-      banner({ title: r.added ? `Added to “${name}”` : `Already in “${name}”`, kind: 'success', action: { label: 'Open', run: () => navigate(links.cutup(id)) } })
-    } catch (e) {
-      errorBanner('Couldn’t add to the cut-up', e)
-    }
-  }
-  const newCutup = async (refs: { gameId: string; playId: number }[]) => {
-    try {
-      const c = await api.createCutup({ kind: 'manual', plays: refs })
-      banner({ title: `Added to “${c.name}”`, kind: 'success', action: { label: 'Open', run: () => navigate(links.cutup(c.id)) } })
-    } catch (e) {
-      errorBanner('Couldn’t create the cut-up', e)
-    }
-  }
+  // Cut-ups (⌘D): the cut-ups owner's popover, else a menu of manual cut-ups (views/shared/requests.ts).
   const openCutupMenu = () => {
     if (!current) return
-    const refs = [{ gameId, playId: current.playId }]
-    const anchor =
-      document.querySelector('[data-test="play-row"][data-current="true"]') ?? document.querySelector('[data-test="viewer"]') ?? document.body
-    void api.cutups().then((cutups) => {
-      const manual = cutups.map((c) => c.cutup).filter((c) => c.kind === 'manual')
-      const items: MenuItemSpec[] = [
-        { kind: 'header', label: 'Add Play to Cut-up' },
-        ...manual.map((c): MenuItemSpec => ({ label: c.name, run: () => void addToCutup(c.id, c.name, refs) })),
-        ...(manual.length ? [{ kind: 'separator' } as MenuItemSpec] : []),
-        { label: 'New Cut-up with This Play', run: () => void newCutup(refs) }
-      ]
-      openMenu({ anchor, items, placement: 'below', minWidth: 240 })
-    })
+    const anchor = document.querySelector('[data-test="play-row"][data-current="true"]') ?? document.querySelector('[data-test="viewer"]')
+    void requestAddToCutup([{ gameId, playId: current.playId }], anchor)
   }
 
+  // Export Play Video… hands the play to the Export Video sheet's owner.
+  const exportAvailable = useExportVideoAvailable()
   const exportPlayVideo = () => {
     if (!current) return
-    const req = { source: { kind: 'plays' as const, label: `${game.awayTeam} @ ${game.homeTeam}`, team, plays: [{ gameId, playId: current.playId }] }, playerId: focus?.player.id ?? null }
-    if (tapeRoomHooks.exportVideo) tapeRoomHooks.exportVideo(req)
-    else banner({ title: 'Export Video isn’t available yet', kind: 'info' })
+    const source = { kind: 'plays' as const, label: `${game.awayTeam} @ ${game.homeTeam}`, team, plays: [{ gameId, playId: current.playId }] }
+    if (!requestExportVideo(source, `${game.awayTeam} @ ${game.homeTeam} · ${quarterLabel(current.qtr)} ${current.time}`)) banner({ title: 'Export Video isn’t available yet', kind: 'info' })
   }
   const exportCsv = () =>
     void api.exportGradesCsv(game.season, team).then(
@@ -1212,7 +1181,7 @@ function Room({
   useCommand('draw.bringToFront', () => arrange(true), { enabled: !!selShape })
   useCommand('draw.sendToBack', () => arrange(false), { enabled: !!selShape })
   useCommand('file.fixMatches', () => fixMatches(currentId ?? undefined))
-  useCommand('file.exportVideo', exportPlayVideo, { enabled: playable, label: 'Export Play Video…' })
+  useCommand('file.exportVideo', exportPlayVideo, { enabled: playable && exportAvailable, label: 'Export Play Video…' })
   useCommand('file.exportCsv', exportCsv)
   const nextUndo = undo.peekUndo()
   const nextRedo = undo.peekRedo()
@@ -1274,7 +1243,7 @@ function Room({
       : { label: 'Import Film…', shortcut: '⌘I', run: () => runCommand('file.importFilm') },
     { label: 'Check Clip Alignment', disabled: !hasFilm, run: checkAlignment },
     { kind: 'separator' },
-    { label: 'Export Play Video…', shortcut: '⌘E', disabled: !playable, run: exportPlayVideo },
+    { label: 'Export Play Video…', shortcut: '⌘E', disabled: !playable || !exportAvailable, run: exportPlayVideo },
     { label: 'Export Grades as CSV…', shortcut: '⇧⌘E', run: exportCsv },
     { kind: 'separator' },
     { label: 'Edit Tags…', run: () => void window.shell.openSettings('grading') },
@@ -1522,4 +1491,3 @@ function offsetShape(s: Shape, d: number): Shape {
   }
 }
 
-export { entryKey, isEmptyEntry }
