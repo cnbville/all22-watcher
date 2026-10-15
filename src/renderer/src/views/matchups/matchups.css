@@ -1,0 +1,350 @@
+@layer screens {
+  /* Matchups (03 §8): the picker and the matchup page. */
+  .screen-matchup {
+    /* Picker wells: 5 cols · 2 cols with "vs" · 5 cols. */
+    .matchup-picker {
+      display: grid;
+      grid-template-columns: 5fr 2fr 5fr;
+      align-items: center;
+      margin-top: 24px;
+    }
+    .matchup-picker__vs {
+      text-align: center;
+      font: var(--t-title-3);
+      color: var(--label-3);
+    }
+    .matchup-well {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 112px;
+      padding: 0 16px;
+      border-radius: var(--r-xl);
+      background: var(--fill-4);
+      outline: none;
+      cursor: default;
+      transition: background var(--dur-fast) var(--ease-out);
+    }
+    .matchup-well:hover {
+      background: var(--fill-3);
+    }
+    .matchup-well:focus-visible {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .matchup-well[data-filled] {
+      background: var(--bg-group);
+      box-shadow: inset 0 0 0 0.5px var(--group-border);
+    }
+    .matchup-well__empty {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      font: var(--t-body);
+      color: var(--label-2);
+
+      svg {
+        color: var(--label-3);
+      }
+    }
+    .matchup-well__text {
+      min-width: 0;
+    }
+    .matchup-well__name {
+      font: var(--t-title-2);
+      color: var(--label);
+    }
+    .matchup-well__sub {
+      margin-top: 2px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .matchup-well__clear {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--transparent);
+      color: var(--label-3);
+    }
+    .matchup-well__clear:hover {
+      background: var(--fill-3);
+      color: var(--label-2);
+    }
+
+    .matchup-section {
+      margin-top: 40px;
+    }
+    .matchup-list {
+      display: flex;
+      flex-direction: column;
+    }
+    .matchup-list__row {
+      display: grid;
+      grid-template-columns: 224px 160px 1fr 12px;
+      align-items: center;
+      gap: 16px;
+      height: 40px;
+      padding: 0 12px;
+      border: 0;
+      border-bottom: 0.5px solid var(--sep);
+      background: var(--transparent);
+      color: var(--label);
+      text-align: left;
+      cursor: default;
+    }
+    .matchup-list__row:hover {
+      background: var(--fill-4);
+    }
+    .matchup-list__row:active {
+      background: var(--fill-3);
+    }
+    .matchup-list__teams {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font: var(--t-body);
+      color: var(--label);
+    }
+    .matchup-list__date {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .matchup-list__records {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .matchup-list__chevron {
+      color: var(--label-3);
+    }
+
+    /* Header: left 4.5 cols · center 3 · right 4.5. */
+    .matchup-header {
+      display: grid;
+      grid-template-columns: 4.5fr 3fr 4.5fr;
+      align-items: center;
+      gap: 16px;
+      min-height: 72px;
+      padding-bottom: 20px;
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .matchup-header__team {
+      display: flex;
+      min-width: 0;
+    }
+    .matchup-header__team--right {
+      justify-content: flex-end;
+    }
+    .matchup-header__pick {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+      padding: 4px;
+      margin: -4px;
+      border: 0;
+      border-radius: var(--r-xl);
+      background: var(--transparent);
+      color: inherit;
+      text-align: left;
+      cursor: default;
+    }
+    .matchup-header__pick:hover {
+      background: var(--fill-4);
+    }
+    .matchup-header__team--right .matchup-header__pick {
+      flex-direction: row-reverse;
+      text-align: right;
+    }
+    .matchup-header__names {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .matchup-header__name {
+      font: var(--t-title-1);
+      color: var(--label);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .matchup-header__sub {
+      margin-top: 2px;
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .matchup-header__center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      text-align: center;
+
+      .button {
+        margin-top: 8px;
+      }
+    }
+    .matchup-header__line1 {
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .matchup-header__line2 {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+
+    .matchup-sub {
+      margin-bottom: 4px;
+      font: var(--t-headline);
+      color: var(--label-2);
+    }
+    .matchup-sub--spaced {
+      margin-top: 24px;
+    }
+    .matchup-versus {
+      display: flex;
+      flex-direction: column;
+    }
+    .matchup-note {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      margin-top: 4px;
+      font: var(--t-callout);
+      color: var(--label-2);
+
+      svg {
+        color: var(--label-3);
+      }
+    }
+
+    /* Players to watch and Film: two 6-col columns. */
+    .matchup-players {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .matchup-watch {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .matchup-watch__title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 28px;
+      font: var(--t-headline);
+      color: var(--label);
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .matchup-watch__label {
+      margin: 10px 0 2px;
+      font: var(--t-subheadline);
+      font-weight: 600;
+      color: var(--label-3);
+    }
+    .matchup-watch__none {
+      padding: 8px 0;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .matchup-watch__stat {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .matchup-player {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .matchup-player__name {
+      min-width: 0;
+      font: var(--t-body);
+      color: var(--label);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: default;
+    }
+    .matchup-player__name:hover {
+      text-decoration: underline;
+    }
+    .matchup-player__pos {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .matchup-player__snaps {
+      min-width: 56px;
+      text-align: right;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .matchup-player__trailing {
+      display: inline-flex;
+      justify-content: flex-end;
+      min-width: 32px;
+    }
+
+    .matchup-film__summary {
+      margin: 8px 0 4px;
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .matchup-film-row {
+      display: grid;
+      grid-template-columns: 32px 1fr auto auto;
+      align-items: center;
+      gap: 12px;
+      height: 40px;
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .matchup-film-row__week {
+      font: var(--t-callout);
+      color: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .matchup-film-row__progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .matchup-meeting {
+      display: grid;
+      grid-template-columns: 140px 180px 160px 1fr auto;
+      align-items: center;
+      gap: 16px;
+      height: 40px;
+      padding: 0 4px;
+      border-bottom: 0.5px solid var(--sep);
+    }
+    .matchup-meeting__when {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .matchup-meeting__result {
+      font: var(--t-callout);
+      color: var(--label);
+    }
+    .matchup-meeting__film {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+  }
+}
