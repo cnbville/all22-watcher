@@ -5,7 +5,7 @@ import { EmptyState } from '../../../ui/EmptyState'
 import { Icon } from '../../../ui/Icon'
 import { Keycap } from '../../../ui/Keycap'
 import { PulldownButton } from '../../../ui/PopupButton'
-import { TeamChip } from '../../../ui/TeamChip'
+import { TeamLogo } from '../../../ui/TeamChip'
 import type { Room } from '../model'
 import { readPref, writePref } from '../prefs'
 import { GradingRow } from './GradingRow'
@@ -24,6 +24,10 @@ export function GradeTab({ room }: { room: Room }) {
     const e = room.data.entryOf(current.playId, p.id)
     return !e || (e.grade === null && !e.offField)
   })
+  const gradedCount = listed.filter((p) => {
+    const e = room.data.entryOf(current.playId, p.id)
+    return !!e && (e.grade !== null || e.offField)
+  }).length
   const playMarked = room.listed.some((p) => {
     const e = room.data.entryOf(current.playId, p.id)
     return !!e && (e.grade !== null || e.critical || e.offField)
@@ -35,9 +39,9 @@ export function GradeTab({ room }: { room: Room }) {
 
   const header = (
     <div className="grade-header" data-test="grade-header">
-      <TeamChip abbr={team} />
+      <TeamLogo abbr={team} size={18} />
       <span className="grade-header__side">{side}</span>
-      <span className="grade-header__count">{listed.length}</span>
+      <span className="grade-header__count">{listed.length ? `${gradedCount} of ${listed.length} graded` : '0'}</span>
       <span className="grade-header__spacer" />
       <Button
         variant="borderless"

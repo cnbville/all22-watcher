@@ -18,9 +18,9 @@
       display: flex;
       align-items: center;
       gap: 16px;
-      height: 112px;
-      padding: 0 16px;
-      border-radius: var(--r-xl);
+      height: 120px;
+      padding: 0 20px;
+      border-radius: var(--r-2xl);
       background: var(--fill-4);
       outline: none;
       cursor: default;
@@ -92,10 +92,10 @@
       grid-template-columns: 224px 160px 1fr 12px;
       align-items: center;
       gap: 16px;
-      height: 40px;
+      height: 48px;
       padding: 0 12px;
       border: 0;
-      border-bottom: 0.5px solid var(--sep);
+      border-radius: var(--r-lg);
       background: var(--transparent);
       color: var(--label);
       text-align: left;
@@ -104,13 +104,17 @@
     .matchup-list__row:hover {
       background: var(--fill-4);
     }
+    .matchup-list__row:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
     .matchup-list__row:active {
       background: var(--fill-3);
     }
     .matchup-list__teams {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       min-width: 0;
       font: var(--t-body);
       color: var(--label);
@@ -133,9 +137,8 @@
       grid-template-columns: 4.5fr 3fr 4.5fr;
       align-items: center;
       gap: 16px;
-      min-height: 72px;
-      padding-bottom: 20px;
-      border-bottom: 0.5px solid var(--sep);
+      min-height: 96px;
+      padding: 8px 0 12px;
     }
     .matchup-header__team {
       display: flex;
@@ -171,7 +174,8 @@
       min-width: 0;
     }
     .matchup-header__name {
-      font: var(--t-title-1);
+      font: 700 28px/1.1 var(--font-text);
+      letter-spacing: -0.02em;
       color: var(--label);
       white-space: nowrap;
       overflow: hidden;
@@ -194,7 +198,7 @@
       }
     }
     .matchup-header__line1 {
-      font: var(--t-headline);
+      font: 500 15px/20px var(--font-text);
       color: var(--label);
     }
     .matchup-header__line2 {
@@ -203,12 +207,42 @@
     }
 
     .matchup-sub {
-      margin-bottom: 4px;
-      font: var(--t-headline);
-      color: var(--label-2);
+      margin-bottom: 6px;
+      font: 500 12px/15px var(--font-text);
+      color: var(--label-3);
     }
     .matchup-sub--spaced {
-      margin-top: 24px;
+      margin-top: 32px;
+    }
+    .matchup-section .page-section__header > h2 {
+      font: 600 15px/20px var(--font-text);
+      letter-spacing: -0.01em;
+    }
+    .matchup-section {
+      margin-top: 52px;
+    }
+    .versus-row {
+      min-height: 44px;
+    }
+    .versus-row__value {
+      font: 500 15px/20px var(--font-text);
+    }
+    .versus-row__bar,
+    .versus-row__fill {
+      height: 3px;
+      border-radius: 1.5px;
+    }
+    .rank-badge {
+      padding: 0;
+      background: var(--transparent);
+      font-weight: 500;
+    }
+    .grade-badge {
+      height: auto;
+      min-width: 0;
+      padding: 0;
+      background: var(--transparent);
+      font-weight: 500;
     }
     .matchup-versus {
       display: flex;
@@ -232,7 +266,7 @@
     .matchup-players {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 48px;
     }
     .matchup-watch {
       display: flex;
@@ -243,10 +277,9 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 28px;
-      font: var(--t-headline);
+      height: 32px;
+      font: 600 13px/16px var(--font-text);
       color: var(--label);
-      border-bottom: 0.5px solid var(--sep);
     }
     .matchup-watch__label {
       margin: 10px 0 2px;
@@ -267,9 +300,11 @@
       display: grid;
       grid-template-columns: 24px minmax(0, 1fr) auto auto auto;
       align-items: center;
-      gap: 8px;
-      height: 36px;
-      border-bottom: 0.5px solid var(--sep);
+      gap: 10px;
+      height: 44px;
+    }
+    .matchup-player + .matchup-player {
+      box-shadow: inset 0 0.5px 0 var(--sep);
     }
     .matchup-player__name {
       min-width: 0;
@@ -310,8 +345,10 @@
       grid-template-columns: 32px 1fr auto auto;
       align-items: center;
       gap: 12px;
-      height: 40px;
-      border-bottom: 0.5px solid var(--sep);
+      height: 48px;
+    }
+    .matchup-film-row + .matchup-film-row {
+      box-shadow: inset 0 0.5px 0 var(--sep);
     }
     .matchup-film-row__week {
       font: var(--t-callout);
@@ -330,9 +367,12 @@
       grid-template-columns: 140px 180px 160px 1fr auto;
       align-items: center;
       gap: 16px;
-      height: 40px;
-      padding: 0 4px;
-      border-bottom: 0.5px solid var(--sep);
+      height: 52px;
+      padding: 0 12px;
+      border-radius: var(--r-lg);
+    }
+    .matchup-meeting:hover {
+      background: var(--fill-4);
     }
     .matchup-meeting__when {
       font: var(--t-callout);

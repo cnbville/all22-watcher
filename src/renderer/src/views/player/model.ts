@@ -18,7 +18,7 @@ export const PLAYER_SECTIONS: { value: PlayerSection; label: string }[] = [
   { value: 'overview', label: 'Overview' },
   { value: 'film', label: 'Film' },
   { value: 'splits', label: 'Splits' },
-  { value: 'log', label: 'Game Log' },
+  { value: 'log', label: 'Game log' },
   { value: 'career', label: 'Career' }
 ]
 
@@ -300,4 +300,61 @@ export function teamsLine(p: PlayerProfile): { before: string; link?: { abbr: st
   }
   const list = p.teams.map((t) => t.team)
   return { before: `Played for ${list.slice(0, -1).join(', ')} and ${list[list.length - 1]} this season`, after: '' }
+}
+
+// ── Presentation: key art, the clip shelf and the season trend note ─────────
+
+/** A still for one reel play: its own clip (sideline, else main, else any), a moment after the snap. */
+export function entryPoster(e: Pick<ReelEntry, 'clips' | 'ref'>): { clipId: number; at: number } | null {
+  const mine = e.clips.filter((c) => c.playId === e.ref.playId)
+  const clip = mine.find((c) => c.angle === 'sideline') ?? mine.find((c) => c.angle === 'main') ?? mine[0]
+  if (!clip) return null
+  const snap = clip.snapMs !== null ? clip.snapMs / 1000 : 0
+  const at = snap + 1
+  return { clipId: clip.id, at: clip.duration ? Math.min(at, Math.max(0, clip.duration - 0.2)) : at }
+}
+
+const bestRank = (e: ReelEntry) => (e.grade ?? -2) * 10 + (e.critical && e.grade === 1 ? 5 : 0) + Math.max(-4, Math.min(4, e.teamEpa ?? 0))
+
+/** His best-graded plays with film, best first (+ before 0 before −; critical and EPA break ties). */
+export function bestClips(entries: ReelEntry[], limit = 12): ReelEntry[] {
+  return entries
+    .filter((e) => e.grade !== null && e.grade !== undefined && entryPoster(e))
+    .map((e, i) => ({ e, i, r: bestRank(e) }))
+    .sort((a, b) => b.r - a.r || b.i - a.i)
+    .slice(0, limit)
+    .map((x) => x.e)
+}
+
+/** The key-art still: the best-graded play with film (a plus play only), or null for a quiet surface. */
+export function heroPoster(entries: ReelEntry[]): { clipId: number; at: number } | null {
+  const best = bestClips(entries, 1)[0]
+  return best && best.grade === 1 ? entryPoster(best) : null
+}
+
+/** "Up 6 over his last three games" / "Down 4 …" / "Steady …"; null under four graded games. */
+export function trendNote(p: PlayerProfile): string | null {
+  const scores = p.games.filter(graded).map((g) => gradeScore(g.tally)).filter((s): s is number => s !== null)
+  if (scores.length < 4) return null
+  const recent = scores.slice(-3)
+  const before = scores.slice(0, -3)
+  const mean = (l: number[]) => l.reduce((s, v) => s + v, 0) / l.length
+  const d = Math.round(mean(recent) - mean(before))
+  if (Math.abs(d) < 2) return 'Steady over the last three games'
+  return `${d > 0 ? 'Up' : 'Down'} ${Math.abs(d)} over the last three games`
+}
+
+const POSITION_NAMES: Record<string, string> = {
+  QB: 'Quarterback', RB: 'Running back', HB: 'Running back', FB: 'Fullback', WR: 'Wide receiver', TE: 'Tight end',
+  LT: 'Left tackle', LG: 'Left guard', C: 'Center', RG: 'Right guard', RT: 'Right tackle', T: 'Tackle', OT: 'Offensive tackle',
+  G: 'Guard', OG: 'Guard', OL: 'Offensive line', DE: 'Defensive end', DT: 'Defensive tackle', NT: 'Nose tackle', DL: 'Defensive line',
+  EDGE: 'Edge', LB: 'Linebacker', ILB: 'Inside linebacker', MLB: 'Middle linebacker', OLB: 'Outside linebacker', LILB: 'Inside linebacker',
+  RILB: 'Inside linebacker', LOLB: 'Outside linebacker', ROLB: 'Outside linebacker', WILL: 'Linebacker', MIKE: 'Linebacker', SAM: 'Linebacker',
+  CB: 'Cornerback', LCB: 'Cornerback', RCB: 'Cornerback', NB: 'Nickel back', DB: 'Defensive back', S: 'Safety', FS: 'Free safety',
+  SS: 'Strong safety', K: 'Kicker', PK: 'Kicker', P: 'Punter', LS: 'Long snapper', KR: 'Returner', PR: 'Returner'
+}
+
+/** "LT" → "Left tackle"; unknown codes stay as they are. */
+export function positionName(code: string): string {
+  return POSITION_NAMES[code.toUpperCase()] ?? code
 }

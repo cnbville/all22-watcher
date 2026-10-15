@@ -8,7 +8,7 @@ import { Icon } from '../ui/Icon'
 import { type MenuItemSpec, openMenu } from '../ui/Menu'
 import { Popover } from '../ui/Popover'
 import { SearchField } from '../ui/SearchField'
-import { TeamDot } from '../ui/TeamChip'
+import { TeamLogo } from '../ui/TeamChip'
 import * as adapters from './adapters'
 import type { CutupSummary } from './adapters'
 import { DataStatusRow, WatchStatusRow } from './StatusRows'
@@ -104,7 +104,7 @@ export function SeasonPopup({ test = 'season-popup' }: { test?: string }) {
         }
       }}
     >
-      <span className="season-popup__label">{season ? `${season} Season` : 'Season'}</span>
+      <span className="season-popup__label">{season ? `${season} season` : 'Season'}</span>
       <Icon name="chevrons-up-down" size={12} className="season-popup__chevrons" />
     </button>
   )
@@ -234,7 +234,7 @@ export function TeamPicker({ onPick, exclude = [] }: { onPick: (abbr: string) =>
               <div className="team-picker__division">{div}</div>
               {teams.map((t) => (
                 <button key={t.abbr} type="button" className="team-picker__row" disabled={exclude.includes(t.abbr)} onMouseDown={(e) => e.preventDefault()} onClick={() => onPick(t.abbr)}>
-                  <TeamDot abbr={t.abbr} />
+                  <TeamLogo abbr={t.abbr} size={18} />
                   <span>{t.name}</span>
                 </button>
               ))}
@@ -339,7 +339,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
           />
         ))}
         <div className="sidebar-section">
-          <SectionHeader id="myTeams" label="My Teams" collapsed={teamsCollapsed} onToggle={toggleTeams} addLabel="Add Team" addRef={addTeamRef} onAdd={() => ((pickerAnchor.current = addTeamRef.current), setPickerOpen(true))} />
+          <SectionHeader id="myTeams" label="My teams" collapsed={teamsCollapsed} onToggle={toggleTeams} addLabel="Add team" addRef={addTeamRef} onAdd={() => ((pickerAnchor.current = addTeamRef.current), setPickerOpen(true))} />
           {!teamsCollapsed &&
             (myTeams.length ? (
               myTeams.map((abbr) => {
@@ -349,7 +349,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
                     key={abbr}
                     rowKey={`team:${abbr}`}
                     test={`sidebar-team-${abbr}`}
-                    icon={<TeamDot abbr={abbr} />}
+                    icon={<TeamLogo abbr={abbr} size={18} />}
                     label={TEAM_BY_ABBR[abbr]?.nickname ?? abbr}
                     selected={selectedKey === `team:${abbr}`}
                     trailing={n > 0 ? <CountBadge count={n} title={`${n} ${n === 1 ? 'game' : 'games'} with ungraded plays`} /> : undefined}
@@ -380,12 +380,12 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
               })
             ) : (
               <div ref={emptyTeamRef}>
-                <Row rowKey="addTeam" dimmed icon={<Icon name="plus" size={16} />} label="Add Team…" selected={false} onOpen={() => ((pickerAnchor.current = emptyTeamRef.current), setPickerOpen(true))} />
+                <Row rowKey="addTeam" dimmed icon={<Icon name="plus" size={16} />} label="Add team…" selected={false} onOpen={() => ((pickerAnchor.current = emptyTeamRef.current), setPickerOpen(true))} />
               </div>
             ))}
         </div>
         <div className="sidebar-section">
-          <SectionHeader id="cutups" label="Cut-ups" collapsed={cutupsCollapsed} onToggle={toggleCutups} addLabel="New Cut-up (⌥-click for Smart)" onAdd={(e) => (e?.altKey ? newSmartCutup() : onNewCutup())} onLabelClick={() => go(links.cutups())} />
+          <SectionHeader id="cutups" label="Cut-ups" collapsed={cutupsCollapsed} onToggle={toggleCutups} addLabel="New cut-up (⌥-click for smart)" onAdd={(e) => (e?.altKey ? newSmartCutup() : onNewCutup())} onLabelClick={() => go(links.cutups())} />
           {!cutupsCollapsed &&
             (cutups.length ? (
               cutups.map((c) => {
@@ -449,7 +449,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
                 )
               })
             ) : (
-              <Row rowKey="newCutup" dimmed icon={<Icon name="plus" size={16} />} label="New Cut-up" selected={false} onOpen={onNewCutup} />
+              <Row rowKey="newCutup" dimmed icon={<Icon name="plus" size={16} />} label="New cut-up" selected={false} onOpen={onNewCutup} />
             ))}
         </div>
       </div>

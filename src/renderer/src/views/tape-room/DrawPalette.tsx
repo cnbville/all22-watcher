@@ -66,8 +66,8 @@ const SHOW_FOR: { value: ShowFor; label: string; short: string }[] = [
   { value: 'frame', label: 'This Frame Only', short: '1 fr' }
 ]
 
-export const PALETTE_WIDTH = 673
-export const PALETTE_HEIGHT = 40
+export const PALETTE_WIDTH = 640
+export const PALETTE_HEIGHT = 38
 
 const newId = () => crypto.randomUUID().slice(0, 8)
 
@@ -229,7 +229,7 @@ export function DrawPalette({
       onMouseDown={noMouseFocus}
       onClick={run}
     >
-      <Icon name={icon} size={18} style={opts.style} />
+      <Icon name={icon} size={16} style={opts.style} />
     </button>
   )
 
@@ -284,7 +284,7 @@ export function DrawPalette({
       onMouseDown={noMouseFocus}
       onClick={(e) => menu(e.currentTarget, showItems())}
     >
-      <Icon name="timer" size={14} />
+      <Icon name="timer" size={13} />
       {!compactShow && <span>{showFor === 'custom' ? 'Custom' : (SHOW_FOR.find((x) => x.value === showFor)?.short ?? 'End')}</span>}
     </button>
   )
@@ -309,7 +309,7 @@ export function DrawPalette({
   ]
 
   return (
-    <div className="hud draw-palette" data-test="draw-palette" style={style} onPointerDown={(e) => e.stopPropagation()}>
+    <div className="hud draw-palette glass-bar" data-test="draw-palette" style={style} onPointerDown={(e) => e.stopPropagation()}>
       <div className="draw-palette__group">
         {TOOLS.map((t) =>
           btn(t.icon, `${t.label} (${t.key})`, () => runCommand('draw.tool', t.id), {
@@ -329,7 +329,7 @@ export function DrawPalette({
           onMouseDown={noMouseFocus}
           onClick={(e) => menu(e.currentTarget, moreItems())}
         >
-          <Icon name="ellipsis" size={18} />
+          <Icon name="ellipsis" size={16} />
         </button>
       ) : (
         <>
@@ -376,7 +376,7 @@ export function DrawPalette({
 /** Line end glyph: plain, arrowhead or T bar (18px). */
 function EndGlyph({ end }: { end: LineEnd }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 9h11" />
       {end === 'arrow' && <path d="M11 5.5 15 9l-4 3.5" />}
       {end === 'block' && <path d="M15 4.5v9" />}

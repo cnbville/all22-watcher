@@ -14,9 +14,9 @@ import { filterEntries, reelDuration, type ReelSort, sortEntries } from './model
 import type { FilmState, PlayerCtx } from './Player'
 
 const SORTS: { value: ReelSort; label: string }[] = [
-  { value: 'game', label: 'Game Order' },
-  { value: 'epaBest', label: 'EPA, Best First' },
-  { value: 'epaWorst', label: 'EPA, Worst First' },
+  { value: 'game', label: 'Game order' },
+  { value: 'epaBest', label: 'EPA, best first' },
+  { value: 'epaWorst', label: 'EPA, worst first' },
   { value: 'grade', label: 'Grade' }
 ]
 

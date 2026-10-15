@@ -1,18 +1,20 @@
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Play } from '@shared/types'
-import { downDistance, playKind, quarterLabel, resultLabel, shortDesc } from '../../format'
+import type { Clip, Play } from '@shared/types'
+import { quarterLabel, resultLabel, shortDesc } from '../../format'
 import { setUi, ui } from '../../shell/uiState'
 import { Avatar } from '../../ui/Avatar'
 import { Button } from '../../ui/Button'
 import { EmptyState } from '../../ui/EmptyState'
-import { GRADE_GLYPH } from '../../ui/Grade'
 import { gradeGlyphScore, ink } from '../../ui/heat'
 import { Icon } from '../../ui/Icon'
 import { noMouseFocus } from '../../ui/keyboard'
 import { PopupButton } from '../../ui/PopupButton'
 import { ProgressBar } from '../../ui/Progress'
+import { Poster } from '../shared/Poster'
 import { FilterPopover } from './FilterPopover'
-import type { ProgressState } from './grading'
+import { setTokenValues, type TapeKey, tokenValues } from './filters'
+import { GradeMark } from './Inspector/GradeSegments'
+import { situationText } from './Inspector/PlaySummary'
 import type { GroupBy, Room } from './model'
 import { readPref, writePref } from './prefs'
 
@@ -22,8 +24,8 @@ import { readPref, writePref } from './prefs'
  * header becomes the focus header (§9.4) and the rows show the focus player's grade.
  */
 
-const ROW_H = 44
-const HEAD_H = 28
+const ROW_H = 56
+const HEAD_H = 34
 const LIST_MIN = 240
 const LIST_MAX = 420
 const LIST_DEFAULT = 300
@@ -37,7 +39,22 @@ interface Group {
 
 type Item = { kind: 'header'; group: Group; top: number } | { kind: 'row'; play: Play; group: Group; top: number }
 
-const QUARTER_NAMES = ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter']
+const QUARTER_NAMES = ['1st quarter', '2nd quarter', '3rd quarter', '4th quarter']
+
+/** Quick filters shown as pills under the header; each toggles one value of a filter key (the popover has the rest). */
+const QUICK: { key: TapeKey; value: string; label: string }[] = [
+  { key: 'status', value: 'ungraded', label: 'Ungraded' },
+  { key: 'down', value: '3', label: '3rd down' },
+  { key: 'situation', value: 'redZone', label: 'Red zone' }
+]
+
+/** The angle a play's thumbnail is taken from, in order of preference (matches the library's posters). */
+const POSTER_ANGLES: Clip['angle'][] = ['sideline', 'main', 'endzone']
+function posterOf(clips: Clip[] | undefined): { clipId: number; at: number } | null {
+  if (!clips?.length) return null
+  const clip = POSTER_ANGLES.map((a) => clips.find((c) => c.angle === a)).find(Boolean) ?? clips[0]
+  return { clipId: clip.id, at: (clip.snapMs ?? 0) / 1000 }
+}
 
 function groupPlays(plays: Play[], by: GroupBy): Group[] {
   if (by === 'none') return [{ key: 'all', label: '', plays }]
@@ -121,11 +138,11 @@ export function PlayBrowser({
 
   // Windowing.
   const scroller = useRef<HTMLDivElement>(null)
-  const [view, setView] = useState({ top: 0, height: 600 })
+  const [view, setView] = useState({ top: 0, height: 600, offset: 0 })
   useLayoutEffect(() => {
     const el = scroller.current
     if (!el) return
-    const update = () => setView({ top: el.scrollTop, height: el.clientHeight })
+    const update = () => setView({ top: el.scrollTop, height: el.clientHeight, offset: el.offsetTop })
     update()
     const ro = new ResizeObserver(update)
     ro.observe(el)
@@ -244,6 +261,37 @@ export function PlayBrowser({
     { value: 'drive' as GroupBy, label: room.drivesAvailable ? 'Drive' : 'Drive — update season data', disabled: !room.drivesAvailable },
     { value: 'none' as GroupBy, label: 'None' }
   ]
+  const tokens = room.tokens
+  const quick = (
+    <div className="play-browser__pills" role="group" aria-label="Quick filters" data-test="quick-filters">
+      <button
+        type="button"
+        className="play-pill"
+        aria-pressed={tokens.length === 0}
+        onMouseDown={noMouseFocus}
+        onClick={() => room.setTokens([])}
+      >
+        All
+      </button>
+      {QUICK.map((q) => {
+        const values = tokenValues(tokens, q.key)
+        const on = values.includes(q.value)
+        return (
+          <button
+            key={q.key + q.value}
+            type="button"
+            className="play-pill"
+            aria-pressed={on}
+            data-test={`quick-filter-${q.value}`}
+            onMouseDown={noMouseFocus}
+            onClick={() => room.setTokens(setTokenValues(tokens, q.key, on ? values.filter((v) => v !== q.value) : [...values, q.value]))}
+          >
+            {q.label}
+          </button>
+        )
+      })}
+    </div>
+  )
   const controls = (
     <div className="play-browser__controls">
       <span data-test="group-popup">
@@ -267,25 +315,32 @@ export function PlayBrowser({
 
   const focusProgress = focus ? focus.progress : null
   const header = focus ? (
-    <div className="play-browser__focus-header" data-test="focus-header">
+    <div className="play-browser__header play-browser__focus-header" data-test="focus-header">
       <div className="play-browser__focus-top">
         <Avatar url={focus.player.headshot} name={focus.player.name} size={24} />
-        <span className="play-browser__focus-name">{focus.player.name}</span>
-        <span className="play-browser__focus-count">
-          {focusProgress!.graded} of {focusProgress!.total} graded
-        </span>
+        <div className="play-browser__focus-who">
+          <span className="play-browser__focus-name">{focus.player.name}</span>
+          <span className="play-browser__focus-count">
+            {focusProgress!.graded} of {focusProgress!.total} graded
+          </span>
+        </div>
         <Button variant="borderless" size="sm" icon="x" iconOnly label="Exit Player Focus" title="Exit Player Focus (⇧G)" test="focus-exit" onClick={room.exitFocus} />
       </div>
-      <div className="play-browser__focus-bottom">
+      <ProgressBar mini value={focusProgress!.total ? focusProgress!.graded / focusProgress!.total : 0} label="Graded snaps" />
+      <div className="play-browser__title-row">
         <span className="play-browser__count">{filtered ? `${room.visible.length} of ${total} snaps` : `${total} snaps`}</span>
         {controls}
       </div>
-      <ProgressBar mini value={focusProgress!.total ? focusProgress!.graded / focusProgress!.total : 0} label="Graded snaps" />
+      {quick}
     </div>
   ) : (
     <div className="play-browser__header">
-      <span className="play-browser__count">{countText}</span>
-      {controls}
+      <div className="play-browser__title-row">
+        <span className="play-browser__title">Plays</span>
+        <span className="play-browser__count">{countText}</span>
+        {controls}
+      </div>
+      {quick}
     </div>
   )
 
@@ -389,7 +444,7 @@ export function PlayBrowser({
             </div>
           )}
         </div>
-        {sticky && !empty && headerEl(sticky.group, { top: (focus ? 66 : 36) + (fallback ? 0 : 0) + sticky.offset }, true)}
+        {sticky && !empty && headerEl(sticky.group, { top: view.offset + sticky.offset }, true)}
       </div>
       {filterOpen && <FilterPopover room={room} anchor={filterBtn} onClose={() => (setFilterOpen(false), room.refocus())} />}
       {!overlay && visible && (
@@ -419,32 +474,6 @@ export function PlayBrowser({
   )
 }
 
-/** Hand-drawn 12×12 progress pie (02 §4.6.2). */
-export function ProgressPie({ state, done, listed }: { state: ProgressState; done: number; listed: number }) {
-  if (state === 'done') {
-    return (
-      <span className="progress-pie" data-test="play-progress" data-state="done">
-        <Icon name="circle-check" size={12} />
-      </span>
-    )
-  }
-  let wedge: React.ReactNode = null
-  if (state === 'partial' && listed > 0) {
-    const a = (2 * Math.PI * done) / listed
-    const x = 6 + 5 * Math.sin(a)
-    const y = 6 - 5 * Math.cos(a)
-    wedge = <path className="progress-pie__wedge" d={`M6 6 L6 1 A5 5 0 ${a > Math.PI ? 1 : 0} 1 ${x.toFixed(3)} ${y.toFixed(3)} Z`} />
-  }
-  return (
-    <span className="progress-pie" data-test="play-progress" data-state={state}>
-      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-        <circle className="progress-pie__ring" cx="6" cy="6" r="5" fill="none" strokeWidth="1.5" />
-        {wedge}
-      </svg>
-    </span>
-  )
-}
-
 function PlayRow({
   room,
   play,
@@ -468,8 +497,8 @@ function PlayRow({
 }) {
   const { focus, data } = room
   const note = data.notes.get(play.playId)
-  const hasClip = (room.clipsByPlay.get(play.playId)?.length ?? 0) > 0
-  const kind = playKind(play)
+  const clips = room.clipsByPlay.get(play.playId)
+  const hasClip = (clips?.length ?? 0) > 0
   const counts = room.playGradeCounts(play)
   const focusEntry = focus ? data.entryOf(play.playId, focus.player.id) : undefined
 
@@ -484,19 +513,19 @@ function PlayRow({
   const alignment = room.alignment.get(play.playId)
   if (alignment) markers.push({ icon: 'triangle-alert', cls: 'warning', title: alignment })
 
-  let leading: React.ReactNode
+  // The grade mark: the focus player's grade, or the play's net grade (filled when every listed player is done).
+  let mark: React.ReactNode
   if (focus) {
-    if (focusEntry?.offField) leading = <span className="tape-row__focus-grade tape-row__focus-grade--off">Off</span>
-    else if (focusEntry?.grade != null)
-      leading = (
-        <span className="tape-row__focus-grade" style={{ color: ink(gradeGlyphScore(focusEntry.grade)) }}>
-          {GRADE_GLYPH[focusEntry.grade]}
-        </span>
-      )
-    else leading = <span className="tape-row__focus-grade tape-row__focus-grade--none">—</span>
+    if (focusEntry?.offField) mark = <GradeMark color={null} title="Not on field" test="focus-grade" state="off" />
+    else if (focusEntry?.grade != null) mark = <GradeMark color={ink(gradeGlyphScore(focusEntry.grade))} title={focusEntry.grade > 0 ? 'Plus' : focusEntry.grade < 0 ? 'Minus' : 'Even'} test="focus-grade" state="graded" />
+    else mark = <GradeMark color={null} title="Ungraded" test="focus-grade" state="none" />
   } else {
     const pr = room.progressOf(play)
-    leading = <ProgressPie state={pr.state} done={pr.done} listed={pr.listed} />
+    const zero = Math.max(0, counts.graded - counts.plus - counts.minus)
+    const net = counts.plus - counts.minus
+    const color = counts.graded > 0 ? ink(gradeGlyphScore(net > 0 ? 1 : net < 0 ? -1 : 0)) : null
+    const tally = counts.graded > 0 ? ` · +${counts.plus} 0×${zero} −${counts.minus}` : ''
+    mark = <GradeMark color={color} hollow={pr.state !== 'done'} title={`${pr.done} of ${pr.listed} graded${tally}`} test="play-progress" state={pr.state} />
   }
 
   const result = resultLabel(play).replace(/^-/, '−')
@@ -527,39 +556,34 @@ function PlayRow({
       onDragEnd={onDragEnd}
       title={play.desc}
     >
-      <span className="tape-row__lead">{leading}</span>
-      <span className="tape-row__line1">
-        <span className="tape-row__clock">
-          {quarterLabel(play.qtr)} {play.time}
+      {hasClip ? (
+        <Poster poster={posterOf(clips)} width={128} className="tape-row__thumb" />
+      ) : (
+        <span className="tape-row__thumb tape-row__thumb--none" title="No clip for this play">
+          <Icon name="video-off" size={12} />
         </span>
-        <span className="tape-row__down">{play.down ? `${play.posteam} ${downDistance(play)}` : downDistance(play)}</span>
-        {play.down && (kind === 'pass' || kind === 'run') && <span className="tape-row__kind"> · {kind === 'pass' ? 'Pass' : 'Run'}</span>}
-        <span className="tape-row__spacer" />
-        {!hasClip && (
-          <span className="tape-row__noclip" title="No clip for this play">
-            <Icon name="video-off" size={12} />
-          </span>
-        )}
-        {result && <span className="tape-row__result">{result}</span>}
+      )}
+      <span className="tape-row__text">
+        <span className="tape-row__line1">
+          <span className="tape-row__situation">{situationText(play)}</span>
+          <span className="tape-row__spacer" />
+          {markers.length > 0 && (
+            <span className="tape-row__markers">
+              {markers.slice(0, 3).map((m) => (
+                <span key={m.icon} className={`tape-row__marker tape-row__marker--${m.cls}`} title={m.title}>
+                  <Icon name={m.icon} size={11} filled={m.icon === 'flag'} />
+                </span>
+              ))}
+            </span>
+          )}
+          {result && <span className="tape-row__result">{result}</span>}
+        </span>
+        <span className="tape-row__line2">
+          <span className="tape-row__clock">{room.group === 'quarter' ? play.time : `${quarterLabel(play.qtr)} ${play.time}`}</span>
+          <span className="tape-row__desc">{shortDesc(play.desc)}</span>
+        </span>
       </span>
-      <span className="tape-row__line2">
-        <span className="tape-row__desc">{shortDesc(play.desc)}</span>
-        {!focus && (counts.plus > 0 || counts.minus > 0) && (
-          <span className="tape-row__counts">
-            {counts.plus > 0 && <span style={{ color: ink(gradeGlyphScore(1)) }}>+{counts.plus}</span>}
-            {counts.minus > 0 && <span style={{ color: ink(gradeGlyphScore(-1)) }}>−{counts.minus}</span>}
-          </span>
-        )}
-        {markers.length > 0 && (
-          <span className="tape-row__markers">
-            {markers.slice(0, 3).map((m) => (
-              <span key={m.icon} className={`tape-row__marker tape-row__marker--${m.cls}`} title={m.title}>
-                <Icon name={m.icon} size={12} filled={m.icon === 'flag'} />
-              </span>
-            ))}
-          </span>
-        )}
-      </span>
+      <span className="tape-row__lead">{mark}</span>
     </div>
   )
 }

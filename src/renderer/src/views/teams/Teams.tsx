@@ -8,7 +8,7 @@ import { EmptyState } from '../../ui/EmptyState'
 import { PopupButton } from '../../ui/PopupButton'
 import { Segmented } from '../../ui/Segmented'
 import { type Column, type SortState, Table } from '../../ui/Table'
-import { TeamChip } from '../../ui/TeamChip'
+import { TeamChip, TeamLogo } from '../../ui/TeamChip'
 import { Tile } from '../../ui/Tile'
 import { showMenu, teamMenu } from '../../shell/contextMenus'
 import { useDataEvent } from '../../shell/dataEvents'
@@ -153,14 +153,13 @@ function Divisions({ season, teams, data }: { season: number; teams: Team[]; dat
                           onContextMenu={(e) => void showMenu(e, teamMenu(season, t.abbr))}
                         >
                           <span data-conf={ci} data-col={col} data-row={row} hidden />
-                          <TeamChip abbr={t.abbr} size="md" />
+                          <TeamLogo abbr={t.abbr} size={44} />
                           <div className="team-tile__names">
                             <div className="team-tile__nickname ellipsis">{t.nickname}</div>
-                            <div className="team-tile__city ellipsis">{city(t)}</div>
-                          </div>
-                          <div className="team-tile__record">
-                            <div className="team-tile__wl num">{s ? recordLabel(s.wins, s.losses, s.ties) : '0–0'}</div>
-                            <div className="team-tile__diff num">{formatSigned(diffOf(s))}</div>
+                            <div className="team-tile__meta ellipsis num">
+                              {s ? recordLabel(s.wins, s.losses, s.ties) : '0–0'}
+                              <span className="team-tile__diff"> · {formatSigned(diffOf(s))}</span>
+                            </div>
                           </div>
                         </Tile>
                       )
@@ -286,6 +285,9 @@ function Standings({ season, teams, data }: { season: number; teams: Team[]; dat
   )
   const table = (rows: Team[], grouped: boolean) => (
     <Table
+      className="table--light"
+      density="tall"
+      stripes={false}
       columns={columns}
       rows={rows}
       rowKey={(t) => t.abbr}

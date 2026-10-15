@@ -4,8 +4,10 @@ import { TEAM_BY_ABBR } from '@shared/teams'
 import { Avatar } from '../ui/Avatar'
 import { Icon } from '../ui/Icon'
 import { Keycap } from '../ui/Keycap'
-import { TeamChip } from '../ui/TeamChip'
+import { TeamLogo } from '../ui/TeamChip'
 import { useLayer } from '../ui/keyboard'
+import { Poster } from '../views/shared/Poster'
+import { api } from '../api'
 import { searchIndex, type SearchIndex } from './adapters'
 import { commandState, runCommand } from './commands'
 import { onDataEvent } from './dataEvents'
@@ -29,6 +31,26 @@ interface Result {
 
 let cache: { season: number; index: Promise<SearchIndex> } | null = null
 onDataEvent(['settings', 'film', 'season', 'cutups'], () => (cache = null))
+
+type PosterRef = { clipId: number; at: number }
+/** Film stills for game rows (the film library's resume poster per game), loaded once per change to the film. */
+let posterCache: Promise<Map<string, PosterRef>> | null = null
+onDataEvent(['film'], () => (posterCache = null))
+function loadPosters(): Promise<Map<string, PosterRef>> {
+  if (!posterCache)
+    posterCache = api
+      .filmLibrary()
+      .then((list) => {
+        const m = new Map<string, PosterRef>()
+        for (const f of list) if (f.poster && !m.has(f.game.gameId)) m.set(f.game.gameId, f.poster)
+        return m
+      })
+      .catch(() => new Map<string, PosterRef>())
+  return posterCache
+}
+
+/** An icon in a quiet rounded tile, the size of a logo or a thumbnail's height. */
+const Tile = ({ children }: { children: ReactNode }) => <span className="quick-open__tile">{children}</span>
 
 function loadIndex(season: number): Promise<SearchIndex> {
   if (!cache || cache.season !== season) cache = { season, index: searchIndex(season, settingsNow()?.myTeams ?? []) }
@@ -60,6 +82,7 @@ function teamDetail(t: SearchIndex['teams'][number]) {
 export function QuickOpen({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState('')
   const [index, setIndex] = useState<SearchIndex | null>(null)
+  const [posters, setPosters] = useState<Map<string, PosterRef>>(() => new Map())
   const [active, setActive] = useState(0)
   const input = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -73,6 +96,13 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
       live = false
     }
   }, [season])
+  useEffect(() => {
+    let live = true
+    void loadPosters().then((m) => live && setPosters(m))
+    return () => {
+      live = false
+    }
+  }, [])
 
   const results = useMemo((): Result[] => {
     const query = norm(q.trim())
@@ -83,7 +113,7 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
         const e = h.entries[i]
         if (seen.has(e.route) || i === h.index) continue
         seen.add(e.route)
-        recent.push({ key: `r${i}`, section: 'Recent', leading: <Icon name="clock" size={16} />, title: e.title || e.route, score: 0, open: () => navigate(e.route) })
+        recent.push({ key: `r${i}`, section: 'Recent', leading: <Tile><Icon name="clock" size={15} /></Tile>, title: e.title || e.route, score: 0, open: () => navigate(e.route) })
       }
       return recent
     }
@@ -93,7 +123,7 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
       for (const t of index.teams) {
         const abbr = norm(t.abbr) === query ? 10 : 0
         const s = abbr || Math.max(matchScore(t.name, query), matchScore(t.nickname, query), matchScore(t.abbr, query))
-        if (s) out.push({ key: `t${t.abbr}`, section: 'Teams', leading: <TeamChip abbr={t.abbr} />, title: t.name, detail: teamDetail(t), score: s + 0.5, open: () => navigate(links.team(season, t.abbr)) })
+        if (s) out.push({ key: `t${t.abbr}`, section: 'Teams', leading: <TeamLogo abbr={t.abbr} size={30} />, title: t.name, detail: teamDetail(t), score: s + 0.5, open: () => navigate(links.team(season, t.abbr)) })
       }
       for (const p of index.players) {
         const s = matchScore(p.name, query)
@@ -102,7 +132,7 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
         out.push({
           key: `p${p.id}${p.season}`,
           section: 'Players',
-          leading: <Avatar url={p.headshot} name={p.name} size={24} />,
+          leading: <Avatar url={p.headshot} name={p.name} size={32} />,
           title: p.name,
           detail: `${p.jersey ? `#${p.jersey} ` : ''}${p.position} · ${team} · ${p.season}`,
           score: s + (p.season === season ? 0.4 : 0) + Math.min(0.2, p.graded / 1000),
@@ -121,7 +151,7 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
         out.push({
           key: `g${g.gameId}`,
           section: 'Games',
-          leading: <Icon name="film" size={16} />,
+          leading: posters.get(g.gameId) ? <Poster poster={posters.get(g.gameId)!} width={160} className="quick-open__still" /> : <Tile><Icon name="film" size={15} /></Tile>,
           title: `${g.awayTeam} @ ${g.homeTeam}`,
           detail: `Week ${g.week}, ${g.season} · ${g.gradedPlays} of ${g.playCount} graded`,
           score: 2,
@@ -131,19 +161,19 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
       }
       for (const c of index.cutups) {
         const s = matchScore(c.name, query)
-        if (s) out.push({ key: `c${c.id}`, section: 'Cut-ups', leading: <Icon name={c.kind === 'smart' ? 'list-filter' : 'list-video'} size={16} />, title: c.name, detail: `${c.playCount} plays`, score: s, open: () => navigate(links.cutup(c.id)) })
+        if (s) out.push({ key: `c${c.id}`, section: 'Cut-ups', leading: <Tile><Icon name={c.kind === 'smart' ? 'list-filter' : 'list-video'} size={15} /></Tile>, title: c.name, detail: `${c.playCount} plays`, score: s, open: () => navigate(links.cutup(c.id)) })
       }
       // "PHI vs DAL", "PHI DAL", "PHI DAL matchup" (03 §17 A12).
       const abbrs = words.filter((w) => w !== 'vs' && w !== 'matchup' && w !== '@').map((w) => w.toUpperCase())
       if (abbrs.length === 2 && TEAM_BY_ABBR[abbrs[0]] && TEAM_BY_ABBR[abbrs[1]] && abbrs[0] !== abbrs[1]) {
-        out.push({ key: 'matchup', section: 'Commands', leading: <Icon name="swords" size={16} />, title: `Matchup: ${abbrs[0]} vs ${abbrs[1]}`, score: 3, open: () => navigate(links.matchup(season, abbrs[0], abbrs[1])) })
+        out.push({ key: 'matchup', section: 'Commands', leading: <Tile><Icon name="swords" size={15} /></Tile>, title: `Matchup: ${abbrs[0]} vs ${abbrs[1]}`, score: 3, open: () => navigate(links.matchup(season, abbrs[0], abbrs[1])) })
       }
     }
     for (const c of COMMANDS) {
       if (!c.quickOpen || !commandState(c.id).enabled) continue
       const label = commandState(c.id).label ?? c.label
       const s = matchScore(label, query)
-      if (s) out.push({ key: `x${c.id}`, section: 'Commands', leading: c.icon ? <Icon name={c.icon} size={16} /> : <span />, title: label.replace(/…$/, ''), score: s, open: () => runCommand(c.id as CommandId) })
+      if (s) out.push({ key: `x${c.id}`, section: 'Commands', leading: <Tile>{c.icon ? <Icon name={c.icon} size={15} /> : null}</Tile>, title: label.replace(/…$/, ''), score: s, open: () => runCommand(c.id as CommandId) })
     }
     // Top hit, then up to 5 per section, 20 in all.
     const best = [...out].sort((a, b) => b.score - a.score)[0]
@@ -154,7 +184,7 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
       grouped.push(...items)
     }
     return grouped.slice(0, 20)
-  }, [q, index, h, season])
+  }, [q, index, h, season, posters])
 
   useEffect(() => setActive(0), [q])
   useEffect(() => {
@@ -208,8 +238,15 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
                     onClick={(e) => choose(r, e.metaKey)}
                   >
                     <span className="quick-open__leading">{r.leading}</span>
-                    <span className="quick-open__title">{r.title}</span>
-                    {r.detail && <span className="quick-open__detail">{r.detail}</span>}
+                    <span className="quick-open__text">
+                      <span className="quick-open__title">{r.title}</span>
+                      {r.detail && <span className="quick-open__detail">{r.detail}</span>}
+                    </span>
+                    {i === active && (
+                      <span className="quick-open__hint">
+                        Open <Keycap small>↩</Keycap>
+                      </span>
+                    )}
                   </div>
                 </div>
               )
@@ -217,19 +254,23 @@ export function QuickOpen({ onClose }: { onClose: () => void }) {
           </div>
         ) : q.trim() ? (
           <div className="quick-open__empty">
-            <div className="quick-open__empty-title">No Results for “{q.trim()}”</div>
+            <div className="quick-open__empty-title">No results for “{q.trim()}”</div>
             <div className="quick-open__empty-body">Check the spelling or try a team, player or week.</div>
           </div>
         ) : null}
         <div className="quick-open__footer">
           <span>
-            <Keycap small>↩</Keycap> Open
+            <Keycap small>↑</Keycap>
+            <Keycap small>↓</Keycap> to move
           </span>
           <span>
-            <Keycap small>⌘↩</Keycap> Open in Tape Room
+            <Keycap small>↩</Keycap> to open
           </span>
           <span>
-            <Keycap small>esc</Keycap> Close
+            <Keycap small>⌘↩</Keycap> in the tape room
+          </span>
+          <span className="quick-open__footer-end">
+            <Keycap small>esc</Keycap> to close
           </span>
         </div>
       </div>

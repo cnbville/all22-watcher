@@ -1,59 +1,71 @@
 @layer screens {
   .screen-teams {
+    .page-section + .page-section {
+      margin-top: 48px;
+    }
+    .page-section__header > h2 {
+      font: var(--t-title-3);
+      letter-spacing: var(--track-title-3);
+      color: var(--label-2);
+    }
     .teams-divisions {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 24px;
+      gap: 24px 32px;
     }
     .teams-division {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
       min-width: 0;
     }
     .teams-division__title {
-      height: 24px;
+      height: 28px;
+      padding-left: 8px;
       font: var(--t-headline);
-      color: var(--label-2);
+      color: var(--label);
     }
+
+    /* A team: logo, name, record in small secondary text. No colored tiles. */
     .team-tile {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 12px;
-      height: 60px;
+      gap: 14px;
+      height: 64px;
+      padding: 0 8px;
+      overflow: hidden;
+      border-radius: var(--r-xl);
+      background: transparent;
+    }
+    .team-tile:hover {
+      background: var(--fill-3);
+    }
+    .team-tile .progress--mini {
+      left: 66px !important;
+      right: 8px !important;
+      bottom: 8px !important;
+      width: auto;
+      opacity: 0.7;
     }
     .team-tile__names {
       flex: 1;
       min-width: 0;
     }
     .team-tile__nickname {
-      font: var(--t-headline);
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+      font: 500 14px/18px var(--font-text);
+      color: var(--label);
     }
-    .team-tile__city {
+    .team-tile__meta {
       margin-top: 2px;
-      font: var(--t-subheadline);
+      font: var(--t-callout);
       color: var(--label-2);
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-    }
-    .team-tile__record {
-      text-align: right;
-    }
-    .team-tile__wl {
-      font: var(--t-title-3);
     }
     .team-tile__diff {
-      font: var(--t-subheadline);
       color: var(--label-3);
     }
-    .team-tile {
-      position: relative;
-      overflow: hidden;
-    }
+
+    /* Standings */
     .standings-team {
       display: inline-flex;
       align-items: center;
