@@ -30,6 +30,8 @@ import {
 
 export interface ShellDeps {
   recentFilm(): Promise<RecentFilm[]>
+  /** Whether a path from a window is one the app knows about (its clips, saved files and folders). */
+  canReveal(path: unknown): path is string
 }
 
 const NFLVERSE_URL = 'https://github.com/nflverse/nflverse-data'
@@ -127,7 +129,10 @@ export function registerShell(deps: ShellDeps) {
   onWindowsChanged(() => {
     const focused = BrowserWindow.getFocusedWindow()
     const kind = windowKind(focused) ?? (getMainWindow() ? 'main' : null)
-    if (kind !== state.focused) {
+    // The state came from a main window that is gone; a new one reports its own once it loads.
+    const stale = !getMainWindow() && Object.keys(state.commands).length > 0
+    if (stale) state.commands = {}
+    if (kind !== state.focused || stale) {
       state.focused = kind
       apply()
     }
@@ -169,11 +174,19 @@ export function registerShell(deps: ShellDeps) {
 
   // Dock progress is the mean of the fractions every window reports (01 §3.7).
   const progress = new Map<number, number>()
-  ipcMain.on(SHELL_CHANNELS.dockProgress, (e, fraction: number) => {
-    if (fraction < 0) progress.delete(e.sender.id)
-    else progress.set(e.sender.id, Math.max(0, Math.min(1, fraction)))
+  const showProgress = () => {
     const values = [...progress.values()]
     getMainWindow()?.setProgressBar(values.length ? values.reduce((a, b) => a + b, 0) / values.length : -1)
+  }
+  ipcMain.on(SHELL_CHANNELS.dockProgress, (e, fraction: number) => {
+    const id = e.sender.id
+    if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction < 0) progress.delete(id)
+    else {
+      // A window that closes mid-task must not leave its bar behind.
+      if (!progress.has(id)) e.sender.once('destroyed', () => (progress.delete(id), showProgress()))
+      progress.set(id, Math.max(0, Math.min(1, fraction)))
+    }
+    showProgress()
   })
   ipcMain.on(SHELL_CHANNELS.dockBadge, (_e, count: number) => {
     if (app.dock) app.dock.setBadge(count > 0 ? String(count) : '')
@@ -231,7 +244,7 @@ export function registerShell(deps: ShellDeps) {
         showMainWindow().webContents.send(SHELL_CHANNELS.navigate, String(args[0]))
         return
       case 'showItemInFolder':
-        shell.showItemInFolder(args[0] as string)
+        if (deps.canReveal(args[0])) shell.showItemInFolder(args[0])
         return
       case 'openExternal': {
         const url = String(args[0])
@@ -249,7 +262,9 @@ export function registerShell(deps: ShellDeps) {
     const note = new Notification({ title: n.title, body: n.body ?? '', silent: false })
     note.on('click', () => {
       const win = showMainWindow()
-      if (n.revealPath) shell.showItemInFolder(n.revealPath)
+      if (n.revealPath) {
+        if (deps.canReveal(n.revealPath)) shell.showItemInFolder(n.revealPath)
+      }
       else if (n.route) win.webContents.send(SHELL_CHANNELS.navigate, n.route)
     })
     note.show()
