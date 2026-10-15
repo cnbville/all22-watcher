@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyEntry, firstToGrade, listedPlayers, playIsUngraded, playProgress, withGrade, withOffField, withTag } from './grading'
+import { applyEntryChange, emptyEntry, firstToGrade, listedPlayers, playIsUngraded, playProgress, withGrade, withOffField, withTag } from './grading'
 import { entry, play, player } from './testPlays'
 
 const players = {
@@ -107,5 +107,25 @@ describe('entry changes (02 §7.3)', () => {
   it('Not on Field clears the grade and critical', () => {
     expect(withOffField({ ...e, grade: 1, critical: true }, true)).toMatchObject({ offField: true, grade: null, critical: false })
     expect(withOffField({ ...e, offField: true }, false)).toMatchObject({ offField: false, grade: null })
+  })
+})
+
+describe('applyEntryChange (02 §7.7 undo)', () => {
+  it('reverts only the fields the change touched', () => {
+    const before = entry(1, 'qb')
+    const after = withGrade(before, 1)
+    // A player note typed after the grade, which has no undo entry of its own.
+    const now = { ...after, note: 'Late read' }
+    const undone = applyEntryChange(now, after, before)
+    expect(undone.grade).toBeNull()
+    expect(undone.note).toBe('Late read')
+    expect(applyEntryChange(undone, before, after)).toEqual({ ...after, note: 'Late read' })
+  })
+
+  it('carries the coupled flag a grade cleared, and keeps tags added since', () => {
+    const off = withOffField(entry(1, 'qb'), true)
+    const graded = withGrade(off, -1)
+    const undone = applyEntryChange({ ...graded, tags: ['Sack'] }, graded, off)
+    expect(undone).toMatchObject({ grade: null, offField: true, tags: ['Sack'] })
   })
 })
