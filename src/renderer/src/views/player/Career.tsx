@@ -117,6 +117,11 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
     }
   }
   const cols = statColumns(p.player.group).slice(0, 4)
+  // A season matched by name stores him under that season's id; its page lives there.
+  const idIn = (season: number) => {
+    const st = lines.get(season)
+    return st?.state === 'line' ? st.line.player.id : playerId
+  }
   type Row = { season: number; st: LineState }
   const rows: Row[] = range.map((season) => ({ season, st: lines.get(season)! }))
   const dash = <span className="c-label-4">—</span>
@@ -131,7 +136,7 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
             className="career-season__link"
             onClick={(e) => {
               e.stopPropagation()
-              navigate(links.player(r.season, playerId))
+              navigate(links.player(r.season, idIn(r.season)))
             }}
           >
             {r.season}
@@ -201,7 +206,7 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
         </div>
         <div className="career-summary__chart">
           {graded.length >= 2 && gamesGraded >= 4 ? (
-            <CareerTrend seasons={graded} height={180} test="career-trend" onOpen={(_, s) => navigate(links.player(s, playerId))} />
+            <CareerTrend seasons={graded} height={180} test="career-trend" onOpen={(_, s) => navigate(links.player(s, idIn(s)))} />
           ) : graded.length >= 2 ? (
             <CompactList
               rows={[...graded].reverse().map((s, i, arr) => {
@@ -215,7 +220,7 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
                   plays
                 }
               })}
-              onSelect={(k) => navigate(links.player(Number(k), playerId))}
+              onSelect={(k) => navigate(links.player(Number(k), idIn(Number(k))))}
             />
           ) : (
             <div className="player-quiet">Grade {first(p.player.name)} in more than one season to see a career trend.</div>
@@ -238,7 +243,7 @@ export function Career({ ctx }: { ctx: PlayerCtx }) {
           rows={rows}
           rowKey={(r) => String(r.season)}
           onSelect={() => {}}
-          onOpen={(r) => r.st.state === 'line' && navigate(links.player(r.season, playerId))}
+          onOpen={(r) => r.st.state === 'line' && navigate(links.player(r.season, idIn(r.season)))}
           rowTest="career-row"
         />
       </Section>
