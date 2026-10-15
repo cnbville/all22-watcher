@@ -933,4 +933,14 @@
   background: var(--panel-2);
   color: var(--text-3);
 }
+
+/* Shown above the tape room when a game has no on-field lineups yet. */
+.legacy .tape-notice {
+  flex: none;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--sep);
+  background: var(--fill-4);
+  font: var(--t-callout);
+  color: var(--label-2);
+}
 }
