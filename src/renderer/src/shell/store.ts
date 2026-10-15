@@ -225,5 +225,9 @@ export function startStores() {
   window.shell?.onSettingsChanged(() => {
     void refreshSettings().then(() => emit('settings'))
   })
+  // Main changes settings itself too (My Teams after a watch-folder import, Choose Watch Folder), without a broadcast.
+  rawApi?.onApiEvent?.((e) => {
+    if (e.type === 'changed' && e.kinds.includes('settings')) void refreshSettings()
+  })
   onDataEvent('season', () => void refreshSeasons())
 }
