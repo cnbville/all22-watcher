@@ -637,6 +637,7 @@ function Pane({
         className="reel-pane__video"
         src={clipUrl(clip.id)}
         preload="auto"
+        crossOrigin="anonymous"
         playsInline
         muted={muted ?? true}
         {...(handlers as object)}

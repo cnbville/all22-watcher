@@ -460,6 +460,8 @@ export class VideoEngine {
     el.muted = true
     el.playsInline = true
     el.preload = 'auto'
+    // CORS mode, so Copy Frame can read the picture back from a canvas.
+    el.crossOrigin = 'anonymous'
     el.disablePictureInPicture = true
     el.className = 'angle-pane__video'
     el.draggable = false

@@ -26,7 +26,7 @@ import { SHELL_ARG_PREFIX } from '@shared/shell'
 if (process.env.ALL22_USER_DATA) app.setPath('userData', process.env.ALL22_USER_DATA)
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: CLIP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true } }
+  { scheme: CLIP_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true, corsEnabled: true } }
 ])
 
 let library: Library
@@ -455,12 +455,21 @@ app.whenReady().then(async () => {
     }
   })
 
+  // CORS-readable from the renderer (02 §5.11, §16.3): a 404 tells a missing file from an unplayable one, and frames
+  // drawn from a clip into a canvas (Copy Frame) aren't tainted.
+  const cors = (res: Response) => {
+    res.headers.set('Access-Control-Allow-Origin', '*')
+    return res
+  }
   protocol.handle(CLIP_SCHEME, async (req) => {
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Range', 'Access-Control-Allow-Methods': 'GET, HEAD' } })
+    }
     const url = new URL(req.url)
-    if (url.hostname === 'poster') return servePoster(url)
+    if (url.hostname === 'poster') return cors(await servePoster(url))
     const clip = url.hostname === 'clip' ? library.store.clipById(Number(url.pathname.slice(1))) : null
-    if (!clip || !existsSync(clip.path)) return new Response('Clip not found', { status: 404 })
-    return serveVideo(clip.path, req.headers.get('range'))
+    if (!clip || !existsSync(clip.path)) return cors(new Response('Clip not found', { status: 404 }))
+    return cors(await serveVideo(clip.path, req.headers.get('range')))
   })
 
   const impl = handlers() as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>
