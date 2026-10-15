@@ -15,10 +15,9 @@ import type {
   TagDef
 } from '@shared/types'
 import type { PenShape as Stroke, Shape } from '@shared/drawing'
-import { api } from '../api'
-import { Crumbs } from '../App'
-import { ErrorBox, isTyping, Kbd, Loading, Modal, TeamChip, toast, useAsync } from '../components/common'
-import { INK, SPEEDS, type VideoHandle, VideoStage } from '../components/VideoStage'
+import { api } from '../../api'
+import { Kbd, TeamChip, useAsync } from '../../components/common'
+import { INK, SPEEDS, type VideoHandle, VideoStage } from '../../components/VideoStage'
 import {
   downDistance,
   lastName,
@@ -29,9 +28,16 @@ import {
   resultLabel,
   shortDesc,
   weekLabel
-} from '../format'
-import { links, navigate } from '../router'
-import { ImportFilm } from './ImportFilm'
+} from '../../format'
+import { banner } from '../../shell/Banners'
+import { runCommand, setDynamicMenus, useCommand, useDynamicMenus } from '../../shell/commands'
+import { useDataEvent } from '../../shell/dataEvents'
+import { openImport, setImportContext } from '../../shell/importRequest'
+import { links, navigate } from '../../shell/router'
+import { Loading, LoadError, Screen } from '../../shell/Screen'
+import { Toolbar } from '../../shell/Toolbar'
+import { Segmented } from '../../ui/Segmented'
+import '../legacy.css'
 
 const TAG_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']
 const ANGLE_ORDER: Angle[] = ['sideline', 'endzone', 'main']
@@ -58,11 +64,27 @@ const NO_GRADES: GradeEntry[] = []
 export function TapeRoom({ gameId, team, initialPlay }: { gameId: string; team: string; initialPlay: number | null }) {
   const film = useAsync(() => api.gameFilm(gameId), [gameId])
   const meta = useAsync(() => Promise.all([api.tags(), api.chartFields(), api.settings()]), [])
-  if (film.error || meta.error) return <div className="page"><ErrorBox error={film.error ?? meta.error} /></div>
-  if (!film.data || !meta.data) return <Loading label="Loading film…" />
+  useDataEvent('settings', meta.reload)
+  if (film.error || meta.error) {
+    return (
+      <Screen name="tape-room" scroll="none" takeover className="legacy">
+        <Toolbar title="Tape Room" separator="always" />
+        <LoadError what="the film" error={film.error ?? meta.error} retry={() => (film.reload(), meta.reload())} />
+      </Screen>
+    )
+  }
+  if (!film.data || !meta.data) {
+    return (
+      <Screen name="tape-room" scroll="none" takeover className="legacy">
+        <Toolbar title="Tape Room" separator="always" />
+        <Loading label="Loading film…" />
+      </Screen>
+    )
+  }
   const [tags, fields, settings] = meta.data
   return (
     <Room
+      key={`${tags.length}-${fields.length}`}
       film={film.data}
       tags={tags}
       chartFields={fields}
@@ -94,6 +116,7 @@ function Room({
   const { game, plays } = film
   const [team, setTeam] = useState(initialTeam)
   const [settings, setSettings] = useState(initialSettings)
+  useEffect(() => setSettings(initialSettings), [initialSettings])
   const [grades, setGrades] = useState(() => new Map(film.grades.map((g) => [gradeKey(g.playId, g.playerId), g])))
   const [notes, setNotes] = useState(() => new Map(film.notes.map((n) => [n.playId, n])))
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
@@ -102,8 +125,6 @@ function Room({
   const [drawing, setDrawing] = useState(false)
   const [ink, setInk] = useState(INK[0])
   const [onlyFocus, setOnlyFocus] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
-  const [fixing, setFixing] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const video = useRef<VideoHandle>(null)
   const noteRef = useRef<HTMLTextAreaElement>(null)
@@ -306,50 +327,81 @@ function Room({
   const setStrokes = (s: Stroke[]) =>
     saveNote({ drawing: { ...note!.drawing, [clip?.angle ?? angle]: [...angleShapes.filter((x) => x.kind !== 'pen'), ...s] } })
 
-  // Keyboard: the whole room is drivable without the mouse. Re-subscribed every render so handlers see current state.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (fixing || isTyping(e) || (e.metaKey && e.key !== 'z')) return
-      // A dropdown left focused would otherwise pick an option by type-ahead on keys that aren't hotkeys.
-      if (e.target instanceof HTMLSelectElement) e.target.blur()
-      if (showHelp) {
-        if (e.key === 'Escape' || e.key === '?') setShowHelp(false)
-        return
+  // Keyboard and menus: every v1 hotkey is a command; the shell's key router and the menu bar both run them.
+  const sel = gradingList.find((p) => p.id === selected)
+  const selTags = tagsFor(sel)
+  const entrySel = sel && current ? grades.get(gradeKey(current.playId, sel.id)) : undefined
+  const hasClip = !!clip
+  const gradeAndNext = (g: Grade) => {
+    if (!sel) return
+    setGrade(sel.id, g)
+    selectNextPlayer()
+  }
+  const fixMatches = () =>
+    openImport({
+      game,
+      team,
+      existing: film.clips.length ? film.clips.map((c) => ({ path: c.path, fileName: c.fileName, angle: c.angle, playId: c.playId })) : undefined,
+      onImported: () => {
+        reload()
+        banner({ title: 'Film updated', kind: 'success' })
       }
-      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key
-      const sel = gradingList.find((p) => p.id === selected)
-      const tagIndex = TAG_KEYS.indexOf(k)
-      let handled = true
-      if (k === ' ') video.current?.togglePlay()
-      else if (k === 'ArrowLeft') e.shiftKey ? video.current?.seekBy(-1) : video.current?.step(-1)
-      else if (k === 'ArrowRight') e.shiftKey ? video.current?.seekBy(1) : video.current?.step(1)
-      else if (k === 'ArrowUp') go(-1)
-      else if (k === 'ArrowDown' || k === 'Enter') go(1)
-      else if (k === '[') setSpeed(SPEEDS[Math.max(0, SPEEDS.indexOf(speed) - 1)] ?? 1)
-      else if (k === ']') setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(speed) + 1)] ?? 1)
-      else if (k === 'b') video.current?.restart()
-      else if (k === 'l') setLoop((v) => !v)
-      else if (k === 'a') nextAngle()
-      else if (k === 'd') setDrawing((v) => !v)
-      else if (k === 'c') note && setStrokes([])
-      else if (k === 'z') note && setStrokes(strokes.slice(0, -1))
-      else if (k === 'f') note && saveNote({ flagged: !note.flagged })
-      else if (k === 'n') noteRef.current?.focus()
-      else if (k === '?') setShowHelp(true)
-      else if (k === 'Tab') selectNextPlayer(e.shiftKey ? -1 : 1)
-      else if (/^[1-9]$/.test(k) && gradingList[Number(k) - 1]) setSelected(gradingList[Number(k) - 1].id)
-      else if ((k === '=' || k === '+') && sel) (setGrade(sel.id, 1), selectNextPlayer())
-      else if (k === '-' && sel) (setGrade(sel.id, -1), selectNextPlayer())
-      else if ((k === ')' || (k === '0' && e.shiftKey)) && current) fillZeros()
-      else if (k === '0' && sel) (setGrade(sel.id, 0), selectNextPlayer())
-      else if ((k === 'Backspace' || k === 'Delete') && sel) setGrade(sel.id, null)
-      else if (tagIndex >= 0 && sel && tagsFor(sel)[tagIndex]) toggleTag(sel.id, tagsFor(sel)[tagIndex])
-      else handled = false
-      if (handled) e.preventDefault()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    })
+  useCommand('play.toggle', () => video.current?.togglePlay(), { enabled: hasClip })
+  useCommand('play.frameBack', () => video.current?.step(-1), { enabled: hasClip })
+  useCommand('play.frameForward', () => video.current?.step(1), { enabled: hasClip })
+  useCommand('play.secondBack', () => video.current?.seekBy(-1), { enabled: hasClip })
+  useCommand('play.secondForward', () => video.current?.seekBy(1), { enabled: hasClip })
+  useCommand('play.prevPlay', () => go(-1), { enabled: visible.length > 0 })
+  useCommand('play.nextPlay', () => go(1), { enabled: visible.length > 0 })
+  useCommand('play.toSnap', () => video.current?.restart(), { enabled: hasClip })
+  useCommand('play.slower', () => setSpeed(SPEEDS[Math.max(0, SPEEDS.indexOf(speed) - 1)] ?? 1))
+  useCommand('play.faster', () => setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(speed) + 1)] ?? 1))
+  useCommand('play.speed', (arg) => arg && setSpeed(Number(arg)))
+  useCommand('play.loop', () => setLoop((v) => !v), { checked: loop })
+  useCommand('play.nextAngle', nextAngle, { enabled: playAngles.length > 1 })
+  useCommand('play.autoAdvance', () => {
+    const next = { ...settings, autoAdvance: !settings.autoAdvance }
+    setSettings(next)
+    void api.saveSettings({ autoAdvance: next.autoAdvance })
+  }, { checked: settings.autoAdvance })
+  useCommand('draw.toggle', () => setDrawing((v) => !v), { checked: drawing, enabled: !!note })
+  useCommand('draw.clear', () => note && setStrokes([]), { enabled: strokes.length > 0 })
+  useCommand('draw.undo', () => note && setStrokes(strokes.slice(0, -1)), { enabled: strokes.length > 0 })
+  useCommand('grade.flag', () => note && saveNote({ flagged: !note.flagged }), { enabled: !!note, label: note?.flagged ? 'Unflag Play' : 'Flag Play' })
+  useCommand('grade.note', () => noteRef.current?.focus(), { enabled: !!note })
+  useCommand('grade.nextPlayer', () => selectNextPlayer(1), { enabled: gradingList.length > 0 })
+  useCommand('grade.prevPlayer', () => selectNextPlayer(-1), { enabled: gradingList.length > 0 })
+  useCommand('grade.selectPlayer', (arg) => {
+    const p = gradingList[Number(arg) - 1]
+    if (p) setSelected(p.id)
+  }, { enabled: gradingList.length > 0 && !drawing })
+  useCommand('grade.plus', () => gradeAndNext(1), { enabled: !!sel })
+  useCommand('grade.zero', () => gradeAndNext(0), { enabled: !!sel })
+  useCommand('grade.minus', () => gradeAndNext(-1), { enabled: !!sel })
+  useCommand('grade.clear', () => sel && setGrade(sel.id, null), { enabled: !!sel })
+  useCommand('grade.fillZeros', fillZeros, { enabled: !!current && gradingList.length > 0 })
+  useCommand('grade.toggleTag', (arg) => {
+    const t = selTags[Number(arg)]
+    if (sel && t) toggleTag(sel.id, t)
+  }, { enabled: !!sel && selTags.length > 0 })
+  useCommand('grade.star', () => sel && togglePin(sel.id), { enabled: !!sel, label: sel && pinned.includes(sel.id) ? 'Unstar Player' : 'Star Player' })
+  useCommand('file.fixMatches', fixMatches)
+  useCommand('file.exportCsv', () => void api.exportGradesCsv(game.season, team).then((path) => path && banner({ title: `Exported ${path.split(/[\\/]/).pop()}`, action: { label: 'Show in Finder', run: () => window.shell.showItemInFolder(path) } })))
+  useCommand('edit.undo', () => note && setStrokes(strokes.slice(0, -1)), { enabled: strokes.length > 0, label: 'Undo Drawing' })
+  useDynamicMenus({
+    speed,
+    tags: selTags.slice(0, 10).map((t, i) => ({ index: i, label: t.label, checked: !!entrySel?.tags.includes(t.label) })),
+    angles: playAngles.map((a) => ({ angle: a, label: a === 'endzone' ? 'End Zone' : a === 'sideline' ? 'Sideline' : 'Main', enabled: true, checked: clip?.angle === a }))
   })
+  useCommand('play.angle', (arg) => arg && setAngle(arg as Angle), { enabled: playAngles.length > 1 })
+  useEffect(() => {
+    setImportContext({ game, team })
+    return () => {
+      setImportContext(null)
+      setDynamicMenus({ speed: null, tags: [], angles: [] })
+    }
+  }, [game, team])
 
   const onEnded = () => {
     // Don't change plays under a note still being typed: the rest of it would land as hotkeys on the next play.
@@ -362,41 +414,44 @@ function Room({
   const gradedCount = gradesByPlay.size
 
   return (
-    <>
-      <Crumbs>
-        <span className="sep">/</span>
-        <a onClick={() => navigate(links.team(game.season, team))}>{studyTeam?.name ?? team}</a>
-        <span className="sep">/</span>
-        <span>
-          {weekLabel(game)} · {game.awayTeam} @ {game.homeTeam}
-        </span>
-      </Crumbs>
-      <div className="row" style={{ padding: '6px 12px', borderBottom: '1px solid var(--line)', background: 'var(--panel)' }}>
-        <span className="faint">Studying</span>
-        <div className="seg">
-          {[game.awayTeam, game.homeTeam].map((t) => (
-            <button key={t} className={team === t ? 'on' : ''} onClick={() => setTeam(t)}>
-              {t}
-            </button>
-          ))}
+    <Screen name="tape-room" scroll="none" takeover className="legacy">
+      <Toolbar
+        title={`${game.awayTeam} @ ${game.homeTeam}`}
+        subtitle={`${weekLabel(game)} · ${game.season} · ${gradedCount} of ${plays.length} graded`}
+        windowTitle={`${game.awayTeam} @ ${game.homeTeam} — Week ${game.week}, ${game.season}`}
+        separator="always"
+        center={
+          <Segmented
+            size="toolbar"
+            value={team}
+            onChange={setTeam}
+            label="Studying"
+            options={[game.awayTeam, game.homeTeam].map((t) => ({ value: t, label: t, title: `Study ${TEAM_BY_ABBR[t]?.name ?? t}` }))}
+          />
+        }
+        trailing={[
+          { kind: 'button', command: 'draw.toggle', icon: 'pen-line', label: 'Draw' },
+          {
+            kind: 'pulldown',
+            icon: 'ellipsis',
+            label: 'More',
+            test: 'tape-more',
+            items: [
+              { label: film.clips.length ? 'Fix Clip Matches…' : 'Import Film…', shortcut: '⇧⌘I', run: fixMatches },
+              { kind: 'separator' },
+              { label: 'Export Grades as CSV…', shortcut: '⇧⌘E', run: () => void api.exportGradesCsv(game.season, team) },
+              { label: 'Edit Tags…', run: () => void window.shell.openSettings('grading') },
+              { label: 'Keyboard Shortcuts', shortcut: '⌘/', run: () => runCommand('help.shortcuts', 'tape') }
+            ]
+          }
+        ]}
+      />
+      {!film.hasParticipation && (
+        <div className="tape-notice">
+          On-field lineups for this game aren’t published yet: star the players you’re studying so they’re listed on every snap.
         </div>
-        <span className="faint" style={{ marginLeft: 8 }}>
-          {gradedCount} of {plays.length} plays graded for {team}
-        </span>
-        {!film.hasParticipation && (
-          <span className="badge info" title="nflverse hasn't published who was on the field for this game yet">
-            On-field lineups not published yet: star players to grade them
-          </span>
-        )}
-        <span className="spacer" />
-        <button className="btn small" onClick={() => setFixing(true)}>
-          {film.clips.length ? 'Fix clip matches' : 'Import film'}
-        </button>
-        <button className="btn small" onClick={() => setShowHelp(true)}>
-          Hotkeys <Kbd>?</Kbd>
-        </button>
-      </div>
-      <div className="tape">
+      )}
+      <div className="tape" data-test="tape-room">
         <PlayList
           plays={visible}
           total={plays.length}
@@ -562,25 +617,7 @@ function Room({
           )}
         </div>
       </div>
-      {showHelp && <HotkeyHelp onClose={() => setShowHelp(false)} />}
-      {fixing && (
-        <ImportFilm
-          game={game}
-          team={team}
-          existing={
-            film.clips.length
-              ? film.clips.map((c) => ({ path: c.path, fileName: c.fileName, angle: c.angle, playId: c.playId }))
-              : undefined
-          }
-          onClose={() => setFixing(false)}
-          onImported={() => {
-            setFixing(false)
-            reload()
-            toast('Film updated')
-          }}
-        />
-      )}
-    </>
+    </Screen>
   )
 }
 
@@ -834,6 +871,7 @@ function PlayerGradeRow({
         <span className="pname">
           <a
             style={{ color: 'inherit' }}
+            data-test="grading-player-name"
             onClick={(e) => {
               e.stopPropagation()
               navigate(links.player(season, player.id))
@@ -844,13 +882,13 @@ function PlayerGradeRow({
         </span>
         <span className="ppos">{player.depthPos || player.position}</span>
         <div className="gbtns" onClick={(e) => e.stopPropagation()}>
-          <button className={`gbtn minus ${g === -1 ? 'on' : ''}`} onClick={() => onGrade(-1)} title="Minus (-)">
+          <button className={`gbtn minus ${g === -1 ? 'on' : ''}`} data-test="grade-minus" aria-pressed={g === -1} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(-1)} title="Minus (−)">
             –
           </button>
-          <button className={`gbtn zero ${g === 0 ? 'on' : ''}`} onClick={() => onGrade(0)} title="Zero (0)">
+          <button className={`gbtn zero ${g === 0 ? 'on' : ''}`} data-test="grade-zero" aria-pressed={g === 0} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(0)} title="Zero (0)">
             0
           </button>
-          <button className={`gbtn plus ${g === 1 ? 'on' : ''}`} onClick={() => onGrade(1)} title="Plus (=)">
+          <button className={`gbtn plus ${g === 1 ? 'on' : ''}`} data-test="grade-plus" aria-pressed={g === 1} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(1)} title="Plus (=)">
             +
           </button>
         </div>
@@ -920,54 +958,5 @@ function NoteBox({ value, onSave, inputRef }: { value: string; onSave: (v: strin
       onKeyDown={(e) => e.key === 'Escape' && (e.target as HTMLTextAreaElement).blur()}
       onBlur={() => text !== value && onSave(text)}
     />
-  )
-}
-
-const HOTKEYS: [string[], string][] = [
-  [['Space'], 'Play / pause'],
-  [['←', '→'], 'Step one frame'],
-  [['⇧←', '⇧→'], 'Jump one second'],
-  [['↑', '↓'], 'Previous / next play'],
-  [['Enter'], 'Next play'],
-  [['B'], 'Back to the snap (restart clip)'],
-  [['[', ']'], 'Slower / faster'],
-  [['L'], 'Loop on / off'],
-  [['A'], 'Switch camera angle'],
-  [['1–9'], 'Select a player'],
-  [['Tab'], 'Next player (⇧Tab previous)'],
-  [['='], 'Grade + (then next player)'],
-  [['0'], 'Grade 0'],
-  [['-'], 'Grade –'],
-  [['⇧0'], 'Grade everyone left 0'],
-  [['⌫'], 'Clear grade'],
-  [['Q', '…', 'P'], 'Toggle the player’s tags'],
-  [['D'], 'Draw on the film'],
-  [['Z'], 'Undo last line'],
-  [['C'], 'Clear drawing'],
-  [['F'], 'Flag play'],
-  [['N'], 'Write a play note'],
-  [['?'], 'This help']
-]
-
-function HotkeyHelp({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Hotkeys" onClose={onClose} width={680}>
-      <div className="help-grid">
-        {HOTKEYS.map(([keys, label]) => (
-          <div key={label}>
-            <span className="keys">
-              {keys.map((k) => (
-                <Kbd key={k}>{k}</Kbd>
-              ))}
-            </span>
-            <span>{label}</span>
-          </div>
-        ))}
-      </div>
-      <p className="faint" style={{ marginTop: 14 }}>
-        Grading a player moves you to the next one, so a play goes: watch, then <Kbd>=</Kbd>/<Kbd>0</Kbd>/<Kbd>-</Kbd> down the
-        list, then <Kbd>↓</Kbd>. Turn on auto-advance in Settings to jump to the next play after the last player.
-      </p>
-    </Modal>
   )
 }

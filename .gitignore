@@ -6,3 +6,4 @@ dist/
 e2e/output/
 node_modules
 resources/ffmpeg/
+.claude/worktrees/

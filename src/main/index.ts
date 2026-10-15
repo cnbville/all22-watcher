@@ -18,6 +18,8 @@ import { CutupEngine } from './playQuery'
 import { PosterCache, posterQuery } from './posters'
 import { SeasonUpdater } from './seasonUpdate'
 import { WatchFolder } from './watch'
+import { registerShell } from './shell'
+import { createMainWindow, getMainWindow, showMainWindow } from './windows'
 
 // Lets tests and power users keep data somewhere other than ~/Library/Application Support.
 if (process.env.ALL22_USER_DATA) app.setPath('userData', process.env.ALL22_USER_DATA)
@@ -32,7 +34,6 @@ let watcher: WatchFolder
 let updater: SeasonUpdater
 let posters: PosterCache
 let lastExportFolder: string | null = null
-let mainWindow: BrowserWindow | null = null
 
 const MIME: Record<string, string> = {
   '.mp4': 'video/mp4',
@@ -94,30 +95,6 @@ function load(win: BrowserWindow, hash = '') {
   return target.url ? win.loadURL(target.url) : win.loadFile(target.file!, { hash })
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1480,
-    height: 920,
-    minWidth: 1100,
-    minHeight: 700,
-    show: false,
-    backgroundColor: '#0d1014',
-    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: true,
-      contextIsolation: true
-    }
-  })
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) shell.openExternal(url)
-    return { action: 'deny' }
-  })
-  mainWindow.on('closed', () => (mainWindow = null))
-  load(mainWindow)
-}
-
 async function renderPlayerReport(season: number, playerId: string): Promise<Buffer> {
   const win = new BrowserWindow({
     show: false,
@@ -143,7 +120,7 @@ function sendAll(channel: string, payload: unknown) {
 
 /** The window a dialog should sit on: the focused one, else the main window, else any. */
 function dialogWindow(): BrowserWindow | undefined {
-  const win = BrowserWindow.getFocusedWindow() ?? mainWindow ?? BrowserWindow.getAllWindows()[0]
+  const win = BrowserWindow.getFocusedWindow() ?? getMainWindow() ?? BrowserWindow.getAllWindows()[0]
   return win && !win.isDestroyed() ? win : undefined
 }
 
@@ -438,11 +415,12 @@ app.whenReady().then(async () => {
     return fn(...args)
   })
 
-  createWindow()
+  registerShell({ recentFilm: () => library.recentFilm() })
+  createMainWindow()
   watcher.configure()
   updater.start()
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (!getMainWindow()) showMainWindow()
   })
 }).catch((e) => {
   // Otherwise a failed start leaves the app running with no window and no explanation.
