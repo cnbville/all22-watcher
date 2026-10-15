@@ -28,6 +28,8 @@ export interface ToolbarSearch {
   suggest?(text: string): SearchSuggestion[]
   /** Home's search opens Quick Open instead of filtering. */
   onFocus?(): void
+  /** A click on a filter token (the tape room shows that key's values). */
+  onTokenClick?(token: SearchToken, anchor: HTMLElement): void
   test?: string
 }
 
@@ -261,6 +263,7 @@ export function ShellToolbar() {
             onTokensChange={props.search.onTokensChange}
             suggest={props.search.suggest}
             onFocus={props.search.onFocus}
+            onTokenClick={props.search.onTokenClick}
             test={props.search.test}
           />
         )}

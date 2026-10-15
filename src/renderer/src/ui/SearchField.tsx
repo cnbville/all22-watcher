@@ -14,6 +14,8 @@ export interface SearchToken {
 export interface SearchSuggestion {
   section?: string
   token: SearchToken
+  /** Runs instead of adding the token, and keeps the typed text ("Search descriptions for …"). */
+  run?: () => void
 }
 
 /**
@@ -30,6 +32,7 @@ export function SearchField({
   onTokensChange,
   suggest,
   onFocus,
+  onTokenClick,
   test,
   ref,
   autoFocus
@@ -43,6 +46,8 @@ export function SearchField({
   onTokensChange?: (t: SearchToken[]) => void
   suggest?: (text: string) => SearchSuggestion[]
   onFocus?: () => void
+  /** A click on a token (the tape room opens that key's values in a menu under it). */
+  onTokenClick?: (token: SearchToken, anchor: HTMLElement) => void
   test?: string
   ref?: Ref<HTMLInputElement>
   autoFocus?: boolean
@@ -75,8 +80,13 @@ export function SearchField({
         items.push({ kind: 'header', label: s.section })
       }
       items.push({
-        label: `${s.token.keyLabel} ${s.token.label}`,
+        label: [s.token.keyLabel, s.token.label].filter(Boolean).join(' '),
         run: () => {
+          if (s.run) {
+            s.run()
+            input.current?.focus()
+            return
+          }
           onTokensChange?.([...tokens, s.token])
           setText('')
           onChange('')
@@ -115,6 +125,7 @@ export function SearchField({
           keyLabel={t.keyLabel}
           label={t.label}
           selected={selectedToken === i}
+          onClick={onTokenClick ? (el) => onTokenClick(t, el) : undefined}
           onRemove={() => onTokensChange?.(tokens.filter((_, j) => j !== i))}
         />
       ))}

@@ -19,6 +19,7 @@ const EMITS: Record<string, DataEventKind[]> = {
   importClips: ['film'],
   relinkClip: ['film'],
   removeFilm: ['film'],
+  setClipSnap: ['film'],
   convertClips: [],
   downloadSeason: ['season'],
   createCutup: ['cutups'],

@@ -19,6 +19,8 @@ export interface ShellUi {
   hasInspector: boolean
   inspectorVisible: boolean
   inspectorWidth: number
+  /** The current screen's minimum inspector width (the tape room's is 300, 02 §23 A3). */
+  inspectorMin: number
   scrolled: boolean
   largeTitleVisible: boolean
   filmOnly: boolean
@@ -55,6 +57,7 @@ let state: ShellUi = {
   hasInspector: false,
   inspectorVisible: true,
   inspectorWidth: 320,
+  inspectorMin: 260,
   scrolled: false,
   largeTitleVisible: false,
   filmOnly: false,
@@ -126,7 +129,7 @@ export function setSidebarWidth(w: number) {
 export function loadInspector(screen: string, defaultWidth = 320, min = 260) {
   const width = clamp(Number(read(`ui.inspector.${screen}.width`, String(defaultWidth))) || defaultWidth, min, 420)
   const visible = read(`ui.inspector.${screen}.visible`, 'true') !== 'false'
-  setUi({ inspectorWidth: width, inspectorVisible: visible })
+  setUi({ inspectorWidth: width, inspectorVisible: visible, inspectorMin: min })
 }
 
 export function toggleInspector() {
@@ -135,7 +138,7 @@ export function toggleInspector() {
   setUi({ inspectorVisible: visible })
 }
 
-export function setInspectorWidth(w: number, min = 260) {
+export function setInspectorWidth(w: number, min = state.inspectorMin) {
   const width = clamp(Math.round(w), min, 420)
   persist(`ui.inspector.${state.screen}.width`, String(width))
   setUi({ inspectorWidth: width })
