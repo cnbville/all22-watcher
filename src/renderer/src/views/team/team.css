@@ -27,10 +27,10 @@
     .team-stats__grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 1px;
+      border: 1px solid var(--sep);
       border-radius: var(--r-xl);
       overflow: hidden;
-      background: var(--sep);
+      background: var(--bg-content);
     }
     .stat-tile {
       display: flex;
@@ -38,7 +38,10 @@
       align-items: flex-start;
       gap: 4px;
       padding: 12px;
-      background: var(--bg-content);
+      /* Hairlines between tiles; the ones on the outer edge fall outside the clip, and a short last row leaves no hole. */
+      box-shadow:
+        1px 0 0 var(--sep),
+        0 1px 0 var(--sep);
     }
     .stat-tile__label {
       font: var(--t-subheadline);

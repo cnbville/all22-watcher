@@ -18,6 +18,17 @@ interface Group {
   footnote?: string
 }
 
+/** One row per action: a second key for the same action joins the first row ("= or +"). */
+function merged(rows: Row[]): Row[] {
+  const out: Row[] = []
+  for (const r of rows) {
+    const same = out.find((o) => o.label === r.label)
+    if (same) same.keys = [...same.keys, 'or', ...r.keys]
+    else out.push({ ...r, keys: [...r.keys] })
+  }
+  return out
+}
+
 const rowOf = (c: CommandDef): Row => ({ label: c.label.replace(/…$/, ''), keys: [acceleratorGlyphs(c.accelerator)] })
 const pick = (pred: (c: CommandDef) => boolean) => COMMANDS.filter((c) => c.accelerator && pred(c)).map(rowOf)
 
@@ -72,6 +83,7 @@ export function KeyboardShortcuts({ filter, onClose }: { filter?: string; onClos
   const body = useRef<HTMLDivElement>(null)
   const needle = q.trim().toLowerCase()
   const shown = all
+    .map((g) => ({ ...g, rows: merged(g.rows) }))
     .map((g) => ({ ...g, rows: needle ? g.rows.filter((r) => r.label.toLowerCase().includes(needle) || g.title.toLowerCase().includes(needle)) : g.rows }))
     .filter((g) => g.rows.length)
   useEffect(() => {
@@ -95,7 +107,7 @@ export function KeyboardShortcuts({ filter, onClose }: { filter?: string; onClos
               <div key={i} className="shortcuts__row">
                 <span className="shortcuts__label">{r.label}</span>
                 <span className="shortcuts__keys">
-                  {r.keys.map((k, j) => (k === '…' ? <span key={j} className="c-label-3">…</span> : <Keycap key={j} small>{k}</Keycap>))}
+                  {r.keys.map((k, j) => (k === '…' || k === 'or' ? <span key={j} className="c-label-3">{k}</span> : <Keycap key={j} small>{k}</Keycap>))}
                 </span>
               </div>
             ))}

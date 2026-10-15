@@ -764,6 +764,7 @@ html[data-fullscreen='true'] .shell-titlebar-controls {
   min-width: 0;
   border: 0;
   outline: none;
+  box-shadow: none;
   background: var(--transparent);
   font: 400 20px/26px var(--font-text);
   color: var(--label);

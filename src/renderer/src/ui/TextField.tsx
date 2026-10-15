@@ -47,7 +47,8 @@ export function TextField({
   useEffect(() => setDraft(value), [value])
   const shown = commitOnBlur ? draft : value
   return (
-    <span className="text-field-wrap" style={{ width }}>
+    // A flex size given in `style` belongs to the wrapper, which is what sits in the parent's row.
+    <span className="text-field-wrap" style={style?.flex !== undefined ? { width, flex: style.flex, minWidth: 0 } : { width }}>
       <input
         ref={ref}
         className={`text-field text-field--${size}${invalid ? ' text-field--invalid' : ''}${mono ? ' text-field--mono' : ''}`}
