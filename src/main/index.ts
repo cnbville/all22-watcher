@@ -12,6 +12,7 @@ import { addEventSink, broadcast, cancelActivity, changed, listActivities, runni
 import { planExport } from './exportPlan'
 import { exportsRunning, pickEncoder, queueExport, setExportKeepAwake } from './exportVideo'
 import { ffmpegStatus } from './ffmpeg'
+import { KnownPaths } from './knownPaths'
 import { Library } from './library'
 import { mirrorFetcher, webFetcher } from './nflverse'
 import { CutupEngine } from './playQuery'
@@ -34,6 +35,7 @@ let cutupEngine: CutupEngine
 let watcher: WatchFolder
 let updater: SeasonUpdater
 let posters: PosterCache
+let known: KnownPaths
 let lastExportFolder: string | null = null
 
 const MIME: Record<string, string> = {
@@ -268,7 +270,9 @@ function handlers(): Handlers {
       store().removeClips(gameId)
       changed('film')
     },
-    revealClip: async (path) => shell.showItemInFolder(path),
+    revealClip: async (path) => {
+      if (known.canReveal(path)) shell.showItemInFolder(path)
+    },
     setClipSnap: async (clipId, snapMs) => store().setClipSnap(clipId, snapMs),
     checkAlignment: (gameId) => library.checkAlignment(gameId),
     alignment: async (gameId) => store().alignment(gameId),
@@ -351,8 +355,11 @@ function handlers(): Handlers {
       const res = await openDialog({ title: 'Choose a Folder for the Video', properties: ['openDirectory', 'createDirectory'] })
       return res.canceled || !res.filePaths[0] ? null : res.filePaths[0]
     },
-    revealPath: async (path) => shell.showItemInFolder(path),
+    revealPath: async (path) => {
+      if (known.canReveal(path)) shell.showItemInFolder(path)
+    },
     openPath: async (path) => {
+      if (!known.canOpen(path)) throw new Error('That file isn’t one All-22 Watcher saved.')
       const err = await shell.openPath(path)
       if (err) throw new Error(err)
     },
@@ -389,6 +396,7 @@ function handlers(): Handlers {
       })
       if (res.canceled || !res.filePath) return null
       await writeFile(res.filePath, await library.gradesCsv(season, team))
+      known.remember(res.filePath)
       return res.filePath
     },
     exportPlayerReport: async (season, playerId) => {
@@ -400,6 +408,7 @@ function handlers(): Handlers {
       })
       if (res.canceled || !res.filePath) return null
       await writeFile(res.filePath, await renderPlayerReport(season, playerId, profile?.player.name ?? playerId))
+      known.remember(res.filePath)
       return res.filePath
     },
     saveCsv: async (defaultName, csv) => {
@@ -410,6 +419,7 @@ function handlers(): Handlers {
       })
       if (res.canceled || !res.filePath) return null
       await writeFile(res.filePath, csv)
+      known.remember(res.filePath)
       return res.filePath
     },
     dataFolder: async () => app.getPath('userData'),
@@ -436,9 +446,17 @@ app.whenReady().then(async () => {
   watcher = new WatchFolder(library)
   updater = new SeasonUpdater(library)
   posters = new PosterCache(join(userData, 'posters'))
+  known = new KnownPaths({
+    isClip: (path) => store.hasClipPath(path),
+    folders: () => [userData, store.settings().watchFolder]
+  })
 
   // Every push event goes to every window over one channel; v1's progress channels stay for the v1 views.
   addEventSink((event) => sendAll(API_EVENT_CHANNEL, event))
+  // A finished export may be revealed or played from its banner or notification.
+  addEventSink((event) => {
+    if (event.type === 'activity') known.remember(event.activity.resultPath)
+  })
   addEventSink((event) => {
     if (event.type === 'dataStatus' && event.status.state === 'updating') {
       sendAll('data-progress', { season: event.status.season, step: event.status.step ?? '', done: event.status.done, total: event.status.total })
@@ -465,12 +483,12 @@ app.whenReady().then(async () => {
 
   const impl = handlers() as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>
   ipcMain.handle('api', async (_e, method: string, ...args: unknown[]) => {
-    const fn = impl[method]
-    if (!fn) throw new Error(`Unknown API method ${method}`)
+    const fn = Object.hasOwn(impl, method) ? impl[method] : undefined
+    if (typeof fn !== 'function') throw new Error(`Unknown API method ${method}`)
     return fn(...args)
   })
 
-  registerShell({ recentFilm: () => library.recentFilm() })
+  registerShell({ recentFilm: () => library.recentFilm(), canReveal: (path) => known.canReveal(path) })
   createMainWindow()
   watcher.configure()
   updater.start()

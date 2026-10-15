@@ -280,6 +280,11 @@ export class Store {
     return row ? toClip(row) : null
   }
 
+  /** Whether any game's film has a clip at this path. */
+  hasClipPath(path: string): boolean {
+    return this.all('SELECT 1 FROM clips WHERE path = ? LIMIT 1', [path]).length > 0
+  }
+
   clipCounts(gameIds: string[]): Map<string, number> {
     const out = new Map<string, number>()
     if (!gameIds.length) return out
