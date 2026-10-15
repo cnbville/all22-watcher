@@ -1,0 +1,375 @@
+@layer screens {
+  .screen-player {
+    /* Header (§6.1) */
+    .player-header {
+      margin-bottom: 32px;
+    }
+    .player-header__rule {
+      height: 2px;
+      border-radius: 1px;
+      background: var(--team);
+    }
+    .player-header__row {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      min-height: 120px;
+      margin-top: 16px;
+    }
+    .player-header__text {
+      flex: 1;
+      min-width: 0;
+    }
+    .player-header__name {
+      margin: 0;
+      font: var(--t-large-title);
+      color: var(--label);
+    }
+    .player-header__line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .player-header__bio {
+      margin-top: 6px;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .player-header__link {
+      color: inherit;
+      cursor: pointer;
+    }
+    .player-header__link:hover {
+      color: var(--label);
+      text-decoration: underline;
+    }
+    .player-header__grade {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .player-header__graded {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+
+    .player-quiet {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .player-footnote {
+      margin-top: 12px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .player-empty-inline {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 16px 0;
+      border-radius: var(--r-xl);
+      background: var(--bg-group);
+    }
+
+    /* Overview (§6.2) */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(var(--cells), minmax(0, 1fr));
+      min-height: 48px;
+    }
+    .stat-strip__cell {
+      padding: 0 12px;
+      box-shadow: inset 1px 0 0 var(--sep);
+    }
+    .stat-strip__cell:first-child {
+      padding-left: 0;
+      box-shadow: none;
+    }
+    .stat-strip__label {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+      white-space: nowrap;
+    }
+    .stat-strip__value {
+      margin-top: 4px;
+      font: var(--t-stat-lg);
+      color: var(--label);
+      white-space: nowrap;
+    }
+    .player-two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .breakdown__figures {
+      display: flex;
+    }
+    .figure {
+      min-width: 96px;
+    }
+    .figure__label {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .figure__value {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font: var(--t-stat-lg);
+      color: var(--label);
+    }
+    .figure__caption {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .breakdown__zap {
+      color: var(--label-2);
+    }
+    .breakdown__bar {
+      margin-top: 16px;
+    }
+    .breakdown__tags-title {
+      margin: 24px 0 8px;
+      font: var(--t-headline);
+    }
+    .tag-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: var(--r-sm);
+      background: var(--chip-bg, var(--fill-1));
+      color: var(--chip-fg, var(--label));
+      font: var(--t-callout);
+      cursor: pointer;
+    }
+    .tag-chip:hover {
+      filter: brightness(1.15);
+    }
+    .tag-chip__count {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Film (§6.3) */
+    .film-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 28px;
+      margin-bottom: 16px;
+    }
+    .film-controls__toggles {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .film-controls__spacer {
+      flex: 1;
+    }
+    .film-controls__count {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+      white-space: nowrap;
+    }
+
+    /* Splits (§6.4) */
+    .splits-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .splits-controls__note {
+      margin-left: auto;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .split-watch,
+    .row-hover {
+      opacity: 0;
+      transition: opacity var(--dur-fast);
+    }
+    .table__row:hover .split-watch,
+    .table__row[aria-selected='true'] .split-watch,
+    .table__row:hover .row-hover,
+    .table__row[aria-selected='true'] .row-hover {
+      opacity: 1;
+    }
+    .opp-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+      gap: 24px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .tier-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+      box-shadow: inset 0 -0.5px 0 var(--sep);
+    }
+    .tier-row__label {
+      font: var(--t-body);
+    }
+    .tier-row__detail {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .rank-plain {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .epa-figures {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 24px;
+      margin-top: 16px;
+    }
+    .second-look {
+      margin-top: 24px;
+    }
+    .second-look__title {
+      font: var(--t-headline);
+    }
+    .second-look__sub {
+      margin: 2px 0 8px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .play-list {
+      outline: none;
+      border-radius: var(--r-lg);
+    }
+    .play-list:focus-visible {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .game-opp {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .game-opp__label {
+      font: var(--t-body);
+      color: var(--label);
+      cursor: pointer;
+    }
+    .game-opp__label:hover,
+    .career-season__link:hover {
+      text-decoration: underline;
+    }
+    .game-opp__name {
+      margin-left: -2px;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .game-result {
+      display: inline-flex;
+      align-items: center;
+    }
+    .game-result__letter {
+      width: 16px;
+      font: var(--t-subheadline);
+      font-weight: 600;
+      color: var(--label-2);
+    }
+
+    /* Game log (§6.5): the Season row */
+    .game-log .table__row[data-row-key='season'] {
+      box-shadow: inset 0 1px 0 var(--sep-strong);
+      font-weight: 600;
+    }
+
+    /* Career (§6.6) */
+    .career-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+      gap: 24px;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .career-summary__ring {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .career-summary__text {
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .career-missing {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      margin-bottom: 24px;
+      padding: 0 12px;
+      border-radius: var(--r-lg);
+      background: var(--fill-4);
+      color: var(--label-3);
+    }
+    .career-missing__text {
+      flex: 1;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .career-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .career-season {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .career-season__link {
+      color: var(--label);
+      cursor: pointer;
+    }
+    .career-teams {
+      display: inline-flex;
+      gap: 4px;
+    }
+    .career-span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: var(--t-callout);
+      color: var(--label-3);
+      white-space: nowrap;
+      overflow: visible;
+    }
+    .career-table .table__cell {
+      overflow: visible;
+    }
+  }
+  @media (max-width: 1100px) {
+    .screen-player .player-two-col,
+    .screen-player .opp-layout,
+    .screen-player .career-summary {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .screen-player .epa-figures {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+}

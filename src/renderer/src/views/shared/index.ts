@@ -6,6 +6,7 @@ export { SampleBadge, SampleGrade, sampleFill, sampleInk, sampleTone, smallSampl
 export { PLAY_DRAG_TYPE, PlayCaption, PlayRow, type PlayRowItem } from './PlayRow'
 export { ANGLE_LABEL, ANGLE_NAME, playMenu, type PlayMenuTarget } from './playMenu'
 export { Poster } from './Poster'
+export { PlayList } from './PlayList'
 export { ReelPlayer, entryKey, type ReelEntry, type ReelHandle, type ReelPlayerProps } from './ReelPlayer'
 export {
   addToCutupMenu,
