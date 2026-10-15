@@ -160,6 +160,11 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!window.shell) return
     const offMenu = window.shell.onMenu((id, arg) => {
+      // Edit > Undo/Redo in a text field is the field's own undo, not the screen's (macOS sends it through the menu).
+      if ((id === 'edit.undo' || id === 'edit.redo') && isTyping(document.activeElement)) {
+        document.execCommand(id === 'edit.undo' ? 'undo' : 'redo')
+        return
+      }
       runCommand(id, arg)
     })
     let typing = false
