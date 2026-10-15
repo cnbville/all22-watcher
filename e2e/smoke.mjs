@@ -1,5 +1,6 @@
 // End-to-end smoke test: launches the real app, downloads a season, drives the menu bar and the
-// Settings window, imports clips, grades a snap, opens a player and exports a PDF.
+// Settings window, imports clips, grades a snap, opens a player, exports a PDF, saves a cut-up and exports it as video,
+// and opens Leaderboards and a matchup.
 //
 //   npm run build && node e2e/smoke.mjs                 # the dev build
 //   APP="dist/mac-arm64/All-22 Watcher.app/Contents/MacOS/All-22 Watcher" node e2e/smoke.mjs
@@ -16,6 +17,8 @@ const out = join(root, 'e2e', 'output')
 mkdirSync(out, { recursive: true })
 const userData = mkdtempSync(join(tmpdir(), 'all22-smoke-'))
 const fixtures = join(root, 'e2e', 'fixtures')
+// Export Video writes here instead of ~/Movies.
+const exportDir = mkdtempSync(join(tmpdir(), 'all22-export-'))
 
 const launch = process.env.APP
   ? { executablePath: resolve(process.env.APP), args: [] }
@@ -27,6 +30,7 @@ const app = await electron.launch({
   env: {
     ...process.env,
     ALL22_USER_DATA: userData,
+    ALL22_EXPORT_DIR: exportDir,
     ...(process.env.NFLVERSE_MIRROR ? { ALL22_NFLVERSE_MIRROR: process.env.NFLVERSE_MIRROR } : {})
   },
   timeout: 60_000
@@ -141,6 +145,60 @@ try {
     await win.click('[data-test="export-report"]')
     for (let i = 0; i < 120 && !(existsSync(pdf) && statSync(pdf).size > 0); i++) await win.waitForTimeout(250)
     if (!existsSync(pdf) || statSync(pdf).size < 10_000) throw new Error('PDF missing or empty')
+  })
+
+  // 03 §14: cut-ups, Export Video, Leaderboards and Matchups.
+  await step('saves a cut-up', async () => {
+    await win.click('[data-test="player-section-film"]')
+    await win.locator('[data-test="reel-item"]').first().click()
+    // ⌘D is a menu accelerator; the menu item is what it runs on every platform.
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('grade.addToCutup').click())
+    await win.click('[data-test="add-to-cutup-new"]')
+    await win.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
+    await win.keyboard.type('Smoke cut-up')
+    await win.keyboard.press('Enter')
+    await win.locator('[data-test^="sidebar-cutup-"]', { hasText: 'Smoke cut-up' }).click()
+    await win.waitForSelector('[data-test="screen-cutup"] [data-test="cutup-row"]')
+    const rows = await win.locator('[data-test="cutup-row"]').count()
+    if (rows !== 1) throw new Error(`Expected 1 cut-up row, found ${rows}`)
+    await shot('6-cutup')
+  })
+
+  await step('exports a video', async () => {
+    await win.click('[data-test="cutup-export"]')
+    await win.waitForSelector('[data-test="export-sheet"]')
+    await win.click('[data-test="export-start"]')
+    await win.waitForSelector('[data-test="export-status"]:has-text("Exported")', { timeout: 120_000 })
+    const file = join(exportDir, 'Smoke cut-up.mp4')
+    if (!existsSync(file) || statSync(file).size < 10_000) throw new Error('Exported video missing or empty')
+  })
+
+  await step('leaderboards', async () => {
+    await win.click('[data-test="sidebar-item-leaderboards"]')
+    // The group of the player graded above (the tape room picks who is graded first).
+    const group = await win.evaluate(async () => {
+      for (const g of ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB']) if ((await window.api.leaderboard(2025, g)).length) return g
+      return 'DB'
+    })
+    await win.click(`[data-test="leaders-pos-${group}"]`)
+    // One graded snap is under the default minimum of 10: lower it in the filter popover.
+    await win.waitForSelector('[data-test="leaders-no-match"]')
+    await win.click('[data-test="leaders-filter"]')
+    await win.fill('[data-test="leaders-filter-popover"] input', '0')
+    await win.keyboard.press('Enter')
+    await win.waitForSelector('[data-test="leaders-filter-summary"]')
+    await win.waitForSelector('[data-test="leader-row"]')
+    await shot('7-leaderboards')
+  })
+
+  await step('matchup', async () => {
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('go.matchups').click())
+    await win.click('[data-test="matchup-pick-left"]')
+    await win.locator('.team-picker__row', { hasText: 'Eagles' }).click()
+    await win.click('[data-test="matchup-pick-right"]')
+    await win.locator('.team-picker__row', { hasText: 'Cowboys' }).click()
+    await win.waitForSelector('[data-test="matchup-header"]', { timeout: 20_000 })
+    await shot('8-matchup')
   })
 
   // Improvement 13: a game folder dropped into the watch folder imports on its own once its clips settle (~10 s).
