@@ -2,46 +2,249 @@
   .screen-home {
     .home-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(266px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(var(--tiles), minmax(0, 1fr));
+      gap: 24px;
     }
-    .home-film-tile,
-    .home-team-tile {
+    .home-error {
       display: flex;
       align-items: center;
-      gap: 12px;
-      min-height: 60px;
+      gap: 8px;
+      margin: 0 0 40px;
+      font: var(--t-callout);
+      color: var(--label-2);
     }
-    .home-film-tile__text {
-      flex: 1;
+    .home-error > svg {
+      color: var(--danger);
+    }
+    .home-download {
+      display: flex;
+      min-height: 360px;
+    }
+
+    /* Shelves */
+    .shelf {
+      position: relative;
+    }
+    .shelf__track {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: var(--tile-w);
+      gap: 24px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      margin: -4px;
+      padding: 4px;
+    }
+    .shelf__track::-webkit-scrollbar {
+      display: none;
+    }
+    .shelf__track > * {
+      scroll-snap-align: start;
+    }
+    .shelf__page {
+      position: absolute;
+      top: calc(var(--tile-w) * 9 / 32 - 14px);
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: 0.5px solid var(--mat-popover-border);
+      border-radius: 50%;
+      background: var(--mat-popover);
+      backdrop-filter: var(--mat-popover-filter);
+      box-shadow: var(--shadow-popover);
+      color: var(--label);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-fast);
+    }
+    .shelf__page--left {
+      left: -14px;
+    }
+    .shelf__page--right {
+      right: -14px;
+    }
+    .shelf:hover .shelf__page[data-shown] {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Poster tiles */
+    .poster-tile__hit {
+      display: block;
+      border-radius: var(--r-2xl);
+      outline: none;
+      cursor: default;
+    }
+    .poster-tile__poster {
+      border-radius: var(--r-xl);
+      transition: opacity var(--dur-fast);
+    }
+    .poster-tile__hit:active .poster-tile__poster {
+      opacity: 0.85;
+    }
+    .poster-tile__hit:focus-visible .poster-tile__poster {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .poster-tile__play {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      border-radius: 50%;
+      background: var(--mat-hud);
+      backdrop-filter: var(--mat-hud-filter);
+      color: var(--hud-label);
+      opacity: 0;
+      transition: opacity var(--dur-fast);
+    }
+    .poster-tile__hit:hover .poster-tile__play {
+      opacity: 1;
+    }
+    .poster-tile__line1 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
       min-width: 0;
     }
-    .home-film-tile__title {
+    .poster-tile__title {
+      min-width: 0;
       font: var(--t-headline);
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+      color: var(--label);
     }
-    .home-film-tile__sub {
+    .poster-tile__kind {
+      flex: none;
+      color: var(--label-3);
+    }
+    .poster-tile__line2 {
       margin-top: 2px;
       font: var(--t-subheadline);
       color: var(--label-2);
-      overflow: hidden;
       white-space: nowrap;
+      overflow: hidden;
       text-overflow: ellipsis;
     }
-    .home-film-tile__count {
+
+    /* Recently Graded */
+    .home-player-tile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 72px;
+      padding: 0 12px;
+    }
+    .home-tile-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .home-tile-title {
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .home-tile-sub {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .home-tile-meta {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+
+    /* My Teams */
+    .home-team-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+      height: 88px;
+      padding: 0 12px;
+      overflow: visible;
+    }
+    .home-team-card__line1 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .home-team-card__name {
+      flex: 1;
+      min-width: 0;
       font: var(--t-title-3);
       color: var(--label);
-
-      span {
-        font: var(--t-subheadline);
-        color: var(--label-3);
-      }
     }
-    .home-hint {
-      max-width: 560px;
-      font: var(--t-body-prose);
+    .home-team-card__record {
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .home-team-card__line2 {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .home-team-card__line3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .home-team-card__matchup {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      opacity: 0;
+      transition: opacity var(--dur-fast);
+    }
+    .home-team-card:hover .home-team-card__matchup {
+      opacity: 1;
+    }
+    .home-team-card:hover .home-team-card__record {
+      visibility: hidden;
+    }
+
+    /* All Teams */
+    .home-divisions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 24px;
+    }
+    .home-division__title {
+      height: 24px;
+      padding-left: 8px;
+      font: var(--t-subheadline);
+      font-weight: 600;
+      color: var(--label-3);
+    }
+    .home-team-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: var(--r-md);
+      color: var(--label);
+      text-decoration: none;
+      cursor: default;
+    }
+    .home-team-link:hover {
+      background: var(--fill-3);
+    }
+    .home-team-link__name {
+      flex: 1;
+      min-width: 0;
+      font: var(--t-body);
+    }
+    .home-team-link__record {
+      font: var(--t-callout);
       color: var(--label-3);
     }
   }
