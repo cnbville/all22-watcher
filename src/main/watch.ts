@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, type FSWatcher, watch } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { basename, join, relative } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 import { matchGameName } from '@shared/gameMatch'
 import { gameTitle, weekName } from '@shared/labels'
 import { extensionOf, VIDEO_EXTENSIONS } from '@shared/matching'
@@ -19,6 +19,8 @@ import type { Library } from './library'
  */
 
 export const SETTLE_MS = 10_000
+
+const isInside = (path: string, dir: string) => path.startsWith(dir.endsWith(sep) ? dir : dir + sep)
 export const RESCAN_MS = 60_000
 /** Files a copy or download is still writing. */
 const PARTIAL = /\.(part|partial|crdownload|download|tmp)$/i
@@ -271,7 +273,9 @@ export class WatchFolder {
         this.unmatched.set(dir, { signature, reason: match.reason ?? 'No game matches the folder name.' })
         return
       }
-      if (filmed.has(match.game.gameId)) {
+      // Film that came from this very folder is the same import again: the app quit before it was logged.
+      const fromHere = filmed.has(match.game.gameId) && store.clipsForGame(match.game.gameId).some((c) => isInside(c.path, dir))
+      if (filmed.has(match.game.gameId) && !fromHere) {
         this.unmatched.set(dir, { signature, reason: `${gameTitle(match.game)} (${weekName(match.game)}, ${match.game.season}) already has film. Import it from the Film screen to replace it.` })
         return
       }
@@ -296,11 +300,17 @@ export class WatchFolder {
         const ffmpeg = findFfmpeg()
         if (ffmpeg) {
           activity.update({ detail: `Converting ${preview.unsupported.length} clips`, done: 0, total: preview.unsupported.length })
-          await convertClips(ffmpeg, preview.unsupported, this.library.convertedDir(game.gameId), (done, total) => {
-            this.current = { title, done, total }
-            activity.update({ detail: `Converting ${done} of ${total}`, done, total })
-            this.push()
-          })
+          await convertClips(
+            ffmpeg,
+            preview.unsupported,
+            this.library.convertedDir(game.gameId),
+            (done, total) => {
+              this.current = { title, done, total }
+              activity.update({ detail: `Converting ${done} of ${total}`, done, total })
+              this.push()
+            },
+            () => cancelled
+          )
           preview = await this.library.previewMatch(game.gameId, [dir])
         }
       }
@@ -326,7 +336,7 @@ export class WatchFolder {
         notification: {
           title: `Imported ${title}`,
           body: `${weekName(game)} · ${matched.length} clips matched to ${plays} plays${suspects ? ` · ${suspects} need a check` : ''}`,
-          route: `/film/${game.gameId}`
+          route: `/film/${game.gameId}?team=${team}`
         }
       })
       changed('film')

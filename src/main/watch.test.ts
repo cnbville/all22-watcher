@@ -93,7 +93,7 @@ describe('WatchFolder', () => {
     expect(status).toMatchObject({ state: 'watching', folderName: 'watch', justImported: 1, recent: [{ gameId: '2025_01_DAL_PHI', state: 'done', clipCount: 6, playCount: 3 }] })
     expect(status.unmatched).toEqual([{ folder: 'Practice', reason: 'No teams are named in the folder name.' }])
     const done = events.filter((e) => e.type === 'activity' && e.activity.state === 'done').map((e) => (e as { activity: { notification?: { title: string; body?: string } } }).activity.notification)
-    expect(done).toEqual([{ title: 'Imported DAL @ PHI', body: 'Week 1 · 6 clips matched to 3 plays', route: '/film/2025_01_DAL_PHI' }])
+    expect(done).toEqual([{ title: 'Imported DAL @ PHI', body: 'Week 1 · 6 clips matched to 3 plays', route: '/film/2025_01_DAL_PHI?team=DAL' }])
     expect(events.some((e) => e.type === 'changed' && e.kinds.includes('film'))).toBe(true)
 
     // Unchanged: nothing more.
@@ -139,6 +139,27 @@ describe('WatchFolder', () => {
     await sleep(40)
     await watch.scan()
     expect(lib.store.importLog(10, 'watch')).toHaveLength(1)
+  })
+
+  it('finishes an import the app quit in the middle of instead of calling the folder a duplicate', async () => {
+    const { lib, dir } = await library()
+    const root = join(dir, 'watch')
+    await mkdir(root)
+    await gameFolder(root, 'DAL at PHI', 2)
+    // The clips were saved, then the app quit before the import was logged.
+    const folder = join(root, 'DAL at PHI')
+    lib.store.replaceClips('2025_01_DAL_PHI', [{ path: join(folder, 'Sideline', 'Play 1.mp4'), fileName: 'Play 1.mp4', angle: 'sideline', playId: 10 }])
+    lib.store.touchFilm('2025_01_DAL_PHI', 'PHI', false, 'watch')
+    lib.store.saveSettings({ watchFolder: root })
+    const watch = new WatchFolder(lib, { settleMs: 20, fsWatch: false })
+    stops.push(() => watch.stop())
+    watch.configure()
+    await watch.scan()
+    await sleep(40)
+    const status = await watch.scan()
+    expect(status.unmatched).toEqual([])
+    expect(status.recent).toMatchObject([{ gameId: '2025_01_DAL_PHI', state: 'done', clipCount: 4 }])
+    expect(lib.store.filmGames()[0].clipCount).toBe(4)
   })
 
   it('reports a missing or paused folder', async () => {
