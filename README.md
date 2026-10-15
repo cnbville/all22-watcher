@@ -4,7 +4,7 @@ A Mac app for watching and grading NFL All-22 film. Pick a team, see its season 
 
 ## What it does
 
-- **Teams and seasons.** All 32 teams by division with records. Each team page shows offense and defense efficiency (EPA per play, success rate, points, turnovers, sacks) ranked against the league, the schedule with your film status, and the roster with snap counts and your grades.
+- **Teams and seasons.** All 32 teams by division with records. Each team page shows regular-season offense and defense efficiency (EPA per play, success rate, points, turnovers, sacks) ranked against the league, the schedule with your film status, and the roster with snap counts and your grades.
 - **Film import.** Point it at a game's clips (one clip per play, or a folder of them). Clips are matched to the official play-by-play in filename order, sideline and end zone angles separately. Check the matches, slide them if a clip is missing, and save.
 - **Tape room.** Frame-by-frame stepping, slow motion, looping, switching angles, and drawing on the film. Filter plays by side, down, quarter, play type, formation, personnel, coverage, or text. Every play shows down and distance, the result, EPA, and (when nflverse has published it) formation, personnel, box count, pass rushers, coverage, and pressure.
 - **Grading.** +, 0, or – for each player on each snap, plus position-specific tags (like "Pass pro win" or "Missed tackle"), per-player notes, play notes, and your own charting fields (coverage shell, run concept, and so on). When nflverse has the on-field lineups, the 11 players on the field are listed automatically; otherwise star the players you're studying.
@@ -33,7 +33,7 @@ npm run dist     # build dist/*.dmg
 
 1. **Download a season.** On first launch, pick a season and click **Download**. It pulls about 60 MB of free public data from [nflverse](https://github.com/nflverse/nflverse-data) and works offline afterwards. Click **Update** during the season to pick up new games.
 2. **Open a team** and click **Import film** next to a game.
-3. **Choose the clips** for that game, or the folder they're in. Name or file them so they sort in game order (`Play 1.mp4`, `Play 2.mp4`, …). For two angles, put them in folders or names containing `sideline`/`SL` and `end zone`/`EZ`.
+3. **Choose the clips** for that game, or the folder they're in. Name or file them so they sort in game order (`Play 1.mp4`, `Play 2.mp4`, …). For two angles, put them in folders or names containing `sideline`/`SL` and `end zone`/`EZ`. Folders per quarter or half (`Q1`…`Q4`, `OT`, `First Quarter`, `1st Half`) are kept in game order even when each one restarts at 1, whether they sit inside the angle folders or hold them.
 4. **Check the matches.** The app guesses whether your clips include special teams and penalty no-plays from how many clips there are; flip the checkboxes if it guessed wrong. If one clip is missing mid-game, click the arrow on the first wrong row to slide everything after it.
 5. **Grade.** Watch the snap, then go down the player list with `=` (plus), `0`, and `-` (minus). Each grade moves you to the next player. Press `↓` for the next play.
 
