@@ -1,0 +1,407 @@
+/* PDF scouting report (03 §12): light on white, 720px wide. The print palette is declared on .report so the app's
+   dark tokens never apply; this and tokens.css are the only stylesheets allowed color literals. */
+@layer screens {
+  .report {
+    --p-bg: #ffffff;
+    --p-label: #111113;
+    --p-label-2: #4b4b52;
+    --p-label-3: #6e6e76;
+    --p-sep: #e3e3e8;
+    --p-sep-strong: #c7c7ce;
+    --p-fill: #f4f4f6;
+    --p-grid: #ebebef;
+
+    /* App tokens the shared charts and badges read, mapped onto the print palette. */
+    --label: var(--p-label);
+    --label-2: var(--p-label-2);
+    --label-3: var(--p-label-3);
+    --label-4: #9a9aa2;
+    --sep: var(--p-sep);
+    --sep-strong: var(--p-sep-strong);
+    --grid: var(--p-grid);
+    --fill-1: #d4d4d9;
+    --fill-2: #e3e3e8;
+    --fill-3: var(--p-fill);
+    --fill-4: var(--p-fill);
+    --bg-content: var(--p-bg);
+    --bg-group: var(--p-fill);
+    --badge-border: transparent;
+    --ch-grid: var(--p-grid);
+    --ch-axis: var(--p-sep-strong);
+    --ch-label-2: var(--p-label-2);
+    --ch-label-3: var(--p-label-3);
+    --ch-label-4: #9a9aa2;
+    --ch-neutral: #d4d4d9;
+    --ch-band: var(--p-fill);
+    --ch-accent: #2f5bd3;
+    --ch-halo: var(--p-bg);
+
+    width: 720px;
+    min-height: 100%;
+    margin: 0 auto;
+    background: var(--p-bg);
+    color: var(--p-label);
+    font: 400 10px/14px var(--font-text);
+    font-variant-numeric: tabular-nums;
+    user-select: text;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report--message {
+    padding: 48px 0;
+    color: var(--p-label-3);
+    font-size: 13px;
+  }
+
+  .report h1 {
+    margin: 0;
+    font: 700 26px/32px var(--font-text);
+    letter-spacing: -0.01em;
+  }
+  .report h2 {
+    margin: 24px 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--p-sep-strong);
+    font: 600 13px/16px var(--font-text);
+    color: var(--p-label);
+  }
+  .report .muted {
+    color: var(--p-label-3);
+  }
+  .report .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .report__block {
+    break-inside: avoid;
+  }
+  .report__block--long {
+    break-inside: auto;
+  }
+  .report__block--long h2 {
+    break-after: avoid;
+  }
+
+  /* 1. Header */
+  .report__header {
+    break-inside: avoid;
+  }
+  .report__rule {
+    height: 3px;
+    background: var(--team-raw, var(--p-label));
+  }
+  .report__eyebrow {
+    margin-top: 12px;
+    font: 600 9px/12px var(--font-text);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--p-label-3);
+  }
+  .report__head-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-height: 88px;
+    margin-top: 8px;
+  }
+  .report__avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 64px;
+    height: 64px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--p-fill);
+    box-shadow: inset 0 0 0 1px var(--p-sep);
+    color: var(--p-label-2);
+    font: 600 22px/1 var(--font-text);
+  }
+  .report__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .report__head-text {
+    flex: 1;
+    min-width: 0;
+  }
+  .report__line {
+    margin-top: 2px;
+    font: 400 12px/16px var(--font-text);
+    color: var(--p-label-2);
+  }
+  .report__bio {
+    margin-top: 2px;
+    color: var(--p-label-3);
+  }
+  .report__grade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .report__caption {
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+  }
+  .report-ring {
+    position: relative;
+    display: block;
+    width: 88px;
+    height: 88px;
+  }
+  .report-ring svg {
+    display: block;
+  }
+  .report-ring__track {
+    stroke: var(--p-sep);
+  }
+  .report-ring__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .report-ring__value {
+    font: 600 28px/32px var(--font-text);
+    color: var(--p-label-3);
+  }
+  .report-ring__label {
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+  }
+
+  /* 2. Season strip */
+  .report__strip {
+    display: grid;
+    grid-template-columns: repeat(var(--cells), minmax(0, 1fr));
+    align-items: center;
+    height: 44px;
+    margin-top: 16px;
+    border-radius: 6px;
+    background: var(--p-fill);
+    break-inside: avoid;
+  }
+  .report__strip-cell {
+    padding: 0 10px;
+    box-shadow: inset 1px 0 0 var(--p-sep);
+  }
+  .report__strip-cell:first-child {
+    box-shadow: none;
+  }
+  .report__strip-label {
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+    white-space: nowrap;
+  }
+  .report__strip-value {
+    font: 600 17px/20px var(--font-text);
+    white-space: nowrap;
+  }
+
+  /* 3. Breakdown and grade by game */
+  .report__pair {
+    display: grid;
+    grid-template-columns: 348px 348px;
+    gap: 24px;
+    break-inside: avoid;
+  }
+  .report__figures {
+    display: flex;
+    gap: 0;
+  }
+  .report__figures > * {
+    flex: 1;
+  }
+  .report__figures--four {
+    margin-top: 12px;
+  }
+  .report__figure-label {
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+  }
+  .report__figure-value {
+    font: 600 17px/20px var(--font-text);
+  }
+  .report__tally {
+    margin-top: 10px;
+  }
+  .report__subhead {
+    margin: 14px 0 6px;
+    font: 600 10px/14px var(--font-text);
+  }
+  .report__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .report__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--p-fill);
+    color: var(--p-label);
+    font: 400 9px/12px var(--font-text);
+  }
+  .report__chip b {
+    font-weight: 600;
+  }
+  .report__chart {
+    margin-bottom: 10px;
+  }
+
+  /* Tables: header repeats on each page, rows stay whole. */
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+  }
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table tr {
+    break-inside: avoid;
+  }
+  .report-table th {
+    padding: 0 4px 4px;
+    border-bottom: 1px solid var(--p-sep-strong);
+    font: 600 9px/12px var(--font-text);
+    color: var(--p-label-3);
+    text-align: left;
+    white-space: nowrap;
+  }
+  .report-table td {
+    height: 20px;
+    padding: 2px 4px;
+    border-bottom: 1px solid var(--p-sep);
+    white-space: nowrap;
+  }
+  .report-table th:first-child,
+  .report-table td:first-child {
+    padding-left: 0;
+  }
+  .report-table th:last-child,
+  .report-table td:last-child {
+    padding-right: 0;
+  }
+  .report-table__group td {
+    padding-top: 8px;
+    border-bottom-color: var(--p-sep-strong);
+    font: 600 9px/12px var(--font-text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--p-label-2);
+  }
+  .report-table__total td {
+    border-top: 1px solid var(--p-sep-strong);
+    border-bottom: 0;
+    font-weight: 600;
+  }
+  .report-table__current td:first-child {
+    font-weight: 600;
+  }
+  .report-table .w36 { width: 36px; }
+  .report-table .w40 { width: 40px; }
+  .report-table .w44 { width: 44px; }
+  .report-table .w52 { width: 52px; }
+  .report-table .w56 { width: 56px; }
+  .report-table .w64 { width: 64px; }
+  .report-table .w72 { width: 72px; }
+  .report-table .w88 { width: 88px; }
+  .report-table .w120 { width: 120px; }
+  .report__dash {
+    color: #9a9aa2;
+  }
+  .report__grade-num {
+    font-weight: 600;
+  }
+  .report__grade-num--small {
+    color: var(--p-label-3);
+  }
+  .report__footnote {
+    margin: 6px 0 0;
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+  }
+
+  /* 5. Tiers */
+  .report__tiers {
+    display: grid;
+    grid-template-columns: repeat(3, 232px);
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .report__tier {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--p-fill);
+  }
+  .report__tier-grade {
+    font-size: 13px;
+  }
+
+  /* 6 and 9. Play rows */
+  .report__note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--p-sep);
+    break-inside: avoid;
+  }
+  .report__glyph {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    flex: none;
+    width: 22px;
+    font: 600 12px/16px var(--font-text);
+  }
+  .report__note-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .report__note-text {
+    color: var(--p-label);
+  }
+  .report__note-text--play {
+    color: var(--p-label-2);
+  }
+  .report__note-epa {
+    flex: none;
+    color: var(--p-label-2);
+  }
+
+  .report__credit {
+    margin: 24px 0 0;
+    font: 400 9px/12px var(--font-text);
+    color: var(--p-label-3);
+  }
+}
+
+html:has(.report) {
+  color-scheme: light;
+  background: #ffffff;
+}
+body:has(.report) {
+  overflow: auto;
+  background: #ffffff;
+}
+html[data-print] {
+  --motion: 0;
+}
+@media screen {
+  body:has(.report) .report {
+    padding: 24px 0 48px;
+  }
+}

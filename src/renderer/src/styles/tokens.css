@@ -1,0 +1,235 @@
+/* Design tokens (spec 01 §5). The only CSS file allowed to contain color literals, besides report.css. */
+
+:root {
+  color-scheme: dark;
+
+  /* 5.1 Backgrounds */
+  --bg-content: #121214;
+  --bg-raised: #18181b;
+  --bg-window: #1c1c1f;
+  --bg-sheet: #1c1c1f;
+  --bg-under-page: #0b0b0c;
+  --bg-sidebar-solid: #19191c;
+  --bg-group: rgba(255, 255, 255, 0.035);
+  --group-border: rgba(255, 255, 255, 0.07);
+  --video-black: #000000;
+  --dim: rgba(0, 0, 0, 0.28);
+  --transparent: rgba(0, 0, 0, 0);
+
+  /* Fills and controls */
+  --fill-1: rgba(255, 255, 255, 0.12);
+  --fill-2: rgba(255, 255, 255, 0.08);
+  --fill-3: rgba(255, 255, 255, 0.05);
+  --fill-4: rgba(255, 255, 255, 0.03);
+  --control-bg: rgba(255, 255, 255, 0.1);
+  --control-bg-hover: rgba(255, 255, 255, 0.14);
+  --control-bg-pressed: rgba(255, 255, 255, 0.18);
+  --control-highlight: rgba(255, 255, 255, 0.06);
+  --field-bg: rgba(255, 255, 255, 0.05);
+  --field-border: rgba(255, 255, 255, 0.1);
+  --segment-track: rgba(255, 255, 255, 0.07);
+  --segment-thumb: rgba(255, 255, 255, 0.22);
+  --knob: #e8e8ec;
+
+  /* Separators */
+  --sep: rgba(255, 255, 255, 0.08);
+  --sep-strong: rgba(255, 255, 255, 0.14);
+  --grid: rgba(255, 255, 255, 0.05);
+  --hairline-inner: rgba(255, 255, 255, 0.08);
+  --badge-border: rgba(255, 255, 255, 0.14);
+
+  /* Labels */
+  --label: #ededf0;
+  --label-2: #a4a4ad;
+  --label-3: #808089;
+  --label-4: #5c5c64;
+  --label-on-accent: #ffffff;
+  --label-on-light: #111113;
+  --label-on-accent-2: rgba(255, 255, 255, 0.7);
+
+  /* Selection */
+  --selection: rgba(255, 255, 255, 0.1);
+  --selection-inactive: rgba(255, 255, 255, 0.06);
+  --selection-rule: var(--accent);
+  --text-selection: rgba(125, 140, 255, 0.32);
+
+  /* Accent (indigo) */
+  --accent: #7d8cff;
+  --accent-fill: #5562e6;
+  --accent-fill-hover: #6170f0;
+  --accent-fill-pressed: #4a56d6;
+  --accent-tint: rgba(125, 140, 255, 0.14);
+  --focus-ring: rgba(125, 140, 255, 0.55);
+
+  /* Status */
+  --flag: #f0b43c;
+  --flag-tint: rgba(240, 180, 60, 0.14);
+  --warning: #f0b43c;
+  --danger: #f2555a;
+  --danger-tint: rgba(242, 85, 90, 0.14);
+
+  /* 5.2 Heat scale anchors (ui/heat.ts mixes between them) */
+  --heat-lo: #ef5a5f;
+  --heat-mid: #9b9ba4;
+  --heat-hi: #4fc98c;
+  --heat-lo-fill: #8a3a3e;
+  --heat-mid-fill: #4a4a52;
+  --heat-hi-fill: #2c7a55;
+  --heat-lo-tint: rgba(239, 90, 95, 0.14);
+  --heat-mid-tint: rgba(155, 155, 164, 0.14);
+  --heat-hi-tint: rgba(79, 201, 140, 0.14);
+
+  /* 5.4 Type */
+  --font-text: -apple-system, BlinkMacSystemFont, 'Inter Variable', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace;
+  --t-large-title: 700 26px/32px var(--font-text);
+  --t-title-1: 700 22px/28px var(--font-text);
+  --t-title-2: 600 17px/22px var(--font-text);
+  --t-title-3: 600 15px/20px var(--font-text);
+  --t-headline: 600 13px/16px var(--font-text);
+  --t-body: 400 13px/16px var(--font-text);
+  --t-body-prose: 400 13px/18px var(--font-text);
+  --t-callout: 400 12px/15px var(--font-text);
+  --t-subheadline: 400 11px/14px var(--font-text);
+  --t-footnote: 400 10px/13px var(--font-text);
+  --t-caption: 500 10px/13px var(--font-text);
+  --t-stat-xl: 600 34px/40px var(--font-text);
+  --t-stat-lg: 600 22px/28px var(--font-text);
+  --t-stat-md: 600 17px/22px var(--font-text);
+  --t-mono-md: 400 13px/16px var(--font-mono);
+  --t-mono-sm: 400 12px/16px var(--font-mono);
+  --t-mono-xs: 400 11px/14px var(--font-mono);
+  --track-large: 0;
+  --track-title-2: -0.43px;
+  --track-title-3: -0.23px;
+  --track-13: -0.08px;
+  --track-11: 0.06px;
+  --track-10: 0.12px;
+
+  /* 5.5 Spacing and layout */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --toolbar-h: 52px;
+  --sidebar-w: 240px;
+  --sidebar-min: 200px;
+  --sidebar-max: 320px;
+  --inspector-w: 320px;
+  --inspector-min: 260px;
+  --inspector-max: 420px;
+  --page-max: 1200px;
+  --page-pad-x: 32px;
+  --row-h: 28px;
+  --control-h-sm: 20px;
+  --control-h: 24px;
+  --control-h-lg: 32px;
+  --control-h-toolbar: 28px;
+
+  /* 5.6 Radii */
+  --r-xs: 3px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 10px;
+  --r-2xl: 12px;
+
+  /* 5.7 Shadows and materials */
+  --shadow-control: inset 0 0.5px 0 var(--control-highlight), 0 0.5px 1px rgba(0, 0, 0, 0.35);
+  --shadow-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-sheet: 0 0 0 0.5px rgba(0, 0, 0, 0.7), 0 22px 70px rgba(0, 0, 0, 0.6);
+  --shadow-hud: 0 8px 32px rgba(0, 0, 0, 0.55);
+  --shadow-banner: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --shadow-knob: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 0.5px rgba(0, 0, 0, 0.2);
+  --shadow-keycap: inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+
+  --mat-toolbar: rgba(18, 18, 20, 0.78);
+  --mat-toolbar-solid: #121214;
+  --mat-toolbar-filter: blur(20px) saturate(180%);
+  --mat-popover: rgba(36, 36, 40, 0.8);
+  --mat-popover-solid: #26262a;
+  --mat-popover-border: rgba(255, 255, 255, 0.14);
+  --mat-popover-filter: blur(32px) saturate(180%);
+  --mat-hud: rgba(16, 16, 18, 0.62);
+  --mat-hud-solid: rgba(26, 26, 28, 0.94);
+  --mat-hud-border: rgba(255, 255, 255, 0.1);
+  --mat-hud-filter: blur(24px) saturate(150%);
+  --mat-sheet: #1c1c1f;
+  --mat-sheet-border: rgba(255, 255, 255, 0.1);
+
+  /* HUD over video (02 §21) */
+  --hud-label: rgba(255, 255, 255, 0.92);
+  --hud-label-2: rgba(255, 255, 255, 0.64);
+  --hud-label-3: rgba(255, 255, 255, 0.38);
+  --hud-hover: rgba(255, 255, 255, 0.12);
+  --hud-pressed: rgba(255, 255, 255, 0.18);
+  --hud-on: rgba(255, 255, 255, 0.22);
+  --hud-sep: rgba(255, 255, 255, 0.16);
+  --scrub-track: rgba(255, 255, 255, 0.24);
+  --scrub-played: rgba(255, 255, 255, 0.86);
+  --scrub-preroll: rgba(255, 255, 255, 0.1);
+  --pane-active-ring: rgba(255, 255, 255, 0.55);
+  --handle-border: rgba(0, 0, 0, 0.45);
+
+  /* 9.6 Scrollbars (Linux and Windows) */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.28);
+
+  /* 5.8 Motion */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+  --dur-chart: 600ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+
+  /* 5.9 Layers */
+  --z-content: 0;
+  --z-sticky: 10;
+  --z-toolbar: 20;
+  --z-resize: 30;
+  --z-overlay-panel: 40;
+  --z-titlebar-controls: 50;
+  --z-popover: 100;
+  --z-menu: 110;
+  --z-banner: 120;
+  --z-sheet: 200;
+  --z-quick-open: 300;
+  --z-welcome: 400;
+  --z-drop: 500;
+}
+
+/* Narrow windows: page side padding drops to 24 (01 §2.2). */
+@media (max-width: 1279px) {
+  :root {
+    --page-pad-x: 24px;
+  }
+}
+
+/* Reduced transparency: every material uses its solid fallback (01 §2.10). */
+:root[data-reduce-transparency='true'] {
+  --mat-toolbar: var(--mat-toolbar-solid);
+  --mat-popover: var(--mat-popover-solid);
+  --mat-hud: var(--mat-hud-solid);
+  --mat-toolbar-filter: none;
+  --mat-popover-filter: none;
+  --mat-hud-filter: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --mat-toolbar: var(--mat-toolbar-solid);
+    --mat-popover: var(--mat-popover-solid);
+    --mat-hud: var(--mat-hud-solid);
+    --mat-toolbar-filter: none;
+    --mat-popover-filter: none;
+    --mat-hud-filter: none;
+  }
+}

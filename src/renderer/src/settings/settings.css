@@ -1,0 +1,140 @@
+@layer screens {
+  /* The Settings window frame (01 §4): 28 title band, 56 tab band, then the pane on --bg-window. */
+  html[data-window-kind='settings'],
+  html[data-window-kind='settings'] body {
+    background: var(--bg-window);
+  }
+  .settings-window {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--bg-window);
+  }
+  .settings-window__titlebar {
+    flex: none;
+    display: grid;
+    place-items: center;
+    height: 28px;
+    font: var(--t-headline);
+    color: var(--label);
+    -webkit-app-region: drag;
+  }
+  .settings-window__tabs {
+    flex: none;
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    height: 56px;
+    border-bottom: 1px solid var(--sep);
+    -webkit-app-region: drag;
+  }
+  .settings-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 72px;
+    height: 50px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: var(--transparent);
+    color: var(--label-2);
+    outline: none;
+    -webkit-app-region: no-drag;
+  }
+  .settings-tab:hover {
+    background: var(--fill-3);
+  }
+  .settings-tab[aria-selected='true'] {
+    background: var(--fill-1);
+    color: var(--label);
+  }
+  .settings-tab:focus-visible {
+    box-shadow: 0 0 0 3px var(--focus-ring);
+  }
+  .settings-tab__label {
+    font: var(--t-subheadline);
+    font-weight: 500;
+  }
+  .settings-window__body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .settings-pane {
+    width: 720px;
+    padding: 24px 32px 32px;
+    transition: opacity 120ms var(--ease-out);
+  }
+  .settings-pane[data-state='leaving'] {
+    opacity: 0;
+    transition: opacity 80ms var(--ease-in);
+  }
+  .settings-pane .form-group + .form-group {
+    margin-top: 24px;
+  }
+  .settings-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 6px 10px;
+  }
+  .settings-list-row + .settings-list-row {
+    border-top: 1px solid var(--sep);
+  }
+  .settings-list-row__key {
+    display: grid;
+    place-items: center;
+    width: 22px;
+  }
+  .settings-list-row--add {
+    min-height: 36px;
+  }
+  .settings-path {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--label-2);
+  }
+  .settings-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .settings-season {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-season__badge {
+    padding: 0 6px;
+    border-radius: var(--r-xs);
+    background: var(--fill-2);
+    font: 600 10px/16px var(--font-text);
+    letter-spacing: var(--track-10);
+    color: var(--label-2);
+  }
+  .settings-unmatched {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .settings-imports {
+    padding: 4px 12px;
+  }
+  .settings-imports .status-import-row + .status-import-row {
+    box-shadow: 0 -1px 0 var(--sep);
+  }
+  /* Reorder and remove buttons show on the row under the pointer or with focus, like macOS list editors. */
+  .settings-list-row .button--borderless.button--icon {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .settings-list-row:hover .button--borderless.button--icon,
+  .settings-list-row:focus-within .button--borderless.button--icon {
+    opacity: 1;
+  }
+}

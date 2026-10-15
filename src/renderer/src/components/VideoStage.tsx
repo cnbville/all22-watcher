@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { clipUrl } from '@shared/api'
-import type { Clip, Stroke } from '@shared/types'
+import type { PenShape as Stroke } from '@shared/drawing'
+import type { Clip } from '@shared/types'
 
 export interface VideoHandle {
   togglePlay(): void
@@ -197,7 +198,16 @@ export const VideoStage = forwardRef<VideoHandle, Props & { transportExtra?: Rea
     }
     canvas.current!.setPointerCapture(e.pointerId)
     video.current?.pause()
-    live.current = { color: ink, width: 3, points: [toNorm(e)] }
+    live.current = {
+      id: Math.random().toString(36).slice(2, 10),
+      kind: 'pen',
+      color: ink,
+      width: 3,
+      points: [toNorm(e)],
+      end: 'arrow',
+      start: 0,
+      duration: null
+    }
   }
   const onPointerMove = (e: React.PointerEvent) => {
     if (!live.current) return

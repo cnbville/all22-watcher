@@ -1,0 +1,121 @@
+@layer screens {
+  /* Sidebar footer status popovers (01 §1.2) and the recent-imports rows Settings › Film & Import shares. */
+  .status-popover {
+    display: flex;
+    flex-direction: column;
+
+    .popover__rows {
+      margin-bottom: 0;
+    }
+    .popover__path {
+      margin: 0 0 10px;
+    }
+  }
+  .status-popover__actions {
+    justify-content: flex-end;
+  }
+  .status-popover__error {
+    margin: 10px 0 0;
+    font: var(--t-subheadline);
+    color: var(--danger);
+  }
+  .status-popover__importing {
+    margin-top: 12px;
+  }
+  .status-popover__section {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid var(--sep);
+  }
+  .status-popover__heading {
+    margin: 0 0 4px;
+    font: 600 11px/14px var(--font-text);
+    letter-spacing: var(--track-11);
+    color: var(--label-3);
+  }
+  .status-popover__unmatched {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 3px 0;
+    font: var(--t-subheadline);
+    color: var(--label-2);
+
+    .icon {
+      flex: none;
+      margin-top: 1px;
+    }
+    strong {
+      font-weight: 600;
+      color: var(--label);
+    }
+  }
+  .status-popover__settings {
+    margin: 12px -12px -12px;
+    padding: 0 12px;
+    height: 32px;
+    border: 0;
+    border-top: 1px solid var(--sep);
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+    background: var(--transparent);
+    font: var(--t-callout);
+    color: var(--label);
+    text-align: left;
+  }
+  .status-popover__settings:hover {
+    background: var(--fill-3);
+  }
+
+  .status-import-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% + 12px);
+    min-height: 40px;
+    margin: 0 -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--transparent);
+    color: var(--label);
+    text-align: left;
+  }
+  .status-import-row:hover:not(:disabled) {
+    background: var(--fill-3);
+  }
+  .status-import-row:disabled {
+    opacity: 1;
+  }
+  .status-import-row__icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 16px;
+    color: var(--label-2);
+  }
+  .status-import-row__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .status-import-row__title,
+  .status-import-row__sub {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .status-import-row__title {
+    font: var(--t-body);
+  }
+  .status-import-row__sub {
+    font: var(--t-subheadline);
+    color: var(--label-2);
+  }
+  .status-import-row__when {
+    flex: none;
+    font: var(--t-subheadline);
+    color: var(--label-3);
+    font-variant-numeric: tabular-nums;
+  }
+}

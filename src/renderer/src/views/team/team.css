@@ -1,0 +1,287 @@
+@layer screens {
+  .screen-team {
+    /* Header (§5.2) */
+    .team-header {
+      margin-bottom: 32px;
+    }
+    .team-header__rule {
+      height: 2px;
+      border-radius: 1px;
+      background: var(--team);
+    }
+    .team-header__row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 72px;
+      margin-top: 16px;
+    }
+    .team-header__text {
+      flex: 1;
+      min-width: 0;
+    }
+    .team-header__name {
+      margin: 0;
+      font: var(--t-large-title);
+      color: var(--label);
+    }
+    .team-header__sub {
+      margin-top: 4px;
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .team-header__stats {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .team-stat {
+      min-width: 72px;
+      text-align: right;
+    }
+    .team-stat__label {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .team-stat__value {
+      font: var(--t-stat-lg);
+      color: var(--label);
+      white-space: nowrap;
+    }
+    .team-header__ring {
+      display: flex;
+    }
+
+    .team-footnote {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .team-empty-inline {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 16px 0;
+      border-radius: var(--r-xl);
+      background: var(--bg-group);
+    }
+
+    /* Unit strip (§5.3, §5.6) */
+    .unit-strip {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .unit-strip__sep {
+      flex: none;
+      align-self: center;
+      width: 1px;
+      height: 64px;
+      margin: 0 -8px;
+      background: var(--sep);
+    }
+    .unit-cell {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 84px;
+      padding-top: 0;
+      border-radius: var(--r-lg);
+      text-align: center;
+      outline: none;
+    }
+    .unit-strip--72 .unit-cell {
+      height: 132px;
+    }
+    .unit-cell[data-clickable] {
+      cursor: pointer;
+    }
+    .unit-cell[data-clickable]:hover {
+      background: var(--fill-4);
+    }
+    .unit-cell:focus-visible {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .unit-cell__name {
+      margin-top: 8px;
+      font: var(--t-callout);
+      color: var(--label);
+      white-space: nowrap;
+    }
+    .unit-strip--72 .unit-cell__name {
+      margin-top: 10px;
+    }
+    .unit-cell__count {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+      white-space: nowrap;
+    }
+    .unit-cell__tally {
+      display: flex;
+      justify-content: center;
+      width: 72px;
+      margin-top: 10px;
+    }
+
+    /* League ranks */
+    .league-ranks {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .rank-list__title {
+      height: 24px;
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .rank-list__row {
+      display: grid;
+      grid-template-columns: 1fr auto 56px;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      box-shadow: inset 0 -0.5px 0 var(--sep);
+    }
+    .rank-list__row > :last-child {
+      justify-self: end;
+    }
+    .rank-list__label {
+      font: var(--t-body);
+      color: var(--label-2);
+    }
+    .rank-list__value {
+      font: var(--t-body);
+      color: var(--label);
+    }
+
+    /* Tables */
+    .table--headless .table__header {
+      display: none;
+    }
+    .team-games-table .table__row {
+      min-height: 32px;
+    }
+    .game-opp {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .game-opp__label {
+      font: var(--t-body);
+      color: var(--label);
+      cursor: pointer;
+    }
+    .game-opp__label:hover,
+    .roster-player__name:hover {
+      text-decoration: underline;
+    }
+    .game-opp__name {
+      margin-left: -2px;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .game-result {
+      display: inline-flex;
+      align-items: center;
+    }
+    .game-result__letter {
+      width: 16px;
+      font: var(--t-subheadline);
+      font-weight: 600;
+      color: var(--label-2);
+    }
+    .game-film {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .roster-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .roster-controls__count {
+      margin-left: auto;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .roster-player {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .roster-player__name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font: var(--t-body);
+      color: var(--label);
+      cursor: pointer;
+    }
+    .roster-focus {
+      opacity: 0;
+      transition: opacity var(--dur-fast);
+    }
+    .table__row:hover .roster-focus,
+    .table__row[aria-selected='true'] .roster-focus {
+      opacity: 1;
+    }
+
+    /* Opponent strength */
+    .opp-strength {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .opp-col {
+      min-width: 0;
+    }
+    .opp-col__title {
+      margin-bottom: 8px;
+      font: var(--t-headline);
+      color: var(--label-2);
+    }
+    .opp-tiers {
+      margin-top: 8px;
+    }
+    .opp-tier {
+      display: grid;
+      grid-template-columns: 1fr auto 40px;
+      align-items: center;
+      gap: 12px;
+      height: 32px;
+      box-shadow: inset 0 -0.5px 0 var(--sep);
+    }
+    .opp-tier > :last-child {
+      justify-self: end;
+    }
+    .opp-tier__label {
+      font: var(--t-body);
+    }
+    .opp-tier__detail {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+  }
+  @media (max-width: 1100px) {
+    .screen-team .league-ranks,
+    .screen-team .opp-strength {
+      grid-template-columns: 1fr;
+    }
+    .screen-team .unit-cell__name {
+      white-space: normal;
+    }
+  }
+}

@@ -1,0 +1,213 @@
+/* Reset, document, text styles, focus and scrollbars (spec 01 §9.1). */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  background: var(--bg-content);
+}
+/* With native vibrancy the window paints the sidebar material; the content paints itself. */
+html[data-vibrancy='on'],
+html[data-vibrancy='on'] body,
+html[data-vibrancy='on'] #root {
+  background: transparent;
+}
+
+body {
+  font: var(--t-body);
+  letter-spacing: var(--track-13);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  -webkit-font-smoothing: antialiased;
+  color: var(--label);
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  cursor: default;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+p {
+  margin: 0;
+  font: inherit;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+img {
+  -webkit-user-drag: none;
+}
+
+::selection {
+  background: var(--text-selection);
+}
+
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* Selectable data (01 §5.4). */
+.selectable,
+.selectable * {
+  user-select: text;
+  cursor: auto;
+}
+
+/* Text styles */
+.t-large-title {
+  font: var(--t-large-title);
+  letter-spacing: var(--track-large);
+}
+.t-title-1 {
+  font: var(--t-title-1);
+}
+.t-title-2 {
+  font: var(--t-title-2);
+  letter-spacing: var(--track-title-2);
+}
+.t-title-3 {
+  font: var(--t-title-3);
+  letter-spacing: var(--track-title-3);
+}
+.t-headline {
+  font: var(--t-headline);
+  letter-spacing: var(--track-13);
+}
+.t-body {
+  font: var(--t-body);
+  letter-spacing: var(--track-13);
+}
+.t-body-prose {
+  font: var(--t-body-prose);
+  letter-spacing: var(--track-13);
+}
+.t-callout {
+  font: var(--t-callout);
+  letter-spacing: 0;
+}
+.t-subheadline {
+  font: var(--t-subheadline);
+  letter-spacing: var(--track-11);
+}
+.t-footnote {
+  font: var(--t-footnote);
+  letter-spacing: var(--track-10);
+}
+.t-caption {
+  font: var(--t-caption);
+  letter-spacing: var(--track-10);
+}
+.t-mono-md {
+  font: var(--t-mono-md);
+  letter-spacing: 0;
+}
+.t-mono-sm {
+  font: var(--t-mono-sm);
+  letter-spacing: 0;
+}
+.t-mono-xs {
+  font: var(--t-mono-xs);
+  letter-spacing: 0;
+}
+.c-label {
+  color: var(--label);
+}
+.c-label-2 {
+  color: var(--label-2);
+}
+.c-label-3 {
+  color: var(--label-3);
+}
+.c-label-4 {
+  color: var(--label-4);
+}
+.c-danger {
+  color: var(--danger);
+}
+.c-warning {
+  color: var(--warning);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Scrollbars: native overlay on the Mac; styled elsewhere (01 §9.6). */
+:root:not([data-platform='darwin']) ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+:root:not([data-platform='darwin']) ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 5px;
+}
+:root:not([data-platform='darwin']) ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+:root:not([data-platform='darwin']) ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Reduced motion: no transforms or sweeps; fades of at most 120ms (01 §5.8). */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.spinner, .progress__indeterminate),
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,11 +1,12 @@
-// End-to-end smoke test: launches the real app, downloads a season, imports clips, grades a
-// snap, opens a player and exports a PDF.
+// End-to-end smoke test: launches the real app, downloads a season, drives the menu bar and the
+// Settings window, imports clips, grades a snap, opens a player, exports a PDF, saves a cut-up and exports it as video,
+// and opens Leaderboards and a matchup.
 //
 //   npm run build && node e2e/smoke.mjs                 # the dev build
 //   APP="dist/mac-arm64/All-22 Watcher.app/Contents/MacOS/All-22 Watcher" node e2e/smoke.mjs
 //
 // NFLVERSE_MIRROR=/folder/of/release/files reads nflverse data from disk instead of the network.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +17,8 @@ const out = join(root, 'e2e', 'output')
 mkdirSync(out, { recursive: true })
 const userData = mkdtempSync(join(tmpdir(), 'all22-smoke-'))
 const fixtures = join(root, 'e2e', 'fixtures')
+// Export Video writes here instead of ~/Movies.
+const exportDir = mkdtempSync(join(tmpdir(), 'all22-export-'))
 
 const launch = process.env.APP
   ? { executablePath: resolve(process.env.APP), args: [] }
@@ -27,6 +30,7 @@ const app = await electron.launch({
   env: {
     ...process.env,
     ALL22_USER_DATA: userData,
+    ALL22_EXPORT_DIR: exportDir,
     ...(process.env.NFLVERSE_MIRROR ? { ALL22_NFLVERSE_MIRROR: process.env.NFLVERSE_MIRROR } : {})
   },
   timeout: 60_000
@@ -52,19 +56,48 @@ const step = async (name, fn) => {
 }
 
 try {
-  await step('opens', () => win.waitForSelector('.season-hero', { timeout: 30_000 }))
+  await step('opens', async () => {
+    await win.waitForSelector('[data-test="welcome"]', { timeout: 30_000 })
+    await shot('0-welcome')
+    await win.click('[data-test="welcome-continue"]')
+  })
 
   await step('downloads the 2025 season', async () => {
-    await win.selectOption('.season-hero select', '2025')
-    await win.click('text=Download 2025 data')
-    await win.waitForSelector('.team-card', { timeout: 300_000 })
+    await win.click('[data-test="season-popup"]')
+    await win.click('[data-test="season-option-2025"]')
+    await win.waitForSelector('[data-test="season-popup"]:has-text("2025")')
+    await win.waitForSelector('[data-test="season-download"]:has-text("2025")')
+    await win.click('[data-test="season-download"]')
+    await win.click('[data-test="sidebar-item-teams"]')
+    await win.waitForSelector('[data-test="team-tile"]', { timeout: 300_000 })
     await shot('1-teams')
   })
 
+  await step('menu reaches the renderer', async () => {
+    await win.click('[data-test="sidebar-item-home"]')
+    await win.waitForSelector('[data-test="screen-home"]')
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('go.teams').click())
+    await win.waitForSelector('[data-test="screen-teams"]')
+  })
+
+  await step('opens Settings', async () => {
+    const opened = app.waitForEvent('window')
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('app.settings').click())
+    const settings = await opened
+    await settings.waitForSelector('[data-test="settings-tab-general"]')
+    await settings.screenshot({ path: join(out, '1b-settings.png') })
+    // Asking for a pane while Settings shows another switches to it (01 §4).
+    await settings.click('[data-test="settings-tab-data"]')
+    await settings.waitForSelector('[data-test="settings-pane-data"]')
+    await win.evaluate(() => window.shell.openSettings('general'))
+    await settings.waitForSelector('[data-test="settings-pane-general"]')
+    await settings.close()
+  })
+
   await step('opens a team', async () => {
-    await win.click('.team-card:has-text("Eagles")')
-    await win.waitForSelector('.team-hero')
-    await win.waitForSelector('.stat-tile')
+    await win.click('[data-test="team-tile"]:has-text("Eagles")')
+    await win.waitForSelector('[data-test="team-header"]')
+    await win.waitForSelector('[data-test="stat-tile"]')
     await shot('2-team')
   })
 
@@ -72,11 +105,12 @@ try {
     await app.evaluate(({ dialog }, dir) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
     }, fixtures)
-    await win.locator('tr:has-text("vs DAL")').first().locator('button').click()
-    await win.click('.modal-body button:has-text("Choose clips")')
-    await win.waitForSelector('.match-table')
-    await win.click('text=Save film')
-    await win.waitForSelector('.tape', { timeout: 30_000 })
+    await win.click('[data-test="team-section-games"]')
+    await win.locator('[data-test="game-row"]:has-text("vs DAL") [data-test="game-action"]').first().click()
+    await win.click('[data-test="import-sheet"] [data-test="choose-clips"]')
+    await win.waitForSelector('[data-test="match-table"]')
+    await win.click('[data-test="import-save"]')
+    await win.waitForSelector('[data-test="tape-room"]', { timeout: 30_000 })
   })
 
   await step('plays a clip', async () => {
@@ -89,14 +123,63 @@ try {
 
   await step('grades a snap', async () => {
     await win.keyboard.press('=')
-    await win.waitForSelector('.gbtn.plus.on')
+    await win.waitForSelector('[data-test="grade-plus"][aria-pressed="true"]')
+  })
+
+  // 02 §22.3: snap points, critical grades, drawings over time and Player Focus.
+  await step('marks the snap', async () => {
+    await win.keyboard.press('Shift+B')
+    await win.waitForSelector('[data-test="snap-marker"]')
+    await win.waitForSelector('[data-test="viewer-toast"]:has-text("Snap Set")')
+  })
+
+  await step('marks a critical grade', async () => {
+    await win.keyboard.press('Shift+Digit1')
+    await win.keyboard.press('-')
+    await win.waitForSelector('[data-test="grading-row"][data-critical="true"] [data-test="grade-minus"][aria-pressed="true"]')
+  })
+
+  await step('draws a box over time', async () => {
+    await win.keyboard.press('d')
+    await win.waitForSelector('[data-test="draw-palette"]')
+    await win.keyboard.press('6')
+    const pane = await win.locator('[data-test^="angle-pane-"]').first().boundingBox()
+    if (!pane) throw new Error('no angle pane')
+    const cx = pane.x + pane.width / 2
+    const cy = pane.y + pane.height / 2
+    await win.mouse.move(cx - 80, cy - 40)
+    await win.mouse.down()
+    await win.mouse.move(cx, cy, { steps: 4 })
+    await win.mouse.move(cx + 80, cy + 40, { steps: 4 })
+    await win.mouse.up()
+    await win.waitForFunction(() => document.querySelectorAll('[data-test="drawing-span"]').length === 1)
+    await win.keyboard.press('d')
+    await win.waitForSelector('[data-test="draw-palette"]', { state: 'detached' })
+  })
+
+  await step('player focus', async () => {
+    await win.keyboard.press('g')
+    await win.waitForSelector('[data-test="focus-picker"]')
+    await win.keyboard.press('Enter')
+    await win.waitForSelector('[data-test="focus-panel"]')
+    await win.keyboard.press('Shift+G')
+    await win.waitForSelector('[data-test="grading-row"]')
+    await shot('tape-room')
   })
 
   await step('opens a player', async () => {
-    await win.locator('.player-row .pname a').first().click()
-    await win.waitForSelector('.player-hero', { timeout: 20_000 })
-    await win.waitForSelector('.reel-item')
+    await win.locator('[data-test="grading-player-name"]').first().click()
+    await win.waitForSelector('[data-test="player-header"]', { timeout: 20_000 })
+    await win.click('[data-test="player-section-film"]')
+    await win.waitForSelector('[data-test="reel-item"]')
     await shot('4-player')
+  })
+
+  await step('player sections', async () => {
+    await win.click('[data-test="player-section-splits"]')
+    await win.waitForSelector('[data-test="splits-table"]')
+    await win.click('[data-test="player-section-career"]')
+    await win.waitForSelector('[data-test="player-career"] [data-test="career-row"]', { timeout: 20_000 })
   })
 
   await step('exports a PDF report', async () => {
@@ -104,9 +187,85 @@ try {
     await app.evaluate(({ dialog }, file) => {
       dialog.showSaveDialog = async () => ({ canceled: false, filePath: file })
     }, pdf)
-    await win.click('text=Export report (PDF)')
+    await win.click('[data-test="toolbar-export"]')
+    await win.click('[data-test="export-report"]')
     for (let i = 0; i < 120 && !(existsSync(pdf) && statSync(pdf).size > 0); i++) await win.waitForTimeout(250)
     if (!existsSync(pdf) || statSync(pdf).size < 10_000) throw new Error('PDF missing or empty')
+  })
+
+  // 03 §14: cut-ups, Export Video, Leaderboards and Matchups.
+  await step('saves a cut-up', async () => {
+    await win.click('[data-test="player-section-film"]')
+    await win.locator('[data-test="reel-item"]').first().click()
+    // ⌘D is a menu accelerator; the menu item is what it runs on every platform.
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('grade.addToCutup').click())
+    await win.click('[data-test="add-to-cutup-new"]')
+    await win.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
+    await win.keyboard.type('Smoke cut-up')
+    await win.keyboard.press('Enter')
+    await win.locator('[data-test^="sidebar-cutup-"]', { hasText: 'Smoke cut-up' }).click()
+    await win.waitForSelector('[data-test="screen-cutup"] [data-test="cutup-row"]')
+    const rows = await win.locator('[data-test="cutup-row"]').count()
+    if (rows !== 1) throw new Error(`Expected 1 cut-up row, found ${rows}`)
+    await shot('6-cutup')
+  })
+
+  await step('exports a video', async () => {
+    await win.click('[data-test="cutup-export"]')
+    await win.waitForSelector('[data-test="export-sheet"]')
+    await win.click('[data-test="export-start"]')
+    await win.waitForSelector('[data-test="export-status"]:has-text("Exported")', { timeout: 120_000 })
+    const file = join(exportDir, 'Smoke cut-up.mp4')
+    if (!existsSync(file) || statSync(file).size < 10_000) throw new Error('Exported video missing or empty')
+  })
+
+  await step('leaderboards', async () => {
+    await win.click('[data-test="sidebar-item-leaderboards"]')
+    // The group of the player graded above (the tape room picks who is graded first).
+    const group = await win.evaluate(async () => {
+      for (const g of ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'DB']) if ((await window.api.leaderboard(2025, g)).length) return g
+      return 'DB'
+    })
+    await win.click(`[data-test="leaders-pos-${group}"]`)
+    // One graded snap is under the default minimum of 10: lower it in the filter popover.
+    await win.waitForSelector('[data-test="leaders-no-match"]')
+    await win.click('[data-test="leaders-filter"]')
+    await win.fill('[data-test="leaders-filter-popover"] input', '0')
+    await win.keyboard.press('Enter')
+    await win.waitForSelector('[data-test="leaders-filter-summary"]')
+    await win.waitForSelector('[data-test="leader-row"]')
+    await shot('7-leaderboards')
+  })
+
+  await step('matchup', async () => {
+    await app.evaluate(({ Menu }) => Menu.getApplicationMenu().getMenuItemById('go.matchups').click())
+    await win.click('[data-test="matchup-pick-left"]')
+    await win.locator('.team-picker__row', { hasText: 'Eagles' }).click()
+    await win.click('[data-test="matchup-pick-right"]')
+    await win.locator('.team-picker__row', { hasText: 'Cowboys' }).click()
+    await win.waitForSelector('[data-test="matchup-header"]', { timeout: 20_000 })
+    await shot('8-matchup')
+  })
+
+  // Improvement 13: a game folder dropped into the watch folder imports on its own once its clips settle (~10 s).
+  await step('imports from the watch folder', async () => {
+    const watch = mkdtempSync(join(tmpdir(), 'all22-watch-'))
+    const game = join(watch, 'PHI at KC')
+    mkdirSync(game)
+    for (const f of readdirSync(fixtures)) copyFileSync(join(fixtures, f), join(game, f))
+    await win.evaluate((folder) => window.api.saveSettings({ watchFolder: folder, watchPaused: false }), watch)
+    await win.waitForSelector('[data-test="watch-status"]', { timeout: 10_000 })
+    // Polled from here: waitForFunction would treat the pending promise of an async predicate as truthy.
+    let entry
+    for (let i = 0; i < 60 && !entry; i++) {
+      const log = await win.evaluate(() => window.api.importLog(5))
+      entry = log.find((e) => e.source === 'watch')
+      if (!entry) await win.waitForTimeout(1_000)
+    }
+    if (!entry) throw new Error('No watch-folder import within 60 s')
+    if (entry.state !== 'done' || !entry.gameId || entry.clipCount !== 3) throw new Error(`Watch-folder import: ${JSON.stringify(entry)}`)
+    await win.waitForSelector('[data-test="watch-status"]:has-text("1 game imported")', { timeout: 10_000 })
+    await shot('5-watch-folder')
   })
 
   if (errors.length) throw new Error(`Page errors: ${errors.join('; ')}`)

@@ -1,120 +1,85 @@
-import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { ToastHost } from './components/common'
-import { links, navigate, useRoute } from './router'
-import { Home } from './views/Home'
-import { PlayerPage } from './views/PlayerPage'
+import { type ReactNode, useEffect } from 'react'
+import { CommandProvider } from './shell/commands'
+import { useRoute } from './shell/router'
+import { Shell } from './shell/Shell'
+import { startStores } from './shell/store'
+import { SettingsApp } from './settings/SettingsApp'
 import { Report } from './views/Report'
-import { SettingsPage } from './views/Settings'
-import { TapeRoom } from './views/TapeRoom'
-import { TeamPage } from './views/TeamPage'
+import { Home } from './views/home/Home'
+import { Teams } from './views/teams/Teams'
+import { Team } from './views/team/Team'
+import { PlayerPage } from './views/player/Player'
+import { TapeRoom } from './views/tape-room/TapeRoom'
+import { Film } from './views/film/Film'
+import { Leaderboards } from './views/leaderboards/Leaderboards'
+import { Matchups } from './views/matchups/Matchups'
+import { Cutup, Cutups } from './views/cutups/Cutups'
 
-interface SeasonCtx {
-  season: number | null
-  setSeason: (s: number) => void
-}
+export { useSeason } from './shell/store'
 
-const SeasonContext = createContext<SeasonCtx>({ season: null, setSeason: () => {} })
-
-export const useSeason = () => useContext(SeasonContext)
-
-function storedSeason(): number | null {
-  try {
-    const v = Number(localStorage.getItem('season'))
-    return v > 2000 ? v : null
-  } catch {
-    return null
-  }
-}
-
-/** Renders breadcrumbs into the top bar from inside any view. */
-export function Crumbs({ children }: { children: ReactNode }) {
-  const [el, setEl] = useState<HTMLElement | null>(null)
-  useEffect(() => setEl(document.getElementById('crumbs')), [])
-  return el ? createPortal(children, el) : null
-}
-
-export function App() {
+function Screens() {
   const route = useRoute()
-  const [season, setSeasonState] = useState<number | null>(storedSeason)
-  const setSeason = (s: number) => {
-    setSeasonState(s)
-    try {
-      localStorage.setItem('season', String(s))
-    } catch {
-      // Storage can be unavailable; the season just won't be remembered.
-    }
-  }
-
-  // Hand focus back to the page after using a control, so hotkeys (Space, arrows) keep driving the film
-  // instead of re-pressing the last button or changing the last dropdown. Both listen in the bubble phase so
-  // React's handlers run first: blurring earlier can unmount a dropdown before its onChange sees the pick.
-  useEffect(() => {
-    const isSliderOrBox = (t: EventTarget | null): t is HTMLInputElement =>
-      t instanceof HTMLInputElement && (t.type === 'range' || t.type === 'checkbox')
-    const onClick = (e: Event) => {
-      const t = e.target as HTMLElement | null
-      const button = t?.closest?.('button')
-      if (button) button.blur()
-      else if (isSliderOrBox(t)) t.blur()
-    }
-    const onChange = (e: Event) => {
-      const t = e.target
-      if (t instanceof HTMLSelectElement || isSliderOrBox(t)) t.blur()
-    }
-    document.addEventListener('click', onClick)
-    document.addEventListener('change', onChange)
-    return () => {
-      document.removeEventListener('click', onClick)
-      document.removeEventListener('change', onChange)
-    }
-  }, [])
-
-  const [head, a, b] = route.path
-  if (head === 'report') return <Report season={Number(a)} playerId={b} />
-
+  const [head, a, b, c] = route.path
   let view: ReactNode
   switch (head) {
-    case 'team':
-      view = <TeamPage key={`${a}-${b}`} season={Number(a)} team={b} />
-      break
     case 'film':
-      view = (
+      view = a ? (
         <TapeRoom
           key={a}
           gameId={a}
           team={route.query.get('team') ?? ''}
           initialPlay={route.query.get('play') ? Number(route.query.get('play')) : null}
         />
+      ) : (
+        <Film />
       )
+      break
+    case 'teams':
+      view = <Teams key={a} season={Number(a)} />
+      break
+    case 'team':
+      view = <Team key={`${a}-${b}`} season={Number(a)} team={b} />
       break
     case 'player':
       view = <PlayerPage key={`${a}-${b}`} season={Number(a)} playerId={b} />
       break
-    case 'settings':
-      view = <SettingsPage />
+    case 'leaders':
+      view = <Leaderboards season={Number(a)} pos={b ?? 'QB'} />
+      break
+    case 'matchup':
+      view = <Matchups season={Number(a)} team={b ?? route.query.get('team') ?? undefined} opp={c} />
+      break
+    case 'cutups':
+      view = <Cutups />
+      break
+    case 'cutup':
+      view = <Cutup key={a} id={a} />
       break
     default:
       view = <Home />
   }
+  return view
+}
 
+export function App() {
+  const route = useRoute()
+  const kind = window.shell?.initial.windowKind ?? 'main'
+  useEffect(() => {
+    if (route.path[0] !== 'report') startStores()
+  }, [route.path])
+  if (route.path[0] === 'report') return <Report season={Number(route.path[1])} playerId={route.path[2]} />
+  if (kind === 'settings' || route.path[0] === 'settings') {
+    return (
+      <CommandProvider>
+        <SettingsApp />
+      </CommandProvider>
+    )
+  }
   return (
-    <SeasonContext.Provider value={{ season, setSeason }}>
-      <div className="app">
-        <header className="topbar">
-          <div className="brand" onClick={() => navigate(links.home())}>
-            <span className="brand-mark">22</span>
-            All-22 Watcher
-          </div>
-          <nav className="crumbs" id="crumbs" />
-          <span className="spacer" />
-          <button className={`btn ghost small ${head === 'settings' ? 'active' : ''}`} onClick={() => navigate(links.settings())}>
-            Settings
-          </button>
-        </header>
-        {view}
-        <ToastHost />
-      </div>
-    </SeasonContext.Provider>
+    <CommandProvider>
+      <Shell>
+        <Screens />
+      </Shell>
+    </CommandProvider>
   )
 }
