@@ -53,6 +53,11 @@ export function registerShell(deps: ShellDeps) {
   })
 
   const send = (win: BrowserWindow | null, id: CommandId, arg?: string) => win?.webContents.send(SHELL_CHANNELS.menu, id, arg)
+  /** A main window made a moment ago is still loading; a message sent now would be lost. */
+  const sendWhenLoaded = (win: BrowserWindow, channel: string, ...args: unknown[]) => {
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => win.webContents.send(channel, ...args))
+    else win.webContents.send(channel, ...args)
+  }
 
   /** Menu clicks: a few ids act in main; edit.* go to the focused window; everything else to the main window. */
   const run = (id: CommandId, arg?: string) => {
@@ -241,7 +246,7 @@ export function registerShell(deps: ShellDeps) {
         return res.response === 0
       }
       case 'showInMain':
-        showMainWindow().webContents.send(SHELL_CHANNELS.navigate, String(args[0]))
+        sendWhenLoaded(showMainWindow(), SHELL_CHANNELS.navigate, String(args[0]))
         return
       case 'showItemInFolder':
         if (deps.canReveal(args[0])) shell.showItemInFolder(args[0])
@@ -255,17 +260,21 @@ export function registerShell(deps: ShellDeps) {
     throw new Error(`Unknown shell method ${method}`)
   })
 
+  const notes = new Set<Notification>()
   function notify(n: NotifyRequest): 'native' | 'in-app' {
     const main = getMainWindow()
     const inApp = main && main.isVisible() && main.isFocused() && !main.isMinimized()
     if (inApp || !Notification.isSupported()) return 'in-app'
     const note = new Notification({ title: n.title, body: n.body ?? '', silent: false })
+    // Held until it's clicked or closed: a notification that is garbage-collected loses its click handler.
+    notes.add(note)
+    note.on('close', () => notes.delete(note))
     note.on('click', () => {
+      notes.delete(note)
       const win = showMainWindow()
       if (n.revealPath) {
         if (deps.canReveal(n.revealPath)) shell.showItemInFolder(n.revealPath)
-      }
-      else if (n.route) win.webContents.send(SHELL_CHANNELS.navigate, n.route)
+      } else if (n.route) sendWhenLoaded(win, SHELL_CHANNELS.navigate, n.route)
     })
     note.show()
     return 'native'
