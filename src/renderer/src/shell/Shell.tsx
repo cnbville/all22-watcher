@@ -5,14 +5,15 @@ import { Button } from '../ui/Button'
 import { MenuHost } from '../ui/Menu'
 import { commandTooltip } from '@shared/commands'
 import { ImportFilm } from '../views/import/ImportFilm'
-import * as adapters from './adapters'
-import type { CutupSummary, SidebarBadges } from './adapters'
+import type { CutupSummary, SidebarBadges } from '@shared/types'
 import { banner, BannerHost, errorBanner } from './Banners'
-import { setDynamicMenus, useCommand } from './commands'
+import { runCommand, setDynamicMenus, useCommand } from './commands'
 import { emit, useDataEvent } from './dataEvents'
 import { DropOverlay } from './DropOverlay'
 import { ShellInspector } from './Inspector'
-import { closeImport, importContext, openImport, useImportRequest } from './importRequest'
+import { closeImport, importContext, openImport, sheetDropHandler, useImportContext, useImportRequest } from './importRequest'
+import { checkClipAlignment } from '../views/import/fixMatches'
+import { api, rawApi } from '../api'
 import { installKeyRouter } from './keyRouter'
 import { KeyboardShortcuts } from './KeyboardShortcuts'
 import { QuickOpen } from './QuickOpen'
@@ -24,6 +25,8 @@ import { setUi, sidebarShown, toggleInspector, toggleSidebar, ui, useUi } from '
 import { Welcome } from './Welcome'
 
 /** The main window's chrome (01 §2.2): sidebar, toolbar, content, inspector and the transient layers. */
+
+const runCommandLater = (id: Parameters<typeof runCommand>[0]) => setTimeout(() => runCommand(id), 0)
 
 const SEASON_SCOPED = /^\/(teams|team|player|leaders|matchup)\/(\d{4})(.*)$/
 
@@ -48,23 +51,36 @@ function useShellCommands(cutupsList: CutupSummary[], startNewCutup: () => void)
   useCommand('go.cutup', (arg) => arg && navigate(links.cutup(arg)), { enabled: cutupsList.length > 0 })
   useCommand('view.sidebar', toggleSidebar, { label: sidebarShown(s) ? 'Hide Sidebar' : 'Show Sidebar', enabled: !s.filmOnly })
   useCommand('view.inspector', toggleInspector, { enabled: s.hasInspector, label: s.inspectorVisible ? 'Hide Inspector' : 'Show Inspector' })
-  useCommand('file.newCutup', startNewCutup, { enabled: adapters.cutupsAvailable() })
-  useCommand('file.newSmartCutup', () => navigate(`${links.cutups()}?new=smart`), { enabled: adapters.cutupsAvailable() })
+  useCommand('file.newCutup', startNewCutup)
+  useCommand('file.newSmartCutup', () => navigate(`${links.cutups()}?new=smart`))
   useCommand('file.importFilm', () => {
     const ctx = importContext()
     openImport(ctx ? { game: ctx.game, team: ctx.team } : {})
   })
+  const downloaded = !!season && !!seasons?.some((x) => x.season === season && x.downloaded)
+  const [updating, setUpdating] = useState(false)
   useCommand(
     'file.updateData',
     () => {
-      if (!season) return
-      void adapters.updateSeasonNow(season).then(
-        () => refreshSeasons(),
-        (e) => errorBanner(`Couldn’t update ${season} data`, e)
-      )
+      if (!season || updating) return
+      setUpdating(true)
+      rawApi
+        .updateSeasonNow(season)
+        .then(
+          (st) => {
+            void refreshSeasons()
+            if (st.state === 'failed') errorBanner(`Couldn’t update ${season} data`, st.error ?? 'The download failed.', () => runCommandLater('file.updateData'))
+            else banner({ title: `${season} data updated`, kind: 'success' })
+          },
+          (e) => errorBanner(`Couldn’t update ${season} data`, e)
+        )
+        .finally(() => setUpdating(false))
     },
-    { enabled: !!season, label: season ? `Update ${season} Season Data` : undefined }
+    { enabled: downloaded && !updating, label: season ? `Update ${season} Season Data` : undefined }
   )
+  // File › Check Clip Alignment (improvement 14) for the game in context; screens with a selected game may register their own.
+  const ctx = useImportContext()
+  useCommand('file.checkAlignment', () => ctx && void checkClipAlignment(ctx.game, ctx.team), { enabled: !!ctx })
   useCommand('file.openRecent', (arg) => {
     const [gameId, team] = (arg ?? '').split('|')
     if (gameId) navigate(links.tape(gameId, team ?? ''))
@@ -137,13 +153,13 @@ export function Shell({ children }: { children: ReactNode }) {
 
   // Cut-ups and badges for the sidebar.
   const loadCutups = useCallback(() => {
-    adapters.cutups().then(setCutups, () => setCutups([]))
+    rawApi.cutups().then(setCutups, () => setCutups([]))
   }, [])
   useEffect(loadCutups, [loadCutups])
   useDataEvent('cutups', loadCutups)
   const loadBadges = useCallback(() => {
     if (!season) return
-    adapters.sidebarBadges(season, myTeams).then(setBadges, () => undefined)
+    rawApi.sidebarBadges(season).then(setBadges, () => undefined)
   }, [season, myTeams.join()])
   useEffect(loadBadges, [loadBadges])
   useDataEvent(['film', 'grades', 'season'], loadBadges)
@@ -177,17 +193,17 @@ export function Shell({ children }: { children: ReactNode }) {
           banner({
             title: n.title,
             body: n.body,
-            kind: a.state === 'failed' ? 'error' : 'info',
+            kind: a.state === 'failed' ? 'error' : 'success',
             action: n.revealPath ? { label: 'Show in Finder', run: () => window.shell.showItemInFolder(n.revealPath!) } : n.route ? { label: 'Open', run: () => navigate(n.route!) } : undefined
           })
         })
       }
     }
     const offActivity = window.shell.onActivity(onActivity)
-    const offEvents = adapters.onApiEvent((e) => {
+    const offEvents = rawApi.onApiEvent((e) => {
       if (e.type === 'changed') emit(...e.kinds)
     })
-    void adapters.activities().then((list) => list.forEach(onActivity))
+    void rawApi.activities().then((list) => list.filter((a) => a.state === 'running').forEach(onActivity))
     return () => {
       offActivity()
       offEvents()
@@ -209,7 +225,7 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [h.index])
 
   const startNewCutup = async () => {
-    const c = await adapters.createCutup({ kind: 'manual' })
+    const c = await api.createCutup({ kind: 'manual' }).catch((e) => (errorBanner('Couldn’t create the cut-up', e), null))
     if (!c) return
     navigate(links.cutup(c.id))
     setRenaming(c.id)
@@ -285,11 +301,15 @@ export function Shell({ children }: { children: ReactNode }) {
             team={importReq.team ?? null}
             initialPaths={importReq.paths}
             existing={importReq.existing}
+            focusPlayId={importReq.focusPlayId}
+            onlySuspects={importReq.onlySuspects}
             onClose={closeImport}
-            onImported={() => {
+            onImported={(info) => {
               const req = importReq
               closeImport()
-              req.onImported?.()
+              // Without a caller of its own, a new import opens the film it just saved.
+              if (req.onImported) req.onImported()
+              else if (!info.fix) navigate(links.tape(info.game.gameId, info.team))
             }}
           />
         )}
@@ -300,6 +320,8 @@ export function Shell({ children }: { children: ReactNode }) {
         {welcomeOpen && <Welcome onContinue={closeWelcome} />}
         <DropOverlay
           onDrop={(paths) => {
+            const intoSheet = sheetDropHandler()
+            if (intoSheet) return intoSheet(paths)
             const ctx = importContext()
             openImport({ game: ctx?.game, team: ctx?.team, paths })
           }}
