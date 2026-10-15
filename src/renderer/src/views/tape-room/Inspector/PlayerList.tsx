@@ -66,8 +66,11 @@ export function PlayerList({
   const [hi, setHi] = useState<string | null>(null)
   const current = enabled.find((x) => x.key === hi) ?? enabled[0]
   useEffect(() => setHi(null), [q])
-  useLayoutEffect(() => {
+  // After the popover has placed itself and moved focus in.
+  useEffect(() => {
     input.current?.focus()
+    const id = requestAnimationFrame(() => input.current?.focus())
+    return () => cancelAnimationFrame(id)
   }, [])
   useLayoutEffect(() => {
     list.current?.querySelector('[data-highlighted="true"]')?.scrollIntoView({ block: 'nearest' })

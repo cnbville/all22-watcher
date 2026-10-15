@@ -116,6 +116,47 @@ try {
     await win.waitForSelector('[data-test="grade-plus"][aria-pressed="true"]')
   })
 
+  // 02 §22.3: snap points, critical grades, drawings over time and Player Focus.
+  await step('marks the snap', async () => {
+    await win.keyboard.press('Shift+B')
+    await win.waitForSelector('[data-test="snap-marker"]')
+    await win.waitForSelector('[data-test="viewer-toast"]:has-text("Snap Set")')
+  })
+
+  await step('marks a critical grade', async () => {
+    await win.keyboard.press('Shift+Digit1')
+    await win.keyboard.press('-')
+    await win.waitForSelector('[data-test="grading-row"][data-critical="true"] [data-test="grade-minus"][aria-pressed="true"]')
+  })
+
+  await step('draws a box over time', async () => {
+    await win.keyboard.press('d')
+    await win.waitForSelector('[data-test="draw-palette"]')
+    await win.keyboard.press('6')
+    const pane = await win.locator('[data-test^="angle-pane-"]').first().boundingBox()
+    if (!pane) throw new Error('no angle pane')
+    const cx = pane.x + pane.width / 2
+    const cy = pane.y + pane.height / 2
+    await win.mouse.move(cx - 80, cy - 40)
+    await win.mouse.down()
+    await win.mouse.move(cx, cy, { steps: 4 })
+    await win.mouse.move(cx + 80, cy + 40, { steps: 4 })
+    await win.mouse.up()
+    await win.waitForFunction(() => document.querySelectorAll('[data-test="drawing-span"]').length === 1)
+    await win.keyboard.press('d')
+    await win.waitForSelector('[data-test="draw-palette"]', { state: 'detached' })
+  })
+
+  await step('player focus', async () => {
+    await win.keyboard.press('g')
+    await win.waitForSelector('[data-test="focus-picker"]')
+    await win.keyboard.press('Enter')
+    await win.waitForSelector('[data-test="focus-panel"]')
+    await win.keyboard.press('Shift+G')
+    await win.waitForSelector('[data-test="grading-row"]')
+    await shot('tape-room')
+  })
+
   await step('opens a player', async () => {
     await win.locator('[data-test="grading-player-name"]').first().click()
     await win.waitForSelector('[data-test="player-header"]', { timeout: 20_000 })
