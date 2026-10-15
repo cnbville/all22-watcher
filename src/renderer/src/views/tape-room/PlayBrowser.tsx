@@ -486,14 +486,14 @@ function PlayRow({
 
   let leading: React.ReactNode
   if (focus) {
-    if (focusEntry?.offField) leading = <span className="play-row__focus-grade play-row__focus-grade--off">Off</span>
+    if (focusEntry?.offField) leading = <span className="tape-row__focus-grade tape-row__focus-grade--off">Off</span>
     else if (focusEntry?.grade != null)
       leading = (
-        <span className="play-row__focus-grade" style={{ color: ink(gradeGlyphScore(focusEntry.grade)) }}>
+        <span className="tape-row__focus-grade" style={{ color: ink(gradeGlyphScore(focusEntry.grade)) }}>
           {GRADE_GLYPH[focusEntry.grade]}
         </span>
       )
-    else leading = <span className="play-row__focus-grade play-row__focus-grade--none">—</span>
+    else leading = <span className="tape-row__focus-grade tape-row__focus-grade--none">—</span>
   } else {
     const pr = room.progressOf(play)
     leading = <ProgressPie state={pr.state} done={pr.done} listed={pr.listed} />
@@ -503,7 +503,7 @@ function PlayRow({
   const dimmed = focus && focusEntry?.offField
   return (
     <div
-      className="play-row"
+      className="tape-row"
       role="option"
       style={{ top }}
       data-test="play-row"
@@ -527,33 +527,33 @@ function PlayRow({
       onDragEnd={onDragEnd}
       title={play.desc}
     >
-      <span className="play-row__lead">{leading}</span>
-      <span className="play-row__line1">
-        <span className="play-row__clock">
+      <span className="tape-row__lead">{leading}</span>
+      <span className="tape-row__line1">
+        <span className="tape-row__clock">
           {quarterLabel(play.qtr)} {play.time}
         </span>
-        <span className="play-row__down">{play.down ? `${play.posteam} ${downDistance(play)}` : downDistance(play)}</span>
-        {play.down && (kind === 'pass' || kind === 'run') && <span className="play-row__kind"> · {kind === 'pass' ? 'Pass' : 'Run'}</span>}
-        <span className="play-row__spacer" />
+        <span className="tape-row__down">{play.down ? `${play.posteam} ${downDistance(play)}` : downDistance(play)}</span>
+        {play.down && (kind === 'pass' || kind === 'run') && <span className="tape-row__kind"> · {kind === 'pass' ? 'Pass' : 'Run'}</span>}
+        <span className="tape-row__spacer" />
         {!hasClip && (
-          <span className="play-row__noclip" title="No clip for this play">
+          <span className="tape-row__noclip" title="No clip for this play">
             <Icon name="video-off" size={12} />
           </span>
         )}
-        {result && <span className="play-row__result">{result}</span>}
+        {result && <span className="tape-row__result">{result}</span>}
       </span>
-      <span className="play-row__line2">
-        <span className="play-row__desc">{shortDesc(play.desc)}</span>
+      <span className="tape-row__line2">
+        <span className="tape-row__desc">{shortDesc(play.desc)}</span>
         {!focus && (counts.plus > 0 || counts.minus > 0) && (
-          <span className="play-row__counts">
+          <span className="tape-row__counts">
             {counts.plus > 0 && <span style={{ color: ink(gradeGlyphScore(1)) }}>+{counts.plus}</span>}
             {counts.minus > 0 && <span style={{ color: ink(gradeGlyphScore(-1)) }}>−{counts.minus}</span>}
           </span>
         )}
         {markers.length > 0 && (
-          <span className="play-row__markers">
+          <span className="tape-row__markers">
             {markers.slice(0, 3).map((m) => (
-              <span key={m.icon} className={`play-row__marker play-row__marker--${m.cls}`} title={m.title}>
+              <span key={m.icon} className={`tape-row__marker tape-row__marker--${m.cls}`} title={m.title}>
                 <Icon name={m.icon} size={12} filled={m.icon === 'flag'} />
               </span>
             ))}

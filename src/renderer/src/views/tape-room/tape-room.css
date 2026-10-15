@@ -174,7 +174,7 @@
       transform: rotate(-90deg);
     }
 
-    .play-row {
+    .tape-row {
       position: absolute;
       left: 0;
       right: 0;
@@ -189,26 +189,26 @@
       cursor: default;
       user-select: none;
     }
-    .play-row:hover {
+    .tape-row:hover {
       background: var(--fill-3);
     }
-    .play-row:active {
+    .tape-row:active {
       background: var(--fill-2);
     }
-    .play-row[data-multi] {
+    .tape-row[data-multi] {
       background: var(--selection);
     }
-    .play-row[data-current] {
+    .tape-row[data-current] {
       background: var(--selection);
       box-shadow: inset 2px 0 0 var(--selection-rule);
     }
-    html[data-window-focused='false'] & .play-row[data-current] {
+    html[data-window-focused='false'] & .tape-row[data-current] {
       background: var(--selection-inactive);
     }
-    .play-row[data-dragging] {
+    .tape-row[data-dragging] {
       opacity: 0.5;
     }
-    .play-row__lead {
+    .tape-row__lead {
       grid-row: 1;
       grid-column: 1;
       display: flex;
@@ -216,8 +216,8 @@
       justify-content: flex-start;
       height: 16px;
     }
-    .play-row__line1,
-    .play-row__line2 {
+    .tape-row__line1,
+    .tape-row__line2 {
       grid-column: 2;
       display: flex;
       align-items: center;
@@ -225,51 +225,51 @@
       min-width: 0;
       white-space: nowrap;
     }
-    .play-row__line1 {
+    .tape-row__line1 {
       grid-row: 1;
       height: 16px;
     }
-    .play-row__line2 {
+    .tape-row__line2 {
       grid-row: 2;
       height: 15px;
       gap: 4px;
     }
-    .play-row__clock {
+    .tape-row__clock {
       flex: none;
       font: var(--t-mono-sm);
       color: var(--label-2);
       margin-right: 8px;
     }
-    .play-row__down {
+    .tape-row__down {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       font: var(--t-callout);
       color: var(--label);
     }
-    .play-row__kind {
+    .tape-row__kind {
       flex: none;
       font: var(--t-callout);
       color: var(--label-3);
       white-space: pre;
     }
-    .play-row__spacer {
+    .tape-row__spacer {
       flex: 1;
       min-width: 4px;
     }
-    .play-row__noclip {
+    .tape-row__noclip {
       display: inline-flex;
       color: var(--label-3);
       margin-right: 6px;
     }
-    .play-row__result {
+    .tape-row__result {
       flex: none;
       font: var(--t-callout);
       font-weight: 600;
       font-variant-numeric: tabular-nums;
       color: var(--label);
     }
-    .play-row__desc {
+    .tape-row__desc {
       flex: 1;
       min-width: 0;
       overflow: hidden;
@@ -277,14 +277,14 @@
       font: var(--t-callout);
       color: var(--label-2);
     }
-    .play-row[data-no-clip] .play-row__clock,
-    .play-row[data-no-clip] .play-row__down,
-    .play-row[data-no-clip] .play-row__desc,
-    .play-row[data-off] .play-row__down,
-    .play-row[data-off] .play-row__desc {
+    .tape-row[data-no-clip] .tape-row__clock,
+    .tape-row[data-no-clip] .tape-row__down,
+    .tape-row[data-no-clip] .tape-row__desc,
+    .tape-row[data-off] .tape-row__down,
+    .tape-row[data-off] .tape-row__desc {
       color: var(--label-3);
     }
-    .play-row__counts {
+    .tape-row__counts {
       flex: none;
       display: inline-flex;
       gap: 4px;
@@ -292,33 +292,33 @@
       font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
-    .play-row__markers {
+    .tape-row__markers {
       flex: none;
       display: inline-flex;
       gap: 4px;
     }
-    .play-row__marker {
+    .tape-row__marker {
       display: inline-flex;
       color: var(--label-3);
     }
-    .play-row__marker--flag {
+    .tape-row__marker--flag {
       color: var(--flag);
     }
-    .play-row__marker--critical {
+    .tape-row__marker--critical {
       color: var(--label-2);
     }
-    .play-row__marker--warning {
+    .tape-row__marker--warning {
       color: var(--warning);
     }
-    .play-row__focus-grade {
+    .tape-row__focus-grade {
       font: var(--t-body);
       font-weight: 600;
       line-height: 16px;
     }
-    .play-row__focus-grade--none {
+    .tape-row__focus-grade--none {
       color: var(--label-4);
     }
-    .play-row__focus-grade--off {
+    .tape-row__focus-grade--off {
       font: var(--t-footnote);
       font-size: 10px;
       color: var(--label-4);
