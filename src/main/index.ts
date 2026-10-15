@@ -19,7 +19,8 @@ import { PosterCache, posterQuery } from './posters'
 import { SeasonUpdater } from './seasonUpdate'
 import { WatchFolder } from './watch'
 import { registerShell } from './shell'
-import { createMainWindow, getMainWindow, showMainWindow } from './windows'
+import { createMainWindow, getMainWindow, initialShellState, showMainWindow } from './windows'
+import { SHELL_ARG_PREFIX } from '@shared/shell'
 
 // Lets tests and power users keep data somewhere other than ~/Library/Application Support.
 if (process.env.ALL22_USER_DATA) app.setPath('userData', process.env.ALL22_USER_DATA)
@@ -95,12 +96,18 @@ function load(win: BrowserWindow, hash = '') {
   return target.url ? win.loadURL(target.url) : win.loadFile(target.file!, { hash })
 }
 
-async function renderPlayerReport(season: number, playerId: string): Promise<Buffer> {
+async function renderPlayerReport(season: number, playerId: string, name: string): Promise<Buffer> {
+  // Letter at 96 dpi, never shown; the page sets body[data-ready] once charts, the headshot and Career are in (03 §12).
   const win = new BrowserWindow({
     show: false,
-    width: 1000,
-    height: 1300,
-    webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: true, contextIsolation: true }
+    width: 816,
+    height: 1056,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: true,
+      contextIsolation: true,
+      additionalArguments: [`${SHELL_ARG_PREFIX}${JSON.stringify(initialShellState('report'))}`]
+    }
   })
   try {
     await load(win, `/report/${season}/${encodeURIComponent(playerId)}`)
@@ -108,10 +115,29 @@ async function renderPlayerReport(season: number, playerId: string): Promise<Buf
       if (await win.webContents.executeJavaScript('document.body.dataset.ready === "1"')) break
       await new Promise((r) => setTimeout(r, 100))
     }
-    return await win.webContents.printToPDF({ printBackground: true, pageSize: 'Letter' })
+    return await win.webContents.printToPDF({
+      pageSize: 'Letter',
+      printBackground: true,
+      margins: { top: 0.5, bottom: 0.6, left: 0.5, right: 0.5 },
+      displayHeaderFooter: true,
+      headerTemplate: '<span></span>',
+      footerTemplate: reportFooter(`${name} · ${season} scouting report`),
+      generateDocumentOutline: true
+    })
   } finally {
     win.destroy()
   }
+}
+
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+
+/** The PDF footer (03 §12.1): "Name · 2025 scouting report" left, "Page X of Y" right. */
+function reportFooter(left: string): string {
+  return (
+    '<div style="font: 8px -apple-system, sans-serif; color: #6E6E76; width: 100%; padding: 0 0.5in; display: flex; justify-content: space-between">' +
+    `<span>${escapeHtml(left)}</span>` +
+    '<span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>'
+  )
 }
 
 function sendAll(channel: string, payload: unknown) {
@@ -339,12 +365,12 @@ function handlers(): Handlers {
     exportPlayerReport: async (season, playerId) => {
       const profile = await library.playerProfile(season, playerId)
       const res = await saveDialog({
-        title: 'Save scouting report',
+        title: 'Save Scouting Report',
         defaultPath: `${(profile?.player.name ?? playerId).replace(/[^\w .-]/g, '')} ${season}.pdf`,
         filters: [{ name: 'PDF', extensions: ['pdf'] }]
       })
       if (res.canceled || !res.filePath) return null
-      await writeFile(res.filePath, await renderPlayerReport(season, playerId))
+      await writeFile(res.filePath, await renderPlayerReport(season, playerId, profile?.player.name ?? playerId))
       return res.filePath
     },
     saveCsv: async (defaultName, csv) => {
