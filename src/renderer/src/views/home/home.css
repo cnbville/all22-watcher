@@ -20,6 +20,11 @@
       display: flex;
       min-height: 360px;
     }
+    .page-section + .home-download {
+      margin-top: 40px;
+      padding-top: 24px;
+      box-shadow: inset 0 0.5px 0 var(--sep);
+    }
 
     /* Shelves */
     .shelf {

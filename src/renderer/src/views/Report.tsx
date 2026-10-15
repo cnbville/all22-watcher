@@ -494,7 +494,7 @@ function GradeVsEpa({ p, entries }: { p: PlayerProfile; entries: ReelEntry[] }) 
   return (
     <Block title="Grade vs EPA">
       <div className="report__chart">
-        <GradeEpaStrip points={points} teamName={team?.nickname ?? p.player.team} width={WIDTH} height={150} palette="print" animate={false} />
+        <GradeEpaStrip points={points} teamName={team?.nickname ?? p.player.team} width={WIDTH} height={168} palette="print" animate={false} />
       </div>
       <div className="report__figures report__figures--four">
         {figs.lanes.map((l) => (

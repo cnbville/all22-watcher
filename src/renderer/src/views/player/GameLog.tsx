@@ -38,12 +38,12 @@ export function GameLogSection({ ctx }: { ctx: PlayerCtx }) {
   const totalSnaps = p.games.reduce((n, g) => n + (snapsOf(g) ?? 0), 0)
   const columns: Column<LogRow>[] = [
     { id: 'wk', label: 'Wk', width: 48, render: (r) => (r.kind === 'game' ? <span className="t-callout c-label-3">{weekCode(r.line.game)}</span> : 'Season') },
-    { id: 'date', label: 'Date', width: 88, render: (r) => (r.kind === 'game' ? <span className="t-callout c-label-2">{gameDayLabel(r.line.game.gameday)}</span> : null) },
+    { id: 'date', label: 'Date', width: 84, render: (r) => (r.kind === 'game' ? <span className="t-callout c-label-2">{gameDayLabel(r.line.game.gameday)}</span> : null) },
     {
       id: 'opp',
       label: 'Opponent',
       flex: 1,
-      minWidth: 140,
+      minWidth: 112,
       render: (r) =>
         r.kind === 'game' ? (
           <span className="game-opp">
@@ -98,7 +98,7 @@ export function GameLogSection({ ctx }: { ctx: PlayerCtx }) {
       (c): Column<LogRow> => ({
         id: `stat-${c.key}`,
         label: c.label,
-        width: 64,
+        width: 52,
         numeric: true,
         render: (r) => (r.kind === 'season' ? c.value(p.totals) : Object.keys(r.line.stats).length ? c.value(r.line.stats) : dash)
       })
