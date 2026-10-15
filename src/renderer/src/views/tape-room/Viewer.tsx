@@ -7,7 +7,7 @@ import { runCommand } from '../../shell/commands'
 import { action, sep, showMenu, submenu } from '../../shell/contextMenus'
 import { setUi } from '../../shell/uiState'
 import { type MenuItemSpec, openMenu } from '../../ui/Menu'
-import { noMouseFocus } from '../../ui/keyboard'
+import { isTyping, noMouseFocus } from '../../ui/keyboard'
 import { Icon } from '../../ui/Icon'
 import { AnglePane, fitPicture, PaneMessage, type Rect } from '../../ui/video/AnglePane'
 import { DrawingLane, laneRows } from '../../ui/video/DrawingLane'
@@ -772,7 +772,8 @@ function EndOfList({ room, panel, onClose, actions }: { room: Room; panel: EndPa
   primaryRef.current = primary
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' || e.metaKey) return
+      // Keys typed into a note or field are the field's.
+      if (e.key === 'Escape' || e.metaKey || isTyping(e)) return
       if (e.key === 'Enter') {
         e.preventDefault()
         e.stopPropagation()

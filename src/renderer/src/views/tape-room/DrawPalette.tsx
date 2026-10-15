@@ -632,6 +632,10 @@ export function DrawLayer({
       data-enabled={enabled || undefined}
       style={{ cursor: enabled ? cursor : undefined }}
       onPointerDown={onPointerDown}
+      onMouseDown={(e) => {
+        // The click's default focus change would land on the room and blur (commit) the text editor just opened.
+        if (enabled && !(e.target as HTMLElement).closest('.draw-text-editor')) e.preventDefault()
+      }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={() => {

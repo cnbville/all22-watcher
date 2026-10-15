@@ -261,7 +261,11 @@ export class VideoEngine {
     for (const p of panes) {
       const s = this.slot(p.id)
       if ((s.clip?.id ?? null) !== (p.clip?.id ?? null)) this.load(s, p.clip)
-      else s.clip = p.clip
+      else if (p.clip) {
+        // Same clip, new data (a snap point moved): start points, Replay and Loop read the media's clip.
+        s.clip = p.clip
+        for (const m of [s.shown, s.incoming]) if (m && m.clip.id === p.clip.id) m.clip = p.clip
+      }
     }
     this.rewire()
   }
@@ -296,7 +300,9 @@ export class VideoEngine {
       }
     }
     for (const c of clips.slice(0, POOL_MAX)) {
-      if (this.pool.has(c.id) || this.inUse(c.id)) continue
+      const pooled = this.pool.get(c.id)
+      if (pooled) pooled.clip = c
+      if (pooled || this.inUse(c.id)) continue
       const m = this.create(c)
       m.pooled = true
       this.pool.set(c.id, m)
@@ -313,6 +319,11 @@ export class VideoEngine {
     this.slots.clear()
     this.listeners.clear()
     this.endedCbs.clear()
+  }
+
+  /** Usable again after `dispose` (a remount); panes and preloads are set again by their owner. */
+  revive() {
+    this.disposed = false
   }
 
   /** The visible <video> of a pane (Copy Frame, drawing). */
@@ -449,6 +460,8 @@ export class VideoEngine {
     el.muted = true
     el.playsInline = true
     el.preload = 'auto'
+    // CORS mode, so Copy Frame can read the picture back from a canvas.
+    el.crossOrigin = 'anonymous'
     el.disablePictureInPicture = true
     el.className = 'angle-pane__video'
     el.draggable = false
@@ -762,7 +775,11 @@ export function useVideoController(opts: {
     })
   }
   const engine = ref.current
-  useEffect(() => () => engine.dispose(), [engine])
+  // Development's StrictMode runs effects twice on mount: the engine comes back after the first dispose.
+  useEffect(() => {
+    engine.revive()
+    return () => engine.dispose()
+  }, [engine])
   useEffect(() => {
     engine.setConfig({ startAtSnap: opts.startAtSnap, preRoll: opts.preRoll, speed: opts.speed, loop: opts.loop, sound: opts.sound, autoplay: opts.autoplay ?? true })
   }, [engine, opts.startAtSnap, opts.preRoll, opts.speed, opts.loop, opts.sound, opts.autoplay])

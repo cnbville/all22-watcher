@@ -19,6 +19,7 @@ import { api } from '../../api'
 import { readLocal, useMeasure, writeLocal } from './hooks'
 import { ANGLE_LABEL, ANGLE_NAME, playMenu } from './playMenu'
 import { PlayRow } from './PlayRow'
+import { CoalescedSeeker, syncFollowers, syncOffsets } from '../../ui/video/sync'
 import { drawShapes, letterbox } from './reel/drawShapes'
 import { requestAddToCutup } from './requests'
 
@@ -279,8 +280,14 @@ export function ReelPlayer({
     },
     { enabled: on }
   )
-  useCommand('play.frameBack', () => seek((videoA.current?.currentTime ?? 0) - FRAME), { enabled: on && !!clip })
-  useCommand('play.frameForward', () => seek((videoA.current?.currentTime ?? 0) + FRAME), { enabled: on && !!clip })
+  // Frame steps pause first, like the tape room (02 §5.10).
+  const stepFrame = (n: number) => {
+    wantPlay.current = false
+    videoA.current?.pause()
+    seek((videoA.current?.currentTime ?? 0) + n * FRAME)
+  }
+  useCommand('play.frameBack', () => stepFrame(-1), { enabled: on && !!clip })
+  useCommand('play.frameForward', () => stepFrame(1), { enabled: on && !!clip })
   useCommand('play.secondBack', () => seek((videoA.current?.currentTime ?? 0) - 1), { enabled: on && !!clip })
   useCommand('play.secondForward', () => seek((videoA.current?.currentTime ?? 0) + 1), { enabled: on && !!clip })
   useCommand(
@@ -330,26 +337,35 @@ export function ReelPlayer({
     if (videoB.current) videoB.current.muted = true
   }, [sound, clip?.id, second?.id])
 
-  // Side-by-side: the second pane follows the first, offset by each clip's start point.
+  // Side-by-side: the second pane follows the first on the snap points (both angles marked) or else on clip start,
+  // trimmed by rate and re-seeked when it drifts (02 §8.4–§8.5).
+  const snapA = clip?.snapMs ?? null
+  const snapB = second?.snapMs ?? null
   useEffect(() => {
-    if (!second) return
+    const a = videoA.current
+    const b = videoB.current
+    if (!second || !a || !b) return
+    const { offsets } = syncOffsets([
+      { id: 'a', snap: snapA !== null ? snapA / 1000 : null, playable: true },
+      { id: 'b', snap: snapB !== null ? snapB / 1000 : null, playable: true }
+    ])
+    const seeker = new CoalescedSeeker(b)
+    const onSeeked = () => seeker.seeked()
+    b.addEventListener('seeked', onSeeked)
     let raf = 0
     const tick = () => {
-      const a = videoA.current
-      const b = videoB.current
-      if (a && b && b.readyState >= 1) {
-        const target = startB + (a.currentTime - start)
-        if (Math.abs(b.currentTime - target) > 0.12) b.currentTime = Math.max(0, target)
-        if (a.paused !== b.paused) {
-          if (a.paused) b.pause()
-          else void b.play().catch(() => {})
-        }
+      if (b.readyState >= 1) {
+        syncFollowers(a.currentTime - offsets.a, a.paused || a.seeking, speed, [{ media: b, offset: offsets.b, duration: b.duration, frame: FRAME, seeker }])
       }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [second, start, startB])
+    return () => {
+      cancelAnimationFrame(raf)
+      b.removeEventListener('seeked', onSeeked)
+      seeker.dispose()
+    }
+  }, [second, clip?.id, snapA, snapB, speed])
 
   // HUD auto-hide while playing (01 §6.21).
   const poke = useCallback(() => {
@@ -621,6 +637,7 @@ function Pane({
         className="reel-pane__video"
         src={clipUrl(clip.id)}
         preload="auto"
+        crossOrigin="anonymous"
         playsInline
         muted={muted ?? true}
         {...(handlers as object)}

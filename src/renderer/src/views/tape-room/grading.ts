@@ -112,6 +112,21 @@ export function gradeCounts(entries: readonly GradeEntry[]): { plus: number; min
   return { plus, minus, critical }
 }
 
+const ENTRY_FIELDS = ['grade', 'tags', 'note', 'critical', 'offField'] as const
+
+/**
+ * Re-applies one change (`from` → `to`) onto an entry as it is now, touching only the fields that change changed.
+ * Undo and redo use it so that undoing a grade never reverts a player note or tag edited since (02 §7.7).
+ */
+export function applyEntryChange(now: GradeEntry, from: GradeEntry, to: GradeEntry): GradeEntry {
+  const out: GradeEntry = { ...now }
+  for (const k of ENTRY_FIELDS) {
+    const changed = k === 'tags' ? from.tags.join('\u0000') !== to.tags.join('\u0000') : from[k] !== to[k]
+    if (changed) (out as unknown as Record<string, unknown>)[k] = to[k]
+  }
+  return out
+}
+
 /** Applies a grade key (02 §7.3): sets the grade, Not on Field off. */
 export function withGrade(e: GradeEntry, grade: Grade | null): GradeEntry {
   return grade === null ? { ...e, grade: null, critical: false } : { ...e, grade, offField: false }

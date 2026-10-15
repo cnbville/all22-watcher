@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip, GameFilm, GradeEntry, PlayNote } from '@shared/types'
 import { api } from '../../api'
 import { errorBanner } from '../../shell/Banners'
-import { entryKey } from './grading'
+import { applyEntryChange, entryKey } from './grading'
 import type { UndoStack, UndoTarget } from './undo'
 
 /**
@@ -103,16 +103,19 @@ export function useTapeData(film: GameFilm, undo: UndoStack, reveal: (t: UndoTar
       writeEntries(next)
       if (opts.label) {
         const target = opts.target
+        // Only the fields this change touched go back and forth; a note typed since stays.
+        const apply = (from: GradeEntry[], to: GradeEntry[]) =>
+          writeEntries(to.map((e, i) => applyEntryChange(grades.current.get(entryKey(e.playId, e.playerId)) ?? from[i], from[i], e)))
         undo.push({
           label: opts.label,
           target,
           undo: () => {
             if (target) revealRef.current(target)
-            writeEntries(prev)
+            apply(next, prev)
           },
           redo: () => {
             if (target) revealRef.current(target)
-            writeEntries(next)
+            apply(prev, next)
           }
         })
       }
