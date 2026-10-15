@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { filmablePlays, shiftMatches } from '@shared/matching'
+import type { MatchOptions } from '@shared/api'
 import type { ClipMatchRow, GameInfo, MatchPreview, Play } from '@shared/types'
 import { api } from '../api'
 import { ErrorBox, Modal, toast } from '../components/common'
@@ -29,6 +30,9 @@ export function ImportFilm({
   const [error, setError] = useState<unknown>(null)
   const [canConvert, setCanConvert] = useState(false)
   const [converting, setConverting] = useState<{ done: number; total: number } | null>(null)
+  // The checkboxes the user set themselves; the rest are guessed from the clip count.
+  const [chosen, setChosen] = useState<MatchOptions>({})
+  const locked = busy || !!converting
 
   useEffect(() => {
     void api.canConvert().then(setCanConvert)
@@ -38,16 +42,14 @@ export function ImportFilm({
   const convert = async () => {
     if (!preview) return
     setConverting({ done: 0, total: preview.unsupported.length })
+    setEditing(null)
     setError(null)
     try {
       const res = await api.convertClips(game.gameId, preview.unsupported)
       if (res.failed.length) setError(new Error(`${res.failed.length} clip(s) couldn’t be converted: ${res.failed[0].error}`))
-      // Re-match with the same choices, keeping any matches already fixed by hand (the ones that differ from the
-      // automatic match); the rest shift to make room for the newly playable clips.
-      const next = await api.previewMatch(game.gameId, paths, {
-        includeSpecialTeams: preview.includeSpecialTeams,
-        includeNoPlays: preview.includeNoPlays
-      })
+      // Re-match, guessing again from the full clip count unless the user set the checkboxes, and keep any matches
+      // already fixed by hand (the ones that differ from the automatic match); the rest shift to make room for the new clips.
+      const next = await api.previewMatch(game.gameId, paths, chosen)
       const auto = new Map(preview.rows.map((r) => [r.path, r.playId]))
       const kept = new Map(rows.filter((r) => auto.get(r.path) !== r.playId).map((r) => [r.path, r.playId]))
       setPreview(next)
@@ -59,7 +61,7 @@ export function ImportFilm({
     }
   }
 
-  const load = async (ps: string[], opts?: { includeSpecialTeams: boolean; includeNoPlays: boolean }, keepRows = false) => {
+  const load = async (ps: string[], opts?: MatchOptions, keepRows = false) => {
     setBusy(true)
     setError(null)
     try {
@@ -83,6 +85,7 @@ export function ImportFilm({
     const picked = await api.pickClips()
     if (!picked?.length) return
     setPaths(picked)
+    setChosen({})
     await load(picked)
   }
 
@@ -107,6 +110,12 @@ export function ImportFilm({
     }
   }
 
+  const setOption = (o: MatchOptions) => {
+    if (!preview) return
+    setChosen({ ...chosen, ...o })
+    void load(paths, { includeSpecialTeams: preview.includeSpecialTeams, includeNoPlays: preview.includeNoPlays, ...o })
+  }
+
   const title = `${existing ? 'Fix clip matches' : 'Import film'} · ${game.awayTeam} @ ${game.homeTeam}, week ${game.week}`
 
   return (
@@ -115,7 +124,7 @@ export function ImportFilm({
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={choose} disabled={busy}>
+          <button className="btn" onClick={choose} disabled={locked}>
             {paths.length ? 'Choose different clips…' : 'Choose clips…'}
           </button>
           {preview && (
@@ -127,7 +136,7 @@ export function ImportFilm({
           <button className="btn ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn primary" onClick={save} disabled={busy || !rows.length}>
+          <button className="btn primary" onClick={save} disabled={locked || !rows.length}>
             Save film
           </button>
         </>
@@ -153,7 +162,8 @@ export function ImportFilm({
               <input
                 type="checkbox"
                 checked={preview.includeSpecialTeams}
-                onChange={(e) => load(paths, { includeSpecialTeams: e.target.checked, includeNoPlays: preview.includeNoPlays })}
+                disabled={locked}
+                onChange={(e) => setOption({ includeSpecialTeams: e.target.checked })}
               />
               Clips include special teams
             </label>
@@ -161,7 +171,8 @@ export function ImportFilm({
               <input
                 type="checkbox"
                 checked={preview.includeNoPlays}
-                onChange={(e) => load(paths, { includeSpecialTeams: preview.includeSpecialTeams, includeNoPlays: e.target.checked })}
+                disabled={locked}
+                onChange={(e) => setOption({ includeNoPlays: e.target.checked })}
               />
               Clips include plays wiped out by penalties
             </label>
@@ -185,7 +196,7 @@ export function ImportFilm({
                 </span>
                 <span className="spacer" />
                 {canConvert && (
-                  <button className="btn small primary" onClick={convert} disabled={!!converting}>
+                  <button className="btn small primary" onClick={convert} disabled={locked}>
                     {converting ? `Converting ${converting.done}/${converting.total}…` : 'Convert to MP4'}
                   </button>
                 )}
@@ -238,7 +249,7 @@ export function ImportFilm({
                           ))}
                         </select>
                       ) : (
-                        <a onClick={() => setEditing(i)} title={play ? play.desc : 'Click to link a play'}>
+                        <a onClick={() => !locked && setEditing(i)} title={play ? play.desc : 'Click to link a play'}>
                           {play ? (
                             <span style={{ color: 'var(--text)' }}>
                               <span className="faint">{playTypeLabel(play.playType)} · </span>
@@ -252,10 +263,10 @@ export function ImportFilm({
                     </td>
                     <td>
                       <div className="row" style={{ gap: 2 }}>
-                        <button className="btn small ghost" title="Slide this and later clips one play earlier" onClick={() => setRows(shiftMatches(rows, i, -1, ordered))}>
+                        <button className="btn small ghost" title="Slide this and later clips one play earlier" disabled={locked} onClick={() => setRows(shiftMatches(rows, i, -1, ordered))}>
                           ↑
                         </button>
-                        <button className="btn small ghost" title="Slide this and later clips one play later" onClick={() => setRows(shiftMatches(rows, i, 1, ordered))}>
+                        <button className="btn small ghost" title="Slide this and later clips one play later" disabled={locked} onClick={() => setRows(shiftMatches(rows, i, 1, ordered))}>
                           ↓
                         </button>
                       </div>
