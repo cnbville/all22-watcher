@@ -25,7 +25,7 @@ import type {
   TeamRosterRow,
   TeamSummary
 } from '@shared/types'
-import { findConverted } from './convert'
+import { convertedFrom, findConverted } from './convert'
 import type { Store } from './db'
 import {
   downloadSeason,
@@ -244,10 +244,19 @@ export class Library {
     const files = await expandVideoFiles(paths)
     const outDir = this.convertedDir(gameId)
     const isCopy = (f: string) => f.startsWith(outDir + sep)
+    // Saved copies (when fixing matches) are read as the clips they were made from, so they come out as on import.
+    const originals = new Map<string, string>()
+    const near = files.filter((f) => !isCopy(f))
+    for (const f of files.filter(isCopy)) {
+      const original = await convertedFrom(f, outDir, near)
+      if (original) originals.set(f, original)
+    }
+    const traced = (f: string) => !isCopy(f) || originals.has(f)
+    const original = (f: string) => originals.get(f) ?? f
     // Angles and order are read only from the folders the user picked, never the ones above.
-    const names = pickedPaths(paths.filter((p) => !isCopy(p)), files.filter((f) => !isCopy(f)))
-    // Saved copies (when fixing matches) go by the source folders kept under their hash.
-    for (const f of files.filter(isCopy)) names.set(f, relative(outDir, f).split(sep).slice(1).join('/'))
+    const picked = pickedPaths(paths.filter(traced).map(original), files.filter(traced).map(original))
+    // A copy that can't be traced goes by the source folders kept under its hash.
+    const names = new Map(files.map((f): [string, string] => [f, picked.get(original(f)) ?? relative(outDir, f).split(sep).slice(1).join('/')]))
     const playable = files.filter((f) => PLAYABLE_EXTENSIONS.includes(extensionOf(f)))
     const unsupported: string[] = []
     // Clips already converted to MP4 stand in for their originals, and are placed by the original's path.

@@ -147,7 +147,7 @@ describe('matching', () => {
     const files = ['All-22', 'Sideline'].flatMap((a) => ['001.mp4', '002.mp4', '003.mp4', '004.mp4'].map((f) => `${game}/${a}/${f}`))
     expect(detectAngle(files[0])).toBe('sideline')
     const names = pickedPaths([game], files)
-    expect(names.get(files[0])).toBe('DAL at PHI/All-22/001.mp4')
+    expect(names.get(files[0])).toBe('All-22/001.mp4')
     const r = matchClips(files, plays, {}, (p) => names.get(p)!)
     expect(r.rows.map((x) => [x.path.slice(game.length + 1), x.angle, x.playId])).toEqual([
       ['All-22/001.mp4', 'main', 71], ['All-22/002.mp4', 'main', 112], ['All-22/003.mp4', 'main', 166], ['All-22/004.mp4', 'main', 188],
@@ -162,6 +162,21 @@ describe('matching', () => {
     expect(angles(sideline, sideline)).toEqual(['sideline', 'sideline', 'sideline', 'sideline'])
     expect(angles([`${game}/All-22`], files.slice(0, 4))).toEqual(['main', 'main', 'main', 'main'])
     expect(angles([`${game}/All-22`, `${game}/Sideline`], files)).toEqual([...Array(4).fill('main'), ...Array(4).fill('sideline')])
+  })
+
+  it('reads the folder holding the picks as an angle only when nothing inside it names one', () => {
+    // All-22 and Sideline picked together, or their clips saved and fixed later, sit in a folder of the user's own.
+    const base = '/Users/me/Eagles Wide Receivers'
+    const files = ['All-22', 'Sideline'].flatMap((a) => ['1.mp4', '2.mp4'].map((f) => `${base}/${a}/${f}`))
+    const angles = (picked: string[], within: string[]) => [...pickedPaths(picked, within).values()].map(detectAngle)
+    expect(angles([`${base}/All-22`, `${base}/Sideline`], files)).toEqual(['main', 'main', 'sideline', 'sideline'])
+    expect(angles(files, files)).toEqual(['main', 'main', 'sideline', 'sideline'])
+
+    // Quarter folders picked together inside "Sideline" are still the sideline.
+    const game = '/Users/me/Film/DAL at PHI/Sideline'
+    const quarters = ['Q1', 'Q2'].flatMap((q) => ['1.mp4', '2.mp4'].map((f) => `${game}/${q}/${f}`))
+    expect(angles([`${game}/Q1`, `${game}/Q2`], quarters)).toEqual(Array(4).fill('sideline'))
+    expect(angles(quarters, quarters)).toEqual(Array(4).fill('sideline'))
   })
 
   it('places converted copies by their original path', () => {

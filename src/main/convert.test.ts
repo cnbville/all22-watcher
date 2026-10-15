@@ -6,7 +6,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { detectAngle } from '@shared/matching'
-import { convertClips, convertedPath, findConverted, findFfmpeg } from './convert'
+import { convertClips, convertedFrom, convertedPath, findConverted, findFfmpeg } from './convert'
+
+/** Stands in for ffmpeg: writes an empty file at the output path, its last argument. */
+async function fakeFfmpeg(dir: string): Promise<string> {
+  const bin = join(dir, 'ffmpeg')
+  await writeFile(bin, '#!/bin/sh\nfor out; do :; done\n: > "$out"\n', { mode: 0o755 })
+  return bin
+}
 
 describe('convertedPath', () => {
   it('keeps the angle folder so angle detection still works', () => {
@@ -72,6 +79,44 @@ describe('findConverted', () => {
 
     // A copy of a same-named clip from another folder never stands in.
     expect(await findConverted(join(dir, 'Film', 'End Zone', 'Wide Angle', 'Q1', '001.mkv'), out)).toBeNull()
+  })
+})
+
+describe('convertedFrom', () => {
+  it('traces a copy back to the clip it was made from, whatever folders it sits in', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-from-'))
+    const out = join(dir, 'out')
+    const inputs = ['All-22', 'Sideline'].map((a) => join(dir, 'Side Projects', 'DAL at PHI', a, '001.mkv'))
+    for (const f of inputs) {
+      await mkdir(dirname(f), { recursive: true })
+      await writeFile(f, '')
+    }
+    const { converted } = await convertClips(await fakeFfmpeg(dir), inputs, out)
+    expect(converted).toEqual(inputs.map((f) => convertedPath(f, out)))
+    expect(await Promise.all(converted.map((c) => convertedFrom(c, out)))).toEqual(inputs)
+  })
+
+  it('traces copies made before their source was recorded by the clips around them, or once the original is picked again', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-from-'))
+    const out = join(dir, 'out')
+    const game = join(dir, 'Film', 'DAL at PHI')
+    const hash = (input: string) => createHash('sha1').update(dirname(input)).digest('hex').slice(0, 8)
+    const secondHalf = join(game, 'Sideline', '2nd Half', '1.mkv')
+    const endZone = join(game, 'End Zone', '1st Half', '1.mkv')
+    // One kept only the clip's own folder, the other every folder up to the angle's.
+    const copies = [join(out, hash(secondHalf), '2nd Half', '1.mkv.mp4'), join(out, hash(endZone), 'End Zone', '1st Half', '1.mkv.mp4')]
+    for (const c of copies) {
+      await mkdir(dirname(c), { recursive: true })
+      await writeFile(c, 'video')
+    }
+    const near = [join(game, 'Sideline', '1st Half', '1.mp4')]
+    expect(await Promise.all(copies.map((c) => convertedFrom(c, out, near)))).toEqual([secondHalf, endZone])
+
+    expect(await convertedFrom(copies[0], out)).toBeNull()
+    expect(await convertedFrom(copies[1], out, [join(dir, 'Elsewhere', '1.mp4')])).toBeNull()
+    expect(await findConverted(secondHalf, out)).toBe(convertedPath(secondHalf, out))
+    expect(await findConverted(endZone, out)).toBe(copies[1])
+    expect(await Promise.all(copies.map((c) => convertedFrom(c, out)))).toEqual([secondHalf, endZone])
   })
 })
 

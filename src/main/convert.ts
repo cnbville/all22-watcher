@@ -1,8 +1,8 @@
 import { execFile } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { link, mkdir, rename, rm } from 'node:fs/promises'
-import { basename, dirname, join, sep } from 'node:path'
+import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, relative, sep } from 'node:path'
 import { angleSource } from '@shared/matching'
 
 const CANDIDATES = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']
@@ -40,6 +40,14 @@ async function videoCodec(ffmpeg: string, input: string): Promise<string | null>
 
 const folderHash = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 8)
 
+/** The file in each hash folder that names the source folder its copies came from. */
+const SOURCE_RECORD = '.source'
+
+async function recordSource(source: string, outDir: string) {
+  const record = join(outDir, folderHash(source), SOURCE_RECORD)
+  if ((await readFile(record, 'utf8').catch(() => '')) !== source) await writeFile(record, source)
+}
+
 /**
  * Where a converted copy of `input` goes. A hash of the source folder keeps copies of
  * same-named clips from different folders apart. The clip's own folder name, and any folders
@@ -58,15 +66,35 @@ export function convertedPath(input: string, outDir: string): string {
  */
 export async function findConverted(input: string, outDir: string): Promise<string | null> {
   const copy = convertedPath(input, outDir)
-  if (existsSync(copy)) return copy
   const source = dirname(input)
-  const folders = source.split(sep).filter(Boolean)
-  // Everything under the hash came from this clip's folder, however many folder names were kept.
-  const old = folders.map((_, i) => join(outDir, folderHash(source), ...folders.slice(-1 - i), basename(copy))).find((p) => existsSync(p))
-  if (!old) return null
-  await mkdir(dirname(copy), { recursive: true })
-  await link(old, copy).catch(() => {})
-  return existsSync(copy) ? copy : old
+  let found = copy
+  if (!existsSync(copy)) {
+    const folders = source.split(sep).filter(Boolean)
+    // Everything under the hash came from this clip's folder, however many folder names were kept.
+    const old = folders.map((_, i) => join(outDir, folderHash(source), ...folders.slice(-1 - i), basename(copy))).find((p) => existsSync(p))
+    if (!old) return null
+    await mkdir(dirname(copy), { recursive: true })
+    await link(old, copy).catch(() => {})
+    found = existsSync(copy) ? copy : old
+  }
+  // Copies made before the source folder was recorded get it now, so they can be traced back once saved.
+  await recordSource(source, outDir).catch(() => {})
+  return found
+}
+
+/**
+ * The clip a converted copy was made from, or null when that can't be told. Each hash folder records its source folder;
+ * for copies made before that, the folders of `near` (the game's other clips) and the ones above them are tried.
+ */
+export async function convertedFrom(copy: string, outDir: string, near: string[] = []): Promise<string | null> {
+  const [hash, ...folders] = relative(outDir, copy).split(sep)
+  const name = folders.pop()
+  if (!name?.endsWith('.mp4')) return null
+  const recorded = await readFile(join(outDir, hash, SOURCE_RECORD), 'utf8').catch(() => '')
+  const above = (dir: string): string[] => (dirname(dir) === dir ? [dir] : [dir, ...above(dirname(dir))])
+  const guesses = [...new Set(near.map(dirname))].flatMap(above).map((dir) => join(dir, ...folders))
+  const source = [recorded, ...guesses].find((s) => s && folderHash(s) === hash)
+  return source ? join(source, name.slice(0, -'.mp4'.length)) : null
 }
 
 /**
@@ -87,6 +115,7 @@ export async function convertClips(
     // so two runs over the same clip can't write into each other's file.
     const tmp = `${out}.${randomBytes(4).toString('hex')}.partial.mp4`
     await mkdir(dirname(out), { recursive: true })
+    await recordSource(dirname(input), outDir)
     try {
       const codec = await videoCodec(ffmpeg, input)
       const video =

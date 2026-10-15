@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import { convertedPath } from './convert'
+import type { ClipMatchRow } from '@shared/types'
+import { convertClips, convertedPath } from './convert'
 import { Store } from './db'
 import { Library } from './library'
 import { mirrorFetcher, seasonStatuses } from './nflverse'
@@ -58,6 +59,13 @@ async function tradeSeason(): Promise<Library> {
   const library = new Library(store, join(dir, 'cache'), mirrorFetcher(mirror))
   await library.downloadSeason(2025, () => {})
   return library
+}
+
+/** Stands in for ffmpeg: writes an empty file at the output path, its last argument. */
+async function fakeFfmpeg(dir: string): Promise<string> {
+  const bin = join(dir, 'ffmpeg')
+  await writeFile(bin, '#!/bin/sh\nfor out; do :; done\n: > "$out"\n', { mode: 0o755 })
+  return bin
 }
 
 describe('Library with players who changed teams', () => {
@@ -126,5 +134,51 @@ describe('Library.previewMatch', () => {
 
     // Fixing saved matches later picks the saved clips themselves, copies included.
     expect((await library.previewMatch(gameId, rows.map((r) => r[0] as string))).rows.map((r) => [r.path, r.angle, r.playId])).toEqual(rows)
+  })
+
+  // Converts the game's other formats, saves what the import shows, then reopens it to fix matches and ticks both boxes.
+  const importThenFix = async (library: Library, gameId: string, game: string) => {
+    const first = await library.previewMatch(gameId, [game])
+    const { failed } = await convertClips(await fakeFfmpeg(dirname(game)), first.unsupported, library.convertedDir(gameId))
+    expect(failed).toEqual([])
+    const saved = (await library.previewMatch(gameId, [game])).rows
+    const fix = () => library.previewMatch(gameId, saved.map((r) => r.path), { includeSpecialTeams: true, includeNoPlays: true })
+    const byPath = (rows: ClipMatchRow[]) => Object.fromEntries(rows.map((r) => [r.path, [r.angle, r.playId]]))
+    return { saved: byPath(saved), fixed: async () => byPath((await fix()).rows) }
+  }
+
+  it('fixing matches later reads converted copies as the clips they came from', async () => {
+    const library = await tradeSeason()
+    const gameId = '2025_01_DAL_NYJ'
+    const game = join(await mkdtemp(join(tmpdir(), 'all22-fix-')), 'Film', 'DAL at NYJ')
+    // Only the sideline's first half is MP4, so the playable originals alone all sit inside one half folder.
+    const files = ['Sideline', 'End Zone'].flatMap((a) => ['1st Half', '2nd Half'].map((h) => join(game, a, h, `1.${a === 'Sideline' && h === '1st Half' ? 'mp4' : 'mkv'}`)))
+    for (const f of files) {
+      await mkdir(dirname(f), { recursive: true })
+      await writeFile(f, '')
+    }
+    const { saved, fixed } = await importThenFix(library, gameId, game)
+    const copy = (f: string) => (f.endsWith('.mkv') ? convertedPath(f, library.convertedDir(gameId)) : f)
+    expect(saved).toEqual(Object.fromEntries(files.map((f, i) => [copy(f), [i < 2 ? 'sideline' : 'endzone', i % 2 ? 11 : 10]])))
+    expect(await fixed()).toEqual(saved)
+
+    // Copies made before their source folder was recorded are traced by the clips around them.
+    const out = library.convertedDir(gameId)
+    for (const hash of await readdir(out)) await rm(join(out, hash, '.source'))
+    expect(await fixed()).toEqual(saved)
+  })
+
+  it('fixing matches later keeps an all-MKV game apart from the folders it sits in', async () => {
+    const library = await tradeSeason()
+    const gameId = '2025_01_DAL_NYJ'
+    const game = join(await mkdtemp(join(tmpdir(), 'all22-fix-')), 'Side Projects', 'DAL at NYJ')
+    for (const angle of ['All-22', 'Sideline']) {
+      await mkdir(join(game, angle), { recursive: true })
+      await writeFile(join(game, angle, '001.mkv'), '')
+    }
+    const { saved, fixed } = await importThenFix(library, gameId, game)
+    const copy = (angle: string) => convertedPath(join(game, angle, '001.mkv'), library.convertedDir(gameId))
+    expect(saved).toEqual({ [copy('All-22')]: ['main', 10], [copy('Sideline')]: ['sideline', 10] })
+    expect(await fixed()).toEqual(saved)
   })
 })

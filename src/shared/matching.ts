@@ -79,21 +79,22 @@ export interface MatchResult {
 }
 
 /**
- * Each file's path from the folder the user picked down, that folder's own name included (for a picked file, from the
- * folder it's in). Angles are detected from these, so a "Side Projects" folder the film sits in isn't taken for the sideline.
+ * Each file's path from the folder holding everything the user picked down (for a picked file, from the folder it's in).
+ * Angles are detected from these, so a "Side Projects" folder the film sits in isn't taken for the sideline. The holding
+ * folder's own name counts, so picking "Sideline", or Q1..Q4 inside it, reads as the sideline, unless what's inside it
+ * already names angles: then it only holds them, like "Eagles Wide Receivers" around All-22 and Sideline picked together.
  */
 export function pickedPaths(picked: string[], files: string[]): Map<string, string> {
   const isFile = new Set(files)
   const [first = [], ...rest] = picked.map((p) => p.split(/[\\/]/).filter(Boolean).slice(0, isFile.has(p) ? -1 : undefined))
   let shared = 0
   while (shared < first.length && rest.every((r) => r[shared] === first[shared])) shared++
-  return new Map(
-    files.map((f): [string, string] => {
-      const parts = f.split(/[\\/]/).filter(Boolean)
-      const inside = parts.slice(0, shared).every((name, i) => name === first[i])
-      return [f, inside ? parts.slice(Math.max(0, shared - 1)).join('/') : f]
-    })
-  )
+  const below = files.map((f): [string, string | null] => {
+    const parts = f.split(/[\\/]/).filter(Boolean)
+    return [f, parts.slice(0, shared).every((name, i) => name === first[i]) ? parts.slice(shared).join('/') : null]
+  })
+  const holder = below.some(([, p]) => p !== null && angleSource(p).depth >= 0) ? [] : first.slice(Math.max(0, shared - 1), shared)
+  return new Map(below.map(([f, p]): [string, string] => [f, p === null ? f : [...holder, p].join('/')]))
 }
 
 /**
