@@ -293,6 +293,18 @@ describe('v2 store additions', () => {
     expect(store.importLog(5, 'watch').map((e) => e.folder)).toEqual(['/w/one'])
     expect(store.lastWatchImport('/w/one')?.signature).toBe('abc')
   })
+
+  it('treats a watch-folder re-import as new until opened, but keeps the open time for imports made in the app', async () => {
+    const { store } = await freshStore()
+    const openedAt = (gameId: string) => store.recentFilm().find((f) => f.gameId === gameId)?.openedAt ?? null
+    for (const gameId of ['w', 'm']) store.replaceClips(gameId, [{ path: `/c/${gameId}.mp4`, fileName: `${gameId}.mp4`, angle: 'sideline', playId: 1 }])
+    store.touchFilm('w', 'PHI', true)
+    store.touchFilm('m', 'PHI', true)
+    store.touchFilm('w', 'PHI', false, 'watch')
+    store.touchFilm('m', 'PHI', false, 'manual')
+    expect(openedAt('w')).toBeNull()
+    expect(openedAt('m')).not.toBeNull()
+  })
 })
 
 describe('Store.openOrRecover', () => {

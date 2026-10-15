@@ -397,8 +397,9 @@ export class Store {
   }
 
   /**
-   * Remembers which team you study in a game and when you last opened it, for the home screen. A fresh import
-   * (`opened` false) counts as new again until it's opened.
+   * Remembers which team you study in a game and when you last opened it, for the home screen. A watch-folder
+   * import counts as new again until it's opened; a manual import or Fix Clip Matches is made from inside the app,
+   * so it keeps the open time.
    */
   touchFilm(gameId: string, team: string, opened: boolean, source: 'manual' | 'watch' = 'manual') {
     const now = new Date().toISOString()
@@ -411,7 +412,8 @@ export class Store {
     } else {
       this.run(
         `INSERT INTO film_games (game_id, team, imported_at, opened_at, source) VALUES (?, ?, ?, NULL, ?)
-         ON CONFLICT (game_id) DO UPDATE SET team = excluded.team, imported_at = excluded.imported_at, source = excluded.source`,
+         ON CONFLICT (game_id) DO UPDATE SET team = excluded.team, imported_at = excluded.imported_at, source = excluded.source,
+           opened_at = CASE WHEN excluded.source = 'watch' THEN NULL ELSE film_games.opened_at END`,
         [gameId, team, now, source]
       )
     }
