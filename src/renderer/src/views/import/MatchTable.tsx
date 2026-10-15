@@ -40,6 +40,7 @@ export function MatchTable({
   onSelect,
   onShift,
   onLink,
+  needsLook,
   disabled
 }: {
   items: MatchTableRow[]
@@ -54,6 +55,8 @@ export function MatchTable({
   onSelect: (path: string) => void
   onShift: (index: number, delta: 1 | -1) => void
   onLink: (index: number, playId: number | null) => void
+  /** Clips smart matching couldn't place for sure, marked with a dot. */
+  needsLook?: Set<string>
   disabled?: boolean
 }) {
   const playById = useMemo(() => new Map(plays.map((p) => [p.playId, p])), [plays])
@@ -70,7 +73,18 @@ export function MatchTable({
   }
 
   const columns: Column<MatchTableRow>[] = [
-    { id: 'n', label: '#', width: 44, numeric: true, render: (it) => <span className="c-label-3">{it.n}</span> },
+    {
+      id: 'n',
+      label: '#',
+      width: 44,
+      numeric: true,
+      render: (it) => (
+        <span className="c-label-3">
+          {needsLook?.has(it.row.path) && <span className="match-look" title="Order and length couldn’t settle this clip’s play. Check it." data-test="needs-look" />}
+          {it.n}
+        </span>
+      )
+    },
     {
       id: 'clip',
       label: 'Clip',

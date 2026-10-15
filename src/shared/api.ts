@@ -1,4 +1,5 @@
 import type { ExportOverlay, ExportPlan, ExportVideoRequest } from './exportVideo'
+import type { SplitResult } from './splitPlan'
 import type {
   Activity,
   AlignmentResult,
@@ -104,6 +105,11 @@ export interface Api {
   /** Converts with the bundled ffmpeg as a cancellable `convert` activity (Dock progress); a cancelled run resolves with what it converted. */
   convertClips(gameId: string, paths: string[]): Promise<{ converted: string[]; failed: { path: string; error: string }[] }>
   onConvertProgress(cb: (p: { done: number; total: number }) => void): () => void
+  /**
+   * Splits a full game's film into one clip per play and angle, from its camera cuts, as a cancellable `convert`
+   * activity. Resolves with the folder of clips, which imports like any other.
+   */
+  splitGame(gameId: string, path: string): Promise<SplitResult>
   relinkClip(clipId: number, playId: number | null): Promise<void>
   removeFilm(gameId: string): Promise<void>
   revealClip(path: string): Promise<void>
@@ -188,7 +194,7 @@ const METHOD_MAP: Record<ApiMethod, true> = {
   teamSummaries: true, teamOverview: true, teamCards: true, teamFilmStats: true, gameFilm: true, openedFilm: true, recentFilm: true,
   filmLibrary: true, recentlyGraded: true, playerProfile: true, playerSeasonLine: true, leaderboard: true, matchup: true,
   searchIndex: true, sidebarBadges: true,
-  pickClips: true, previewMatch: true, importClips: true, canConvert: true, convertClips: true, relinkClip: true, removeFilm: true,
+  pickClips: true, previewMatch: true, importClips: true, canConvert: true, convertClips: true, splitGame: true, relinkClip: true, removeFilm: true,
   revealClip: true, setClipSnap: true, checkAlignment: true, alignment: true, checkAlignmentRows: true, importLog: true, ffmpegStatus: true,
   watchStatus: true, checkWatchFolder: true, chooseWatchFolder: true,
   saveGrade: true, savePlayNote: true,
@@ -204,6 +210,11 @@ const METHOD_MAP: Record<ApiMethod, true> = {
 export const API_METHODS = Object.keys(METHOD_MAP) as ApiMethod[]
 
 export const CLIP_SCHEME = 'tape'
+
+/** A clip in an import sheet before it is saved (main serves only files the sheet was shown). */
+export function fileUrl(path: string): string {
+  return `${CLIP_SCHEME}://file/?p=${encodeURIComponent(path)}`
+}
 
 export function clipUrl(clipId: number): string {
   return `${CLIP_SCHEME}://clip/${clipId}`

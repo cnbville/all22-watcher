@@ -127,6 +127,8 @@ export class Library {
   private seasons = new Map<number, SeasonData>()
   private playsCache = new Map<string, Play[]>()
   private downloads = new Map<number, Promise<SeasonStatus>>()
+  /** Clips shown in an import sheet this session, which the player may stream before they are saved. */
+  private previewable = new Set<string>()
 
   constructor(
     readonly store: Store,
@@ -138,6 +140,16 @@ export class Library {
 
   convertedDir(gameId: string): string {
     return join(this.convertedRoot, gameId)
+  }
+
+  /** Where a full game's film split into plays goes, one folder per game. */
+  splitDir(gameId: string): string {
+    return join(this.convertedRoot, '..', 'split', gameId)
+  }
+
+  /** Whether the player may stream this file: a saved clip, or one an import sheet is matching. */
+  canPreview(path: string): boolean {
+    return this.previewable.has(path) || this.store.hasClipPath(path)
   }
 
   availableSeasons(): number[] {
@@ -485,6 +497,7 @@ export class Library {
       playable.push(copy)
       names.set(copy, names.get(f) ?? f)
     }
+    for (const f of playable) this.previewable.add(f)
     const plays = await this.filmPlays(gameId)
     const result = matchClips(playable, plays, options, (p) => names.get(p) ?? p)
     const warnings = [...result.warnings]

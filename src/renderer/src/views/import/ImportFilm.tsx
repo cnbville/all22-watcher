@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { gameTitle, weekName } from '@shared/labels'
-import { filmablePlays, shiftMatches } from '@shared/matching'
+import type { Side } from '@shared/smartMatch'
+import { FULL_GAME_SECONDS } from '@shared/splitPlan'
 import type { MatchOptions } from '@shared/api'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { Angle, FfmpegStatus, GameInfo, MatchPreview } from '@shared/types'
@@ -31,7 +32,9 @@ import {
   summaryLine,
   countMismatch
 } from './importModel'
+import { ClipReview } from './ClipReview'
 import { MatchTable, type MatchTableRow } from './MatchTable'
+import { useSmartMatch } from './useSmartMatch'
 import './import.css'
 
 /**
@@ -99,9 +102,12 @@ export function ImportFilm({
   const seq = useRef(0)
   const converted = useRef(new Set<string>())
   const focused = useRef(false)
+  const [reviewing, setReviewing] = useState(false)
+  const [split, setSplit] = useState<{ done: number; total: number } | null>(null)
+  const match = useSmartMatch({ preview, team, rows, setRows, durations, reading, fix })
 
   const converting = !!convert
-  const locked = saving || converting || matching
+  const locked = saving || converting || matching || !!split
 
   useEffect(() => {
     api.ffmpegStatus().then(setFfmpeg, () => setFfmpeg(null))
@@ -235,6 +241,7 @@ export function ImportFilm({
     setFilter('all')
     setOnlySuspects(false)
     setSelection(null)
+    setReviewing(false)
     setConvertFailed([])
     setError(null)
     setMatching(false)
@@ -272,8 +279,8 @@ export function ImportFilm({
     void load(game, paths, { includeSpecialTeams: preview.includeSpecialTeams, includeNoPlays: preview.includeNoPlays, angles, ...o }, keep)
   }
 
-  const ordered = useMemo(() => (preview ? filmablePlays(preview.plays, preview.includeSpecialTeams, preview.includeNoPlays) : []), [preview])
-  const allPlays = useMemo(() => [...(preview?.plays ?? [])].sort((a, b) => a.playId - b.playId), [preview])
+  const ordered = match.ordered
+  const allPlays = match.plays
   const folders = useMemo(() => angleFolders(rows), [pathKey, rows.map((r) => r.angle).join()])
   const alignment = useMemo(
     () => (game && preview && rows.length && !reading ? alignRows(game.gameId, rows, durations, preview.plays) : null),
@@ -308,8 +315,27 @@ export function ImportFilm({
     if (onlySuspects && alignment && !alignment.suspects.length) setOnlySuspects(false)
   }, [alignment, onlySuspects])
 
-  const shift = (index: number, delta: 1 | -1) => setRows((rs) => shiftMatches(rs, index, delta, ordered))
-  const link = (index: number, playId: number | null) => setRows((rs) => rs.map((r, i) => (i === index ? { ...r, playId } : r)))
+  const shift = match.shift
+  const link = match.link
+
+  // One long video is a whole game: offer to split it into plays at its camera cuts.
+  const fullGame = rows.length === 1 && (durations[rows[0].path] ?? 0) >= FULL_GAME_SECONDS ? rows[0] : null
+  const runSplit = async () => {
+    if (!game || !fullGame) return
+    setSplit({ done: 0, total: 100 })
+    setError(null)
+    const off = api.onConvertProgress((p) => setSplit({ done: p.done, total: p.total }))
+    try {
+      const res = await api.splitGame(game.gameId, fullGame.path)
+      banner({ title: `Found ${plural(res.plays, 'play')} in the film`, body: res.angles > 1 ? 'Each play’s sideline and end zone shots were paired up.' : undefined, kind: 'success' })
+      usePaths([res.folder])
+    } catch (e) {
+      if (!/cancel/i.test(errorText(e))) setError(e)
+    } finally {
+      off()
+      setSplit(null)
+    }
+  }
 
   const save = async () => {
     if (!game || !team || !rows.length) return
@@ -409,7 +435,7 @@ export function ImportFilm({
                 />
               </FormRow>
             </FormGroup>
-            <FormGroup title="Clips" trailing={fix ? <Button size="sm" variant="borderless" label="Match Again" title="Match every clip to plays in file name order again" disabled={locked} onClick={() => reload({}, false)} /> : undefined}>
+            <FormGroup title="Clips" trailing={fix ? <Button size="sm" variant="borderless" label="Match Again" title="Place every clip on a play again from its order and length" disabled={locked} onClick={match.matchAgain} /> : undefined}>
               {folders.length === 0 && <FormRow label="No clips" description="None of these files can be matched." />}
               {folders.slice(0, 3).map((f) => (
                 <FormRow key={f.dir} label={<span className="import-folder" title={f.dir}><Icon name="folder-open" size={14} className="c-label-3" />{f.label}</span>} description={plural(f.count, 'clip')}>
@@ -430,11 +456,24 @@ export function ImportFilm({
                 </FormRow>
               ))}
               {folders.length > 3 && <FormRow label={`${plural(folders.length - 3, 'more folder')}`} description={folders.slice(3).map((f) => `${f.label} (${ANGLE_LABEL[f.angle]})`).join(', ')} />}
-              <FormRow label="Clips include" description={`${plural(ordered.length, 'play')} to match`}>
-                <Checkbox checked={preview.includeSpecialTeams} disabled={locked} onChange={(v) => reload({ includeSpecialTeams: v })}>
+              <FormRow label="Cut from" description={`${plural(ordered.length, 'play')} to match`}>
+                <PopupButton
+                  size="sm"
+                  width={150}
+                  value={match.scope.side}
+                  disabled={locked}
+                  options={(['all', 'offense', 'defense'] as Side[]).map((side) => ({
+                    value: side,
+                    label: side === 'all' ? 'Every snap' : `${nickname(team ?? game.homeTeam)} ${side}`,
+                    test: `scope-side-${side}`
+                  }))}
+                  onChange={(side) => match.setScope({ ...match.scope, side })}
+                  test="import-scope-side"
+                />
+                <Checkbox checked={match.scope.includeSpecialTeams} disabled={locked} onChange={(v) => match.setScope({ ...match.scope, includeSpecialTeams: v })}>
                   Special teams
                 </Checkbox>
-                <Checkbox checked={preview.includeNoPlays} disabled={locked} onChange={(v) => reload({ includeNoPlays: v })}>
+                <Checkbox checked={match.scope.includeNoPlays} disabled={locked} onChange={(v) => match.setScope({ ...match.scope, includeNoPlays: v })}>
                   Penalty no-plays
                 </Checkbox>
               </FormRow>
@@ -457,17 +496,44 @@ export function ImportFilm({
           {!preview.plays.length ? (
             <Notice icon="circle-alert" tone="warning" title="No play-by-play for this game yet" body="Clips can’t be matched to plays until nflverse publishes it. Update the season data later and import again." />
           ) : (
-            mismatch && (
+            fullGame ? (
               <Notice
-                icon="info"
+                icon={split ? 'spinner' : 'film'}
                 tone="info"
-                test="count-notice"
-                title={`${mismatch.map((m) => `${plural(m.clips, `${anglesShown.length > 1 ? `${ANGLE_LABEL[m.angle].toLowerCase()} ` : ''}clip`)}`).join(' and ')} for ${plural(ordered.length, 'play')}`}
-                body="Clips are matched to plays in order. Where they stop lining up, select the first clip that’s off and slide it; clips past the last play stay unlinked."
+                test="split-notice"
+                title={split ? 'Splitting the film into plays…' : 'This looks like a whole game'}
+                body={
+                  split
+                    ? 'Finding the camera cuts, then cutting a clip for each play and angle. Your original isn’t touched.'
+                    : 'Split it into one clip per play at its camera cuts. Each play’s sideline and end zone shots are paired up, then matched to the play-by-play.'
+                }
+                progress={split ? <ProgressBar value={split.total ? split.done / split.total : null} style={{ marginTop: 8 }} label="Splitting" /> : undefined}
+                action={split ? undefined : <Button size="sm" label="Split Into Plays" disabled={locked || !ffmpeg?.path} onClick={() => void runSplit()} test="split-game" />}
               />
+            ) : match.smart ? (
+              match.needsLook.size > 0 && !reviewing && (
+                <Notice
+                  icon="info"
+                  tone="info"
+                  test="needs-look-notice"
+                  title={`${plural(match.needsLook.size, 'clip needs', 'clips need')} a look`}
+                  body="Order and length couldn’t settle which play these show. Watch them one at a time and pick the play; each pick helps place the clips around it."
+                  action={<Button size="sm" label="Check Clips" disabled={locked} onClick={() => setReviewing(true)} test="check-clips" />}
+                />
+              )
+            ) : (
+              mismatch && (
+                <Notice
+                  icon="info"
+                  tone="info"
+                  test="count-notice"
+                  title={`${mismatch.map((m) => `${plural(m.clips, `${anglesShown.length > 1 ? `${ANGLE_LABEL[m.angle].toLowerCase()} ` : ''}clip`)}`).join(' and ')} for ${plural(ordered.length, 'play')}`}
+                  body="These clips keep the matches they were saved with. Match Again places every clip from its order and length, skipping plays that weren’t cut."
+                />
+              )
             )
           )}
-          {alignment && alignment.suspects.length > 0 && (
+          {alignment && alignment.suspects.length > 0 && !reviewing && !fullGame && (
             <Notice
               icon="triangle-alert"
               tone="warning"
@@ -488,6 +554,10 @@ export function ImportFilm({
             />
           )}
 
+          {reviewing ? (
+            <ClipReview rows={rows} match={match} durations={durations} startPath={selection && match.needsLook.has(selection) ? selection : undefined} onClose={() => setReviewing(false)} />
+          ) : (
+          <>
           <div className="import-tablebar">
             {anglesShown.length > 1 ? (
               <Segmented
@@ -520,8 +590,9 @@ export function ImportFilm({
               ) : null}
             </span>
             <span className="import-tablebar__hint">
-              Select a clip and press <kbd>⇧↑</kbd> or <kbd>⇧↓</kbd> to slide it and every later clip
+              Select a clip and press <kbd>⇧↑</kbd> or <kbd>⇧↓</kbd> to slide it{match.smart ? '; the clips after it follow' : ' and every later clip'}
             </span>
+            <Button size="sm" variant="borderless" label="Watch Clips" title="Step through the clips, watching each one, and pick its play" disabled={locked || !rows.length} onClick={() => setReviewing(true)} test="watch-clips" />
           </div>
           <MatchTable
             items={items}
@@ -533,8 +604,11 @@ export function ImportFilm({
             onSelect={setSelection}
             onShift={shift}
             onLink={link}
+            needsLook={match.needsLook}
             disabled={locked}
           />
+          </>
+          )}
         </div>
       )}
     </Sheet>
@@ -654,7 +728,7 @@ function DropZone({ paths, onChoose }: { paths: string[]; onChoose: () => void }
         <>
           <div className="import-drop__title">Drop a game’s clips here</div>
           <div className="import-drop__body">
-            One clip per play, or the folder they’re in. Sideline and end zone clips can sit in folders of their own; each angle is read from folder and file names.
+            Clips you cut, the folder they’re in, or a whole game’s film to split into plays. Plays you skipped are fine; clips are placed on plays by their order and length.
           </div>
           <Button variant="primary" label="Choose Clips…" onClick={onChoose} test="choose-clips" />
         </>
