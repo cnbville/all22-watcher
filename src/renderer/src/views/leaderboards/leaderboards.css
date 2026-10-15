@@ -1,0 +1,197 @@
+@layer screens {
+  /* Leaderboards (03 §7). */
+  .screen-leaderboards {
+    .leaders__intro {
+      margin: -4px 0 0;
+      font: var(--t-body-prose);
+      color: var(--label-2);
+    }
+    .leaders__summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .leaders__table {
+      margin-top: 20px;
+    }
+    .leaders__rank {
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .leaders__rank--tied {
+      color: var(--label-3);
+    }
+    .leaders__player {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .leaders__name {
+      min-width: 0;
+      font: var(--t-body);
+      color: var(--label);
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: default;
+    }
+    .leaders__name:hover {
+      text-decoration: underline;
+    }
+    .leaders__jersey {
+      flex: none;
+      margin-left: -2px;
+      font: var(--t-callout);
+      color: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .leaders__team {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .leaders__more {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .leaders__pos {
+      color: var(--label-2);
+    }
+    .leaders__crit {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      color: var(--label);
+
+      svg {
+        color: var(--label-3);
+      }
+    }
+  }
+
+  /* The filter popover (rendered into the popover layer). */
+  .screen-leaderboards.leaders-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    .leaders-filters__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 28px;
+    }
+    .leaders-filters__label {
+      font: var(--t-body);
+      color: var(--label);
+    }
+    .leaders-filters__footer {
+      display: flex;
+      justify-content: flex-start;
+      margin: 2px -8px -4px;
+      padding-top: 8px;
+      border-top: 1px solid var(--sep);
+    }
+  }
+
+  /* The inspector (portal into the inspector slot). */
+  .leaders-inspector {
+    display: flex;
+    flex-direction: column;
+
+    .leaders-inspector__identity {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--sep);
+    }
+    .leaders-inspector__names {
+      min-width: 0;
+    }
+    .leaders-inspector__name {
+      display: block;
+      font: var(--t-title-3);
+      color: var(--label);
+      text-decoration: none;
+      cursor: default;
+    }
+    .leaders-inspector__name:hover {
+      text-decoration: underline;
+    }
+    .leaders-inspector__line {
+      margin-top: 2px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .leaders-inspector__grade {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .leaders-inspector__rank {
+      font: var(--t-body);
+      color: var(--label);
+    }
+    .leaders-inspector__sub {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .leaders-inspector__tally {
+      display: flex;
+      margin-top: 12px;
+
+      .large-tally {
+        flex: 1;
+      }
+    }
+    .leaders-inspector__counts {
+      margin-top: 6px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+    }
+    .leaders-inspector__weeks {
+      display: flex;
+      justify-content: space-between;
+      width: 120px;
+      margin-top: 2px;
+      font: var(--t-footnote);
+      color: var(--label-3);
+    }
+    .leaders-inspector__tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .leaders-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      padding: 0 8px;
+      border: 0;
+      border-radius: var(--r-sm);
+      background: var(--chip-bg, var(--fill-1));
+      color: var(--chip-fg, var(--label));
+      font: var(--t-callout);
+      cursor: default;
+    }
+    .leaders-tag__count {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .leaders-inspector__actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px;
+    }
+  }
+}

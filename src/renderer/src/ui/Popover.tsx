@@ -30,6 +30,9 @@ export function Popover({
   children: ReactNode
 }) {
   const panel = useRef<HTMLDivElement>(null)
+  // Read through a ref: an inline onClose must not re-run the focus effect (it would pull focus back on every render).
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
   const [pos, setPos] = useState<{ left: number; top: number; side: Placement; arrowAt: number } | null>(null)
 
   useLayer(open, { kind: 'popover', close: onClose })
@@ -92,9 +95,9 @@ export function Popover({
         anchor.current.addEventListener('click', swallow, { capture: true, once: true })
         setTimeout(() => anchor.current?.removeEventListener('click', swallow, { capture: true }), 400)
       }
-      onClose()
+      closeRef.current()
     }
-    const onBlur = () => onClose()
+    const onBlur = () => closeRef.current()
     document.addEventListener('mousedown', onDown, true)
     window.addEventListener('blur', onBlur)
     return () => {
@@ -102,7 +105,7 @@ export function Popover({
       window.removeEventListener('blur', onBlur)
       if (prev && document.contains(prev) && anchor.current?.contains(prev)) prev.focus({ preventScroll: true })
     }
-  }, [open, onClose, anchor])
+  }, [open, anchor])
 
   if (!open) return null
   const layer = document.getElementById('layer-popover') ?? document.body
