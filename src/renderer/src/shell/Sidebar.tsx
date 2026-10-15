@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { DIVISIONS, TEAM_BY_ABBR, TEAMS } from '@shared/teams'
 import type { IconName } from '@shared/icons'
 import type { SeasonStatus } from '@shared/types'
@@ -7,17 +7,15 @@ import { CountBadge, PlainCount } from '../ui/Badge'
 import { Icon } from '../ui/Icon'
 import { type MenuItemSpec, openMenu } from '../ui/Menu'
 import { Popover } from '../ui/Popover'
-import { ProgressBar, ProgressRing } from '../ui/Progress'
 import { SearchField } from '../ui/SearchField'
-import { Switch } from '../ui/Switch'
 import { TeamDot } from '../ui/TeamChip'
 import * as adapters from './adapters'
-import type { CutupSummary, DataStatus, WatchStatus } from './adapters'
+import type { CutupSummary } from './adapters'
+import { DataStatusRow, WatchStatusRow } from './StatusRows'
 import { banner, errorBanner } from './Banners'
 import { action, sep, showMenu, teamMenu } from './contextMenus'
-import { useDataEvent } from './dataEvents'
 import { links, navigate, useHistory } from './router'
-import { addMyTeam, downloadSeason, reorderMyTeams, setSeason, useDownload, useMyTeams, useSeason, useSettings } from './store'
+import { addMyTeam, reorderMyTeams, setSeason, useMyTeams, useSeason } from './store'
 import { ui, setSidebarWidth, setUi, toggleSidebar, useUi } from './uiState'
 
 /** The source list (01 §1.2). */
@@ -243,194 +241,6 @@ export function TeamPicker({ onPick, exclude = [] }: { onPick: (abbr: string) =>
         })}
       </div>
     </div>
-  )
-}
-
-// ── Footer ──────────────────────────────────────────────────────────────────
-
-function updatedLabel(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const now = new Date()
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
-  const diff = Math.round((day(now) - day(d)) / 86400000)
-  if (diff === 0) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-  if (diff === 1) return 'yesterday'
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
-}
-
-function lastUpdatedLong(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  const today = new Date().toDateString() === d.toDateString()
-  return today ? `Today, ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
-function ago(iso: string | null): string {
-  if (!iso) return '—'
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-  if (min < 1) return 'Just now'
-  if (min < 60) return `${min} min ago`
-  const h = Math.round(min / 60)
-  return h < 24 ? `${h} hr ago` : new Date(iso).toLocaleDateString()
-}
-
-function DataStatusRow({ season }: { season: number }) {
-  const [status, setStatus] = useState<DataStatus | null>(null)
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const dl = useDownload(season)
-  const settings = useSettings()
-  const load = useCallback(() => {
-    adapters.dataStatus(season).then(setStatus, () => setStatus(null))
-  }, [season])
-  useEffect(load, [load])
-  useDataEvent(['season', 'settings'], load)
-  useEffect(
-    () =>
-      adapters.onApiEvent((e) => {
-        if (e.type === 'dataStatus' && e.status.season === season) setStatus(e.status)
-      }),
-    [season]
-  )
-  const updating = dl?.busy || status?.state === 'updating'
-  const done = dl?.busy ? dl.progress?.done ?? 0 : status?.done ?? 0
-  const total = dl?.busy ? dl.progress?.total ?? 5 : status?.total ?? 0
-  const step = dl?.busy ? dl.progress?.step ?? 'Starting' : status?.step ?? ''
-  const failed = !updating && (status?.state === 'failed' || !!dl?.error)
-  let text: string
-  if (updating) text = `Updating ${season} data… ${done} of ${total}`
-  else if (failed) text = `Couldn’t update ${season} data`
-  else if (!status || status.state === 'notDownloaded') text = `${season} data not downloaded`
-  else text = `${season} data · Updated ${updatedLabel(status.downloadedAt)}`
-  const update = async () => {
-    if (adapters.has('updateSeasonNow')) {
-      try {
-        await adapters.updateSeasonNow(season)
-      } catch (e) {
-        errorBanner(`Couldn’t update ${season} data`, e)
-      }
-      load()
-    } else if (!(await downloadSeason(season))) errorBanner(`Couldn’t update ${season} data`, 'The download failed.')
-  }
-  return (
-    <>
-      <div ref={ref} className="sidebar-footer__row" data-test="data-status" role="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen(!open)}>
-        {updating ? (
-          <ProgressRing value={total ? done / total : 0} size={14} />
-        ) : (
-          <Icon name={failed ? 'circle-alert' : 'database'} size={14} className={failed ? 'c-danger' : undefined} />
-        )}
-        <span className="sidebar-footer__text">{text}</span>
-      </div>
-      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} placement="top" width={300} test="data-status-popover">
-        <div className="popover__title">{season} season data</div>
-        <dl className="popover__rows">
-          <dt>Last updated</dt>
-          <dd>{lastUpdatedLong(status?.downloadedAt ?? null)}</dd>
-          <dt>Source</dt>
-          <dd>nflverse</dd>
-          <dt>On-field lineups</dt>
-          <dd>{status?.hasParticipation ? 'Published' : 'Not published yet'}</dd>
-        </dl>
-        {settings && 'autoUpdateSeasons' in settings && (
-          <div className="popover__switch-row">
-            <span>Update automatically during the season</span>
-            <Switch
-              size="sm"
-              checked={!!(settings as unknown as { autoUpdateSeasons: boolean }).autoUpdateSeasons}
-              onChange={(v) => void window.api.saveSettings({ autoUpdateSeasons: v } as never).then(() => window.shell.broadcastSettingsChanged())}
-            />
-          </div>
-        )}
-        {updating ? (
-          <div className="popover__progress">
-            <ProgressBar value={total ? done / total : null} />
-            <span className="t-footnote c-label-2">{step ? `${step}…` : 'Updating…'}</span>
-          </div>
-        ) : (
-          <div className="popover__actions">
-            <Button variant="borderless" label="Data Settings…" onClick={() => (setOpen(false), void window.shell.openSettings('data'))} />
-            <Button label={status?.state === 'notDownloaded' ? 'Download' : 'Update Now'} onClick={() => void update()} />
-          </div>
-        )}
-      </Popover>
-    </>
-  )
-}
-
-function WatchStatusRow() {
-  const [status, setStatus] = useState<WatchStatus | null>(null)
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const load = useCallback(() => {
-    adapters.watchStatus().then(setStatus, () => setStatus(null))
-  }, [])
-  useEffect(load, [load])
-  useDataEvent(['film', 'settings'], load)
-  useEffect(
-    () =>
-      adapters.onApiEvent((e) => {
-        if (e.type === 'watchStatus') setStatus(e.status)
-      }),
-    []
-  )
-  if (!status || status.state === 'off' || !status.folder) return null
-  let icon: ReactNode = <Icon name="folder-sync" size={14} />
-  let text = `Watching “${status.folderName ?? status.folder}”`
-  if (status.state === 'importing' && status.current) {
-    icon = <ProgressRing value={status.current.total ? status.current.done / status.current.total : 0} size={14} />
-    text = `${status.current.title}… ${status.current.done} of ${status.current.total}`
-  } else if (status.state === 'missing') {
-    icon = <Icon name="triangle-alert" size={14} className="c-warning" />
-    text = 'Watch folder not found'
-  } else if (status.state === 'paused') {
-    icon = <Icon name="folder-sync" size={14} className="c-label-4" />
-    text = 'Watch folder paused'
-  } else if (status.justImported > 0) {
-    text = `${status.justImported} ${status.justImported === 1 ? 'game' : 'games'} imported`
-  }
-  return (
-    <>
-      <div ref={ref} className="sidebar-footer__row" data-test="watch-status" role="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen(!open)}>
-        {icon}
-        <span className="sidebar-footer__text">{text}</span>
-      </div>
-      <Popover anchor={ref} open={open} onClose={() => setOpen(false)} placement="top" width={300}>
-        <div className="popover__title">Watch folder</div>
-        <div className="popover__path t-mono-sm selectable">{status.folder}</div>
-        <dl className="popover__rows">
-          <dt>Last checked</dt>
-          <dd>{ago(status.lastChecked)}</dd>
-        </dl>
-        {status.recent.length > 0 && (
-          <div className="popover__list">
-            {status.recent.slice(0, 5).map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className="popover__list-row"
-                disabled={!r.gameId}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  if (!r.gameId) return
-                  setOpen(false)
-                  navigate(links.tape(r.gameId, r.team ?? ''))
-                }}
-              >
-                <span className="ellipsis">{r.folder.split(/[\\/]/).pop()}</span>
-                <span className="c-label-2">{r.state === 'failed' ? 'Failed' : `${r.clipCount} clips`}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="popover__actions">
-          <Button variant="borderless" label="Watch Folder Settings…" onClick={() => (setOpen(false), void window.shell.openSettings('film'))} />
-          <Button variant="borderless" label="Show in Finder" onClick={() => status.folder && window.shell.showItemInFolder(status.folder)} />
-          <Button label="Check Now" onClick={() => void adapters.checkWatchFolder().then(load)} />
-        </div>
-      </Popover>
-    </>
   )
 }
 

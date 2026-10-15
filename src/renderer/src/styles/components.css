@@ -1043,6 +1043,11 @@
 .sheet__footer-button {
   min-width: 80px;
 }
+/* Menus and popovers opened from inside a sheet sit above it (01 §5.9 orders them below sheets otherwise). */
+body:has(.sheet-backdrop) .menu,
+body:has(.sheet-backdrop) .popover {
+  z-index: calc(var(--z-sheet) + 10);
+}
 @keyframes sheet-in {
   from {
     opacity: 0;

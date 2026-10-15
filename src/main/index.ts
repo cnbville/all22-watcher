@@ -8,7 +8,7 @@ import type { ExportPlan } from '@shared/exportVideo'
 import { VIDEO_EXTENSIONS } from '@shared/matching'
 import { convertClips, findFfmpeg } from './convert'
 import { Store } from './db'
-import { addEventSink, broadcast, cancelActivity, changed, listActivities, runningActivities } from './events'
+import { addEventSink, broadcast, cancelActivity, changed, listActivities, runningActivities, startActivity } from './events'
 import { planExport } from './exportPlan'
 import { exportsRunning, pickEncoder, queueExport, setExportKeepAwake } from './exportVideo'
 import { ffmpegStatus } from './ffmpeg'
@@ -151,6 +151,12 @@ function handlers(): Handlers {
     downloadSeason: (season) => updater.download(season, { quiet: false }),
     dataStatus: (season) => updater.status(season),
     updateSeasonNow: (season) => updater.updateNow(season),
+    seasonStorage: () => library.seasonStorage(),
+    removeSeason: async (season) => {
+      await library.removeSeason(season)
+      changed('season')
+      broadcast({ type: 'dataStatus', status: await updater.status(season) })
+    },
     teamSummaries: (season) => library.teamSummaries(season),
     teamOverview: (season, team) => library.teamOverview(season, team),
     teamCards: (season, abbrs) => library.teamCards(season, abbrs),
@@ -203,7 +209,30 @@ function handlers(): Handlers {
     convertClips: async (gameId, paths) => {
       const ffmpeg = findFfmpeg()
       if (!ffmpeg) throw new Error('ffmpeg couldn’t be found, so these clips can’t be converted.')
-      return convertClips(ffmpeg, paths, library.convertedDir(gameId), (done, total) => sendAll('convert-progress', { done, total }))
+      let cancelled = false
+      const noun = (n: number) => `${n} ${n === 1 ? 'clip' : 'clips'}`
+      const activity = startActivity({ kind: 'convert', title: `Converting ${noun(paths.length)}`, detail: `0 of ${paths.length}`, total: paths.length }, () => {
+        cancelled = true
+      })
+      try {
+        const res = await convertClips(
+          ffmpeg,
+          paths,
+          library.convertedDir(gameId),
+          (done, total) => {
+            sendAll('convert-progress', { done, total })
+            activity.update({ detail: `${done} of ${total}`, done, total })
+          },
+          () => cancelled
+        )
+        if (cancelled) activity.cancelled()
+        else if (res.failed.length && !res.converted.length) activity.fail(res.failed[0].error)
+        else activity.done({ detail: noun(res.converted.length) })
+        return res
+      } catch (e) {
+        activity.fail(e instanceof Error ? e.message : String(e))
+        throw e
+      }
     },
     relinkClip: async (clipId, playId) => {
       store().relinkClip(clipId, playId)

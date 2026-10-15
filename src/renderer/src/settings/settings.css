@@ -93,4 +93,48 @@
   .settings-list-row--add {
     min-height: 36px;
   }
+  .settings-path {
+    display: block;
+    overflow-wrap: anywhere;
+    color: var(--label-2);
+  }
+  .settings-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .settings-season {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-season__badge {
+    padding: 0 6px;
+    border-radius: var(--r-xs);
+    background: var(--fill-2);
+    font: 600 10px/16px var(--font-text);
+    letter-spacing: var(--track-10);
+    color: var(--label-2);
+  }
+  .settings-unmatched {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .settings-imports {
+    padding: 4px 12px;
+  }
+  .settings-imports .status-import-row + .status-import-row {
+    box-shadow: 0 -1px 0 var(--sep);
+  }
+  /* Reorder and remove buttons show on the row under the pointer or with focus, like macOS list editors. */
+  .settings-list-row .button--borderless.button--icon {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .settings-list-row:hover .button--borderless.button--icon,
+  .settings-list-row:focus-within .button--borderless.button--icon {
+    opacity: 1;
+  }
 }

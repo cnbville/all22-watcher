@@ -71,6 +71,8 @@ export function Sheet({
       if (e.key === 'Enter' && !e.shiftKey && primary && !primary.disabled && !primary.loading) {
         const t = e.target as HTMLElement
         if (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.getAttribute('role') === 'button') return false
+        // A focused table opens its selected row with ↩ (01 §6.15).
+        if (t.closest('[role="grid"]')) return false
         e.preventDefault()
         primary.run()
         return true

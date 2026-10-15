@@ -88,6 +88,7 @@ const shellBridge: ShellBridge = {
   setContentHeight: (height) => ipcRenderer.send(C.contentHeight, height),
   confirm: (c) => ipcRenderer.invoke(C.invoke, 'confirm', c),
   showItemInFolder: (path) => void ipcRenderer.invoke(C.invoke, 'showItemInFolder', path),
+  showInMain: (route) => void ipcRenderer.invoke(C.invoke, 'showInMain', route),
   openExternal: (url) => void ipcRenderer.invoke(C.invoke, 'openExternal', url),
   setPlaybackActive: (active) => ipcRenderer.send(C.playback, active),
   beep: () => ipcRenderer.send(C.beep)
