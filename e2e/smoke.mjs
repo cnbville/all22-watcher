@@ -86,6 +86,11 @@ try {
     const settings = await opened
     await settings.waitForSelector('[data-test="settings-tab-general"]')
     await settings.screenshot({ path: join(out, '1b-settings.png') })
+    // Asking for a pane while Settings shows another switches to it (01 §4).
+    await settings.click('[data-test="settings-tab-data"]')
+    await settings.waitForSelector('[data-test="settings-pane-data"]')
+    await win.evaluate(() => window.shell.openSettings('general'))
+    await settings.waitForSelector('[data-test="settings-pane-general"]')
     await settings.close()
   })
 

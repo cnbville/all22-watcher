@@ -35,12 +35,15 @@ export function isEnabled(state: MenuState, id: CommandId): boolean {
     if (SCREEN_MENU.test(id) || id.startsWith('cutup.')) return false
     if (id === 'edit.undo' || id === 'edit.redo') return true
   }
+  // While typing, Undo and Redo edit the text field (the renderer runs the native command), whatever the screen has.
+  if (state.textFocus && state.focused === 'main' && (id === 'edit.undo' || id === 'edit.redo')) return true
   return state.commands[id]?.enabled ?? false
 }
 
 function labelOf(state: MenuState, id: CommandId): string {
   const def = COMMAND_BY_ID[id]
   const s = state.commands[id]
+  if (state.textFocus && (id === 'edit.undo' || id === 'edit.redo')) return def.label
   if (s?.label) return s.label
   if (def.altLabel && s?.checked) return def.altLabel
   if (id === 'file.updateData' && state.dynamic.season) return `Update ${state.dynamic.season} Season Data`
@@ -120,7 +123,7 @@ export function buildMenu(state: MenuState, run: MenuRunner): Menu {
   const sectionItems: MenuItemConstructorOptions[] = d.sections.length
     ? [
         ...d.sections.map((s) =>
-          radio('view.section', s.label, String(s.index), s.checked, s.index <= 8 ? { accelerator: `Alt+CmdOrCtrl+${s.index}` } : {})
+          radio('view.section', s.label, String(s.index), s.checked, s.index >= 1 && s.index <= 8 ? { accelerator: `Alt+CmdOrCtrl+${s.index}` } : {})
         ),
         sep
       ]

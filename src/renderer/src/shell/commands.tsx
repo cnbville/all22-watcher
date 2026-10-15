@@ -160,17 +160,27 @@ export function CommandProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!window.shell) return
     const offMenu = window.shell.onMenu((id, arg) => {
+      // Edit > Undo/Redo in a text field is the field's own undo, not the screen's (macOS sends it through the menu).
+      if ((id === 'edit.undo' || id === 'edit.redo') && isTyping(document.activeElement)) {
+        document.execCommand(id === 'edit.undo' ? 'undo' : 'redo')
+        return
+      }
       runCommand(id, arg)
     })
-    const offLayers = subscribeLayers(changed)
     let typing = false
+    // A menu, popover, Quick Open, preview or sheet gets every key (01 §7.3 step 3), so plain-key menu
+    // equivalents come off the menu bar while one is open, as they do while typing.
     const report = () => {
-      const now = isTyping(document.activeElement)
+      const now = isTyping(document.activeElement) || layers().length > 0
       if (now !== typing) {
         typing = now
         window.shell.setTextFocus(now)
       }
     }
+    const offLayers = subscribeLayers(() => {
+      changed()
+      report()
+    })
     const onFocusOut = () => setTimeout(report, 0)
     document.addEventListener('focusin', report)
     document.addEventListener('focusout', onFocusOut)

@@ -30,6 +30,8 @@ import {
 
 export interface ShellDeps {
   recentFilm(): Promise<RecentFilm[]>
+  /** Whether a path from a window is one the app knows about (its clips, saved files and folders). */
+  canReveal(path: unknown): path is string
 }
 
 const NFLVERSE_URL = 'https://github.com/nflverse/nflverse-data'
@@ -51,6 +53,11 @@ export function registerShell(deps: ShellDeps) {
   })
 
   const send = (win: BrowserWindow | null, id: CommandId, arg?: string) => win?.webContents.send(SHELL_CHANNELS.menu, id, arg)
+  /** A main window made a moment ago is still loading; a message sent now would be lost. */
+  const sendWhenLoaded = (win: BrowserWindow, channel: string, ...args: unknown[]) => {
+    if (win.webContents.isLoading()) win.webContents.once('did-finish-load', () => win.webContents.send(channel, ...args))
+    else win.webContents.send(channel, ...args)
+  }
 
   /** Menu clicks: a few ids act in main; edit.* go to the focused window; everything else to the main window. */
   const run = (id: CommandId, arg?: string) => {
@@ -127,7 +134,10 @@ export function registerShell(deps: ShellDeps) {
   onWindowsChanged(() => {
     const focused = BrowserWindow.getFocusedWindow()
     const kind = windowKind(focused) ?? (getMainWindow() ? 'main' : null)
-    if (kind !== state.focused) {
+    // The state came from a main window that is gone; a new one reports its own once it loads.
+    const stale = !getMainWindow() && Object.keys(state.commands).length > 0
+    if (stale) state.commands = {}
+    if (kind !== state.focused || stale) {
       state.focused = kind
       apply()
     }
@@ -169,11 +179,19 @@ export function registerShell(deps: ShellDeps) {
 
   // Dock progress is the mean of the fractions every window reports (01 §3.7).
   const progress = new Map<number, number>()
-  ipcMain.on(SHELL_CHANNELS.dockProgress, (e, fraction: number) => {
-    if (fraction < 0) progress.delete(e.sender.id)
-    else progress.set(e.sender.id, Math.max(0, Math.min(1, fraction)))
+  const showProgress = () => {
     const values = [...progress.values()]
     getMainWindow()?.setProgressBar(values.length ? values.reduce((a, b) => a + b, 0) / values.length : -1)
+  }
+  ipcMain.on(SHELL_CHANNELS.dockProgress, (e, fraction: number) => {
+    const id = e.sender.id
+    if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction < 0) progress.delete(id)
+    else {
+      // A window that closes mid-task must not leave its bar behind.
+      if (!progress.has(id)) e.sender.once('destroyed', () => (progress.delete(id), showProgress()))
+      progress.set(id, Math.max(0, Math.min(1, fraction)))
+    }
+    showProgress()
   })
   ipcMain.on(SHELL_CHANNELS.dockBadge, (_e, count: number) => {
     if (app.dock) app.dock.setBadge(count > 0 ? String(count) : '')
@@ -228,10 +246,10 @@ export function registerShell(deps: ShellDeps) {
         return res.response === 0
       }
       case 'showInMain':
-        showMainWindow().webContents.send(SHELL_CHANNELS.navigate, String(args[0]))
+        sendWhenLoaded(showMainWindow(), SHELL_CHANNELS.navigate, String(args[0]))
         return
       case 'showItemInFolder':
-        shell.showItemInFolder(args[0] as string)
+        if (deps.canReveal(args[0])) shell.showItemInFolder(args[0])
         return
       case 'openExternal': {
         const url = String(args[0])
@@ -242,15 +260,21 @@ export function registerShell(deps: ShellDeps) {
     throw new Error(`Unknown shell method ${method}`)
   })
 
+  const notes = new Set<Notification>()
   function notify(n: NotifyRequest): 'native' | 'in-app' {
     const main = getMainWindow()
     const inApp = main && main.isVisible() && main.isFocused() && !main.isMinimized()
     if (inApp || !Notification.isSupported()) return 'in-app'
     const note = new Notification({ title: n.title, body: n.body ?? '', silent: false })
+    // Held until it's clicked or closed: a notification that is garbage-collected loses its click handler.
+    notes.add(note)
+    note.on('close', () => notes.delete(note))
     note.on('click', () => {
+      notes.delete(note)
       const win = showMainWindow()
-      if (n.revealPath) shell.showItemInFolder(n.revealPath)
-      else if (n.route) win.webContents.send(SHELL_CHANNELS.navigate, n.route)
+      if (n.revealPath) {
+        if (deps.canReveal(n.revealPath)) shell.showItemInFolder(n.revealPath)
+      } else if (n.route) sendWhenLoaded(win, SHELL_CHANNELS.navigate, n.route)
     })
     note.show()
     return 'native'

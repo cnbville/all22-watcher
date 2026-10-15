@@ -36,6 +36,8 @@ export function SettingsApp() {
   const route = useRoute()
   const fromRoute = route.path[0] === 'settings' && SETTINGS_PANES.includes(route.path[1] as SettingsPane) ? (route.path[1] as SettingsPane) : null
   const [pane, setPane] = useState<SettingsPane>(fromRoute ?? readPane())
+  // The pane being shown or faded to: switchTo is also called from listeners registered once, which must not see a stale pane.
+  const target = useRef(pane)
   const [fading, setFading] = useState(false)
   const content = useRef<HTMLDivElement>(null)
   const tabs = useRef<HTMLDivElement>(null)
@@ -54,7 +56,8 @@ export function SettingsApp() {
   }), [])
 
   const switchTo = (p: SettingsPane) => {
-    if (p === pane) return
+    if (p === target.current) return
+    target.current = p
     setFading(true)
     setTimeout(() => {
       setPane(p)
@@ -87,7 +90,7 @@ export function SettingsApp() {
   const onTabKey = (e: React.KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
     e.preventDefault()
-    const i = SETTINGS_PANES.indexOf(pane)
+    const i = SETTINGS_PANES.indexOf(target.current)
     const next = SETTINGS_PANES[(i + (e.key === 'ArrowRight' ? 1 : SETTINGS_PANES.length - 1)) % SETTINGS_PANES.length]
     switchTo(next)
     tabs.current?.querySelector<HTMLElement>(`[data-pane="${next}"]`)?.focus()

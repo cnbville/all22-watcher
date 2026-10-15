@@ -110,7 +110,8 @@ const SEASON_KEY = 'ui.season'
 
 function storedSeason(): number | null {
   try {
-    const v = Number(localStorage.getItem(SEASON_KEY))
+    // v1 kept the season under 'season'; carry it over until v2 saves its own.
+    const v = Number(localStorage.getItem(SEASON_KEY) ?? localStorage.getItem('season'))
     return v > 2000 ? v : null
   } catch {
     return null
@@ -224,6 +225,10 @@ export function startStores() {
   })
   window.shell?.onSettingsChanged(() => {
     void refreshSettings().then(() => emit('settings'))
+  })
+  // Main changes settings itself too (My Teams after a watch-folder import, Choose Watch Folder), without a broadcast.
+  rawApi?.onApiEvent?.((e) => {
+    if (e.type === 'changed' && e.kinds.includes('settings')) void refreshSettings()
   })
   onDataEvent('season', () => void refreshSeasons())
 }

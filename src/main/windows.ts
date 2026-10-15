@@ -157,7 +157,10 @@ export function createMainWindow(): BrowserWindow {
     win.webContents.send(SHELL_CHANNELS.windowState, { fullScreen: win.isFullScreen(), reduceTransparency: nativeTheme.prefersReducedTransparency })
   win.on('enter-full-screen', sendState)
   win.on('leave-full-screen', sendState)
-  nativeTheme.on('updated', () => !win.isDestroyed() && sendState())
+  // The main window can be closed and made again; each one removes its own listener.
+  const onTheme = () => !win.isDestroyed() && sendState()
+  nativeTheme.on('updated', onTheme)
+  win.once('closed', () => nativeTheme.removeListener('updated', onTheme))
   // Three-finger swipe goes back and forward (01 §1.4.1).
   win.on('swipe', (_e, direction) => {
     if (direction === 'left') win.webContents.send(SHELL_CHANNELS.menu, 'go.back')
