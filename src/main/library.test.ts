@@ -3,11 +3,13 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
-import type { ClipMatchRow } from '@shared/types'
+import { gradeScore } from '@shared/stats'
+import type { ClipMatchRow, GradeEntry } from '@shared/types'
 import { convertClips, convertedPath } from './convert'
 import { Store } from './db'
-import { Library } from './library'
+import { Library, SEASON_LRU } from './library'
 import { mirrorFetcher, seasonStatuses } from './nflverse'
+import { CutupEngine } from './playQuery'
 
 const csv = (rows: Record<string, string | number>[]) => {
   const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))]
@@ -197,5 +199,269 @@ describe('Library.previewMatch', () => {
     const copy = (angle: string) => convertedPath(join(game, angle, '001.mkv'), library.convertedDir(gameId))
     expect(saved).toEqual({ [copy('All-22')]: ['main', 10], [copy('Sideline')]: ['sideline', 10] })
     expect(await fixed()).toEqual(saved)
+  })
+})
+
+// v2: several seasons, season lines, leaderboards, matchups and cut-ups
+
+type Row = Record<string, string | number>
+interface SeasonSpec {
+  season: number
+  /** [gameId, gameday, homeScore (null: not played)] */
+  games: [string, string, number | null][]
+  plays?: Row[]
+  /** [id, name, team, position] */
+  roster?: [string, string, string, string][]
+}
+
+/** One mirror holding several seasons; every season is downloaded unless listed in `skip`. */
+async function seasons(specs: SeasonSpec[], skip: number[] = []): Promise<Library> {
+  const dir = await mkdtemp(join(tmpdir(), 'all22-lib2-'))
+  const mirror = join(dir, 'mirror')
+  await mkdir(mirror)
+  const games = specs.flatMap((s) =>
+    s.games.map(([game_id, gameday, home_score]) => {
+      const [, week, away_team, home_team] = game_id.split('_')
+      return { game_id, season: s.season, week: Number(week), game_type: 'REG', gameday, away_team, home_team, away_score: home_score === null ? '' : 10, home_score: home_score ?? '' }
+    })
+  )
+  await writeFile(join(mirror, 'games.csv'), csv(games))
+  for (const s of specs) {
+    if (s.plays?.length) await writeFile(join(mirror, `play_by_play_${s.season}.csv.gz`), gzipSync(csv(s.plays)))
+    if (s.roster?.length) {
+      await writeFile(
+        join(mirror, `roster_${s.season}.csv`),
+        csv(s.roster.map(([gsis_id, full_name, team, position]) => ({ gsis_id, full_name, team, position, depth_chart_position: position, status: 'ACT', week: 18 })))
+      )
+    }
+  }
+  const store = await Store.open(join(dir, 'grades.sqlite'))
+  const library = new Library(store, join(dir, 'cache'), mirrorFetcher(mirror))
+  for (const s of specs) if (!skip.includes(s.season)) await library.downloadSeason(s.season, () => {})
+  return library
+}
+
+const grade = (library: Library, gameId: string, playId: number, playerId: string, team: string, g: -1 | 0 | 1 | null, extra: Partial<GradeEntry> = {}) =>
+  library.saveGrade({ gameId, playId, playerId, team, grade: g, tags: [], note: '', critical: false, offField: false, ...extra })
+
+const pbp = (game_id: string, play_id: number, posteam: string, defteam: string, extra: Row = {}): Row => ({
+  game_id,
+  play_id,
+  posteam,
+  defteam,
+  play_type: 'pass',
+  pass: 1,
+  qtr: 1,
+  time: '10:00',
+  down: 1,
+  ydstogo: 10,
+  yardline_100: 75,
+  epa: 0.1,
+  success: 1,
+  yards_gained: 5,
+  ...extra
+})
+
+describe('Library seasons LRU', () => {
+  it('keeps at most four seasons loaded, evicting the least recently used', async () => {
+    const lib = await seasons([2021, 2022, 2023, 2024, 2025].map((season) => ({ season, games: [[`${season}_01_DAL_PHI`, `${season}-09-10`, 20]] })))
+    for (const s of [2021, 2022, 2023, 2024]) await lib.season(s)
+    expect(lib.loadedSeasons()).toEqual([2021, 2022, 2023, 2024])
+    await lib.season(2021)
+    await lib.season(2025)
+    expect(lib.loadedSeasons()).toEqual([2023, 2024, 2021, 2025])
+    expect(SEASON_LRU).toBe(4)
+  })
+})
+
+describe('Library.playerSeasonLine', () => {
+  const specs: SeasonSpec[] = [
+    {
+      season: 2024,
+      games: [['2024_01_DAL_PHI', '2024-09-08', 20]],
+      roster: [
+        ['old-mhj', 'Marvin Harrison Jr.', 'ARI', 'WR'],
+        ['wr-a', 'Mike Williams', 'NYJ', 'WR'],
+        ['wr-b', 'Mike Williams', 'PIT', 'WR'],
+        ['qb-allen', 'Josh Allen', 'BUF', 'QB'],
+        ['lb-allen', 'Josh Allen', 'JAX', 'OLB'],
+        ['cb1', 'Cooper DeJean', 'PHI', 'CB']
+      ]
+    },
+    { season: 2025, games: [['2025_01_DAL_PHI', '2025-09-04', 24]], roster: [['cb1', 'Cooper DeJean', 'PHI', 'CB']] }
+  ]
+  it('matches by id, then by name and group, never on an ambiguous name', async () => {
+    const lib = await seasons(specs)
+    expect(await lib.playerSeasonLine(2024, 'cb1')).toMatchObject({ matchedBy: 'id', player: { name: 'Cooper DeJean' } })
+    expect(await lib.playerSeasonLine(2024, 'new-mhj', { name: 'Marvin Harrison', group: 'WR' })).toMatchObject({ matchedBy: 'name', player: { id: 'old-mhj' } })
+    expect(await lib.playerSeasonLine(2024, 'new-mw', { name: 'Mike Williams', group: 'WR' })).toBeNull()
+    // Same name, different group: the group decides.
+    expect(await lib.playerSeasonLine(2024, 'x', { name: 'Josh Allen', group: 'QB' })).toMatchObject({ player: { id: 'qb-allen' } })
+    expect(await lib.playerSeasonLine(2024, 'nobody')).toBeNull()
+    expect(await lib.playerSeasonLine(2019, 'cb1')).toBeNull()
+  })
+})
+
+describe('Library.leaderboard and matchup', () => {
+  const wk1 = '2025_01_DAL_NYJ'
+  const wk2 = '2025_02_NYJ_IND'
+  const specs: SeasonSpec[] = [
+    { season: 2024, games: [['2024_05_IND_NYJ', '2024-10-06', 17]] },
+    {
+      season: 2025,
+      games: [
+        [wk1, '2025-09-07', 20],
+        [wk2, '2025-09-14', 13],
+        ['2025_12_IND_NYJ', '2025-11-23', null]
+      ],
+      plays: [pbp(wk1, 10, 'DAL', 'NYJ', { epa: 1 }), pbp(wk1, 11, 'DAL', 'NYJ', { epa: -1 }), pbp(wk2, 10, 'IND', 'NYJ', { epa: 0.5 })],
+      roster: [
+        ['g1', 'Garrett Traded', 'IND', 'CB'],
+        ['s1', 'Stay Put', 'NYJ', 'S'],
+        ['w1', 'Wide Out', 'NYJ', 'WR']
+      ]
+    }
+  ]
+  it('ranks graded players of the group, a traded player as one row', async () => {
+    const lib = await seasons(specs)
+    grade(lib, wk1, 10, 'g1', 'NYJ', 1)
+    grade(lib, wk1, 11, 'g1', 'NYJ', 1, { critical: true })
+    grade(lib, wk2, 10, 'g1', 'IND', -1)
+    grade(lib, wk1, 10, 's1', 'NYJ', 0)
+    grade(lib, wk1, 11, 's1', 'NYJ', null, { tags: ['Missed tackle'] })
+    grade(lib, wk1, 10, 'w1', 'NYJ', 1)
+    const rows = await lib.leaderboard(2025, 'DB')
+    expect(rows.map((r) => [r.player.id, r.teams, r.games, r.tally.graded])).toEqual([
+      ['g1', ['NYJ', 'IND'], 2, 3],
+      ['s1', ['NYJ'], 1, 1]
+    ])
+    // 50 + 50 * (2 - 1 + 1) / (3 + 1) = 75
+    expect(gradeScore(rows[0].tally)).toBe(75)
+    // EPA from each team's side: NYJ defended +1 and -1, IND's offense +0.5.
+    expect(rows[0].epa).toBeCloseTo((-1 + 1 + 0.5) / 3)
+    expect(rows[0].lastGames.map((g) => g.gameId)).toEqual([wk2, wk1])
+    expect((await lib.leaderboard(2025, 'WR')).map((r) => r.player.id)).toEqual(['w1'])
+  })
+  it('lists meetings across downloaded seasons, newest first', async () => {
+    const lib = await seasons(specs)
+    const m = await lib.matchup(2025, 'NYJ', 'IND')
+    expect(m.meetings.map((x) => x.game.gameId)).toEqual(['2025_12_IND_NYJ', wk2, '2024_05_IND_NYJ'])
+    expect(m.left.team.abbr).toBe('NYJ')
+    expect(m.right.team.abbr).toBe('IND')
+  })
+})
+
+describe('Cut-up evaluation', () => {
+  const g1 = '2025_01_DAL_PHI'
+  const g2 = '2025_02_PHI_KC'
+  const specs: SeasonSpec[] = [
+    { season: 2019, games: [['2019_01_DAL_PHI', '2019-09-08', 20]] },
+    {
+      season: 2025,
+      games: [
+        [g1, '2025-09-04', 24],
+        [g2, '2025-09-14', 20]
+      ],
+      plays: [
+        pbp(g1, 1, 'PHI', 'DAL', { down: 3, epa: 0.4 }),
+        pbp(g1, 2, 'DAL', 'PHI', { down: 3, epa: 1.5 }),
+        pbp(g1, 3, 'PHI', 'DAL', { down: 1, epa: -0.2 }),
+        pbp(g2, 1, 'KC', 'PHI', { down: 3, epa: -2 }),
+        pbp(g2, 2, 'PHI', 'KC', { down: 2, epa: 0.3 })
+      ],
+      roster: [['qb1', 'Jalen Q', 'PHI', 'QB']]
+    }
+  ]
+  const third = { match: 'all' as const, rules: [{ field: 'down' as const, op: 'is' as const, value: ['3'] }], limit: null, order: 'game' as const }
+
+  it('evaluates rules over games with film or grades, from the studied team’s side', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    // g1 has film studied as PHI; g2 only has a grade.
+    lib.store.replaceClips(g1, [{ path: '/c/1.mp4', fileName: '1.mp4', angle: 'sideline', playId: 1 }])
+    lib.store.touchFilm(g1, 'PHI', false)
+    grade(lib, g2, 2, 'qb1', 'PHI', 1)
+    const preview = await engine.preview(third)
+    expect(preview.sample.map((i) => [i.ref.gameId, i.ref.playId, i.team])).toEqual([
+      [g1, 1, 'PHI'],
+      [g1, 2, 'PHI'],
+      [g2, 1, 'KC']
+    ])
+    // g2 has no studied team: the home team's side. With a focus team, that team's side.
+    const focused = await engine.preview(third, { team: 'PHI' })
+    expect(focused.sample.at(-1)!.team).toBe('PHI')
+    expect(focused.sample.map((i) => i.teamEpa)).toEqual([0.4, -1.5, 2])
+    expect(preview.playCount).toBe(3)
+    expect(preview.gameCount).toBe(2)
+  })
+
+  it('orders by team EPA, limits, and side rules use the perspective team', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    lib.store.touchFilm(g1, 'PHI', false)
+    lib.store.touchFilm(g2, 'PHI', false)
+    const best = await engine.preview({ ...third, order: 'epa-desc', limit: 2 })
+    expect(best.sample.map((i) => [i.ref.gameId, i.ref.playId])).toEqual([
+      [g2, 1],
+      [g1, 1]
+    ])
+    const worst = await engine.preview({ ...third, order: 'epa-asc' })
+    expect(worst.sample[0].ref).toEqual({ gameId: g1, playId: 2 })
+    const newest = await engine.preview({ ...third, order: 'newest' })
+    expect(newest.sample[0].ref.gameId).toBe(g2)
+    const offense = await engine.preview({ match: 'all', rules: [{ field: 'side', op: 'is', value: ['offense'] }], limit: null, order: 'game' })
+    expect(offense.sample.map((i) => `${i.ref.gameId}#${i.ref.playId}`)).toEqual([`${g1}#1`, `${g1}#3`, `${g2}#2`])
+  })
+
+  it('reports seasons it couldn’t read, and smart results follow new grades', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    grade(lib, '2019_01_DAL_PHI', 5, 'qb1', 'PHI', 1)
+    grade(lib, g1, 3, 'qb1', 'PHI', 1)
+    const cut = lib.store.createCutup({ kind: 'smart', rules: { match: 'all', rules: [{ field: 'status', op: 'is', value: ['graded'] }], limit: null, order: 'game' } })
+    let detail = (await engine.detail(cut.id))!
+    expect(detail.items.map((i) => i.ref.playId)).toEqual([3])
+    expect(detail.skippedSeasons).toEqual([2019])
+    expect(detail.items[0].entries).toEqual([{ playerId: 'qb1', name: 'Jalen Q', position: 'QB', grade: 1, critical: false, tags: [], note: '' }])
+    grade(lib, g1, 1, 'qb1', 'PHI', -1)
+    detail = (await engine.detail(cut.id))!
+    expect(detail.items.map((i) => i.ref.playId)).toEqual([1, 3])
+    const [summary] = await engine.summaries()
+    expect(summary).toMatchObject({ playCount: 2, gameCount: 1, withoutFilm: 2, poster: null, duration: 0 })
+  })
+
+  it('builds manual cut-ups in user order, with plays of seasons not downloaded', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    lib.store.replaceClips(g1, [{ path: '/c/3.mp4', fileName: '3.mp4', angle: 'endzone', playId: 3 }])
+    lib.store.setClipDurations(g1, new Map([['/c/3.mp4', 6]]))
+    const clip = lib.store.clipsForGame(g1)[0]
+    lib.store.setClipSnap(clip.id, 2500)
+    const cut = lib.store.createCutup({ kind: 'manual', plays: [{ gameId: g1, playId: 3 }, { gameId: '2019_01_DAL_PHI', playId: 9 }, { gameId: g2, playId: 1 }] })
+    const detail = (await engine.detail(cut.id))!
+    expect(detail.items.map((i) => [i.ref.playId, i.play?.playId ?? null, i.clips.length])).toEqual([
+      [3, 3, 1],
+      [9, null, 0],
+      [1, 1, 0]
+    ])
+    expect(detail.skippedSeasons).toEqual([2019])
+    expect(detail.items[0].addedAt).toBeTruthy()
+    // Start at the snap with a 1 s pre-roll: 6 - 1.5 = 4.5 s, poster at the start point.
+    const [summary] = await engine.summaries()
+    expect(summary).toMatchObject({ playCount: 3, gameCount: 3, withoutFilm: 2, duration: 4.5, poster: { clipId: clip.id, at: 1.5 } })
+    expect(await engine.refs(cut.id)).toHaveLength(3)
+  })
+
+  it('offers the values seen in the universe for the rules sheet', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    lib.store.touchFilm(g1, 'PHI', false)
+    grade(lib, g2, 1, 'qb1', 'PHI', 0)
+    const opts = await engine.ruleOptions()
+    expect(opts.seasons).toEqual([2025])
+    expect(opts.games.map((g) => g.label)).toEqual(['2025 · Wk 2 · PHI @ KC', '2025 · Wk 1 · DAL @ PHI'])
+    // No participation in this mirror.
+    expect(opts.noLineupSeasons).toEqual([2025])
+    expect(opts.tags.length).toBeGreaterThan(0)
   })
 })

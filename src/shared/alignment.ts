@@ -95,15 +95,21 @@ export function checkAlignment(gameId: string, clips: AlignmentClip[], plays: Pl
         if (!b || !differ(a.duration!, b.duration!)) continue
         const k = indexOf.get(playId)!
         const neighbours = [order[k - 1], order[k + 1]].filter(Boolean).map((p) => p.playId)
-        // Which side is off? The clip that matches the other angle's clip on a neighbouring play.
-        const aMoved = neighbours.find((n) => B.get(n) && !differ(a.duration!, B.get(n)!.duration!))
-        const bMoved = neighbours.find((n) => A.get(n) && !differ(b.duration!, A.get(n)!.duration!))
+        // Which side is off? The clip that matches the other angle's clip on a neighbouring play. A neighbour whose
+        // own two angles disagree too (a swap) is the better guess for where the clip belongs.
+        const broken = (n: number) => !!A.get(n) && !!B.get(n) && differ(A.get(n)!.duration!, B.get(n)!.duration!)
+        const home = (d: number, other: Map<number, AlignmentClip>) => {
+          const fits = neighbours.filter((n) => other.get(n) && !differ(d, other.get(n)!.duration!))
+          return fits.find(broken) ?? fits[0]
+        }
+        const aMoved = home(a.duration!, B)
+        const bMoved = home(b.duration!, A)
         const exp = expectedDuration(byId.get(playId)!)
         const msg = 'Clip length doesn’t match the other angle of this play. Check the match.'
         if (aMoved !== undefined && bMoved === undefined) flag(a, 'angleMismatch', aMoved, msg)
         else if (bMoved !== undefined && aMoved === undefined) flag(b, 'angleMismatch', bMoved, msg)
-        else if (misfit(a.duration!, exp) > misfit(b.duration!, exp)) flag(a, 'angleMismatch', null, msg)
-        else flag(b, 'angleMismatch', null, msg)
+        else if (misfit(a.duration!, exp) > misfit(b.duration!, exp)) flag(a, 'angleMismatch', aMoved ?? null, msg)
+        else flag(b, 'angleMismatch', bMoved ?? null, msg)
       }
     }
   }
