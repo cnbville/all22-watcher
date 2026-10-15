@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { detectAngle } from '@shared/matching'
-import { convertClips, convertedPath, findFfmpeg } from './convert'
+import { convertClips, convertedPath, findConverted, findFfmpeg } from './convert'
 
 describe('convertedPath', () => {
   it('keeps the angle folder so angle detection still works', () => {
@@ -29,6 +30,30 @@ describe('convertedPath', () => {
   it('never maps two source clips to the same copy', () => {
     const outs = ['/a/Sideline/Play 1.mkv', '/a/Sideline/Play 1.avi', '/b/Sideline/Play 1.mkv'].map((p) => convertedPath(p, '/out'))
     expect(new Set(outs).size).toBe(3)
+  })
+})
+
+describe('findConverted', () => {
+  it('finds a copy made before the angle folder was kept, and leaves the old path working', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'all22-find-'))
+    const out = join(dir, 'out')
+    const input = join(dir, 'Film', 'Sideline', 'DAL at PHI', '001.mkv')
+    expect(await findConverted(input, out)).toBeNull()
+
+    // Where earlier versions put it: <hash of source folder>/<source folder name>/<file>.mp4
+    const hash = createHash('sha1').update(dirname(input)).digest('hex').slice(0, 8)
+    const old = join(out, hash, 'DAL at PHI', '001.mkv.mp4')
+    await mkdir(dirname(old), { recursive: true })
+    await writeFile(old, 'video')
+    const found = await findConverted(input, out)
+    expect(found).toBe(convertedPath(input, out))
+    expect(found).toBe(join(out, hash, 'Sideline', 'DAL at PHI', '001.mkv.mp4'))
+    expect(detectAngle(found!)).toBe('sideline')
+    expect(readFileSync(found!, 'utf8')).toBe('video')
+    expect(existsSync(old)).toBe(true)
+    expect(await findConverted(input, out)).toBe(found)
+
+    expect(await findConverted(join(dir, 'Film', 'Sideline', 'DAL at PHI', '002.mkv'), out)).toBeNull()
   })
 })
 

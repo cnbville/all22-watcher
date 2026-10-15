@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
+import { link, mkdir, rename, rm } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
 import { angleSource } from '@shared/matching'
 
@@ -38,6 +38,8 @@ async function videoCodec(ffmpeg: string, input: string): Promise<string | null>
   }
 }
 
+const folderHash = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 8)
+
 /**
  * Where a converted copy of `input` goes. A hash of the source folder keeps copies of
  * same-named clips from different folders apart. The clip's own folder name, and any folders
@@ -45,9 +47,23 @@ async function videoCodec(ffmpeg: string, input: string): Promise<string | null>
  */
 export function convertedPath(input: string, outDir: string): string {
   const source = dirname(input)
-  const hash = createHash('sha1').update(source).digest('hex').slice(0, 8)
   const folders = source.split(sep).filter(Boolean).slice(-Math.max(1, angleSource(input).depth))
-  return join(outDir, hash, ...folders, `${basename(input)}.mp4`)
+  return join(outDir, folderHash(source), ...folders, `${basename(input)}.mp4`)
+}
+
+/**
+ * The converted copy of `input`, or null when there isn't one. Copies made before convertedPath kept the angle
+ * folder sit under the clip's own folder name; one found there is hard-linked into place rather than moved, so
+ * clips already saved with the old path keep playing.
+ */
+export async function findConverted(input: string, outDir: string): Promise<string | null> {
+  const copy = convertedPath(input, outDir)
+  if (existsSync(copy)) return copy
+  const old = join(outDir, folderHash(dirname(input)), basename(dirname(input)), basename(copy))
+  if (old === copy || !existsSync(old)) return null
+  await mkdir(dirname(copy), { recursive: true })
+  await link(old, copy).catch(() => {})
+  return existsSync(copy) ? copy : null
 }
 
 /**

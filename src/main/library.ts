@@ -25,7 +25,7 @@ import type {
   TeamRosterRow,
   TeamSummary
 } from '@shared/types'
-import { convertedPath } from './convert'
+import { findConverted } from './convert'
 import type { Store } from './db'
 import {
   downloadSeason,
@@ -235,8 +235,8 @@ export class Library {
     const unsupported: string[] = []
     // Clips already converted to MP4 stand in for their originals.
     for (const f of files.filter((f) => !PLAYABLE_EXTENSIONS.includes(extensionOf(f)))) {
-      const copy = convertedPath(f, this.convertedDir(gameId))
-      if (existsSync(copy)) playable.push(copy)
+      const copy = await findConverted(f, this.convertedDir(gameId))
+      if (copy) playable.push(copy)
       else unsupported.push(f)
     }
     const plays = (await this.plays(gameId)).filter((p) => p.playType !== '')

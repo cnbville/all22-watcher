@@ -23,14 +23,16 @@ export function baseName(path: string): string {
 
 const parentName = (path: string) => path.split(/[\\/]/).slice(-2, -1)[0] ?? ''
 
+const isOvertime = (path: string) => /^(ot|overtime)(?![a-z])/i.test(parentName(path))
+
 /** How many folders above a clip are searched for an angle name. */
 const ANGLE_FOLDER_DEPTH = 3
 
-/** The angle one file or folder name points to, matching whole words only ("Inside Linebackers" isn't "side line"). */
-function nameAngle(name: string, isFolder: boolean): Angle | null {
+/** The angle one file or folder name points to, matching whole words only ("Inside Linebackers" isn't "side", "Wide Right" isn't "wide"). */
+function nameAngle(name: string): Angle | null {
   const words = (name.toLowerCase().match(/[a-z]+/g) ?? []).join(' ')
   if (/\b(ez|end zone)\b|endzone/.test(words)) return 'endzone'
-  if (/\b(sl|side line)\b|sideline/.test(words) || (isFolder && words === 'wide')) return 'sideline'
+  if (/\b(sl|side)\b|sideline|\bwide\b(?! (right|left)\b)/.test(words)) return 'sideline'
   return null
 }
 
@@ -42,7 +44,7 @@ function nameAngle(name: string, isFolder: boolean): Angle | null {
 export function angleSource(path: string): { angle: Angle; depth: number } {
   const names = path.split(/[\\/]/).filter(Boolean).reverse().slice(0, ANGLE_FOLDER_DEPTH + 1)
   for (const [depth, name] of names.entries()) {
-    const angle = nameAngle(name, depth > 0)
+    const angle = nameAngle(name)
     if (angle) return { angle, depth }
   }
   return { angle: 'main', depth: -1 }
@@ -83,12 +85,10 @@ export function matchClips(
     byAngle.set(angle, [...(byAngle.get(angle) ?? []), p])
   }
   for (const list of byAngle.values()) {
-    // Folders that each restart their numbering (Q1/001, Q2/001…) are kept together, in folder order.
+    // Folders that each restart their numbering (Q1/001, Q2/001…) are kept together, in folder order with overtime last.
     const byFolder = new Set(list.map(baseName)).size < list.length
-    list.sort(
-      (a, b) =>
-        (byFolder ? naturalCompare(parentName(a), parentName(b)) : 0) || naturalCompare(baseName(a), baseName(b)) || naturalCompare(a, b)
-    )
+    const folderOrder = (a: string, b: string) => Number(isOvertime(a)) - Number(isOvertime(b)) || naturalCompare(parentName(a), parentName(b))
+    list.sort((a, b) => (byFolder ? folderOrder(a, b) : 0) || naturalCompare(baseName(a), baseName(b)) || naturalCompare(a, b))
   }
 
   const largest = Math.max(0, ...[...byAngle.values()].map((l) => l.length))
