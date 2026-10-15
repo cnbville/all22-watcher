@@ -4,18 +4,13 @@ import { existsSync } from 'node:fs'
 import { link, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, sep } from 'node:path'
 import { angleSource } from '@shared/matching'
-
-const CANDIDATES = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']
+import { probe } from './ffmpeg'
 
 /** Video codecs Chromium on macOS can play from an MP4, so they can be copied without re-encoding. */
 const COPYABLE = new Set(['h264', 'hevc'])
 
-/** Finds an ffmpeg install (Homebrew or system), or null when there isn't one. */
-export function findFfmpeg(): string | null {
-  const override = process.env.ALL22_FFMPEG
-  if (override && existsSync(override)) return override
-  return CANDIDATES.find((p) => existsSync(p)) ?? null
-}
+/** Finds ffmpeg: ALL22_FFMPEG, then the bundled binary, then Homebrew or the system's. */
+export { findFfmpeg } from './ffmpeg'
 
 function run(bin: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,7 +24,10 @@ function run(bin: string, args: string[]): Promise<string> {
 /** The first video stream's codec name, or null when it can't be read (no ffprobe, odd file). */
 async function videoCodec(ffmpeg: string, input: string): Promise<string | null> {
   const ffprobe = join(dirname(ffmpeg), 'ffprobe')
-  if (!existsSync(ffprobe)) return null
+  if (!existsSync(ffprobe)) {
+    // The bundled build has no ffprobe; ffmpeg's own banner names the codec.
+    return (await probe(input, ffmpeg))?.codec ?? null
+  }
   try {
     const out = await run(ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', input])
     return out.trim().split('\n')[0] || null
