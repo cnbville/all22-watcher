@@ -163,7 +163,9 @@ export class Store {
     renameSync(tmp, this.file)
   }
 
+  /** Fills in the starter tags and chart fields once, so emptying either list in Settings sticks. */
   private seedDefaults() {
+    if (this.all("SELECT 1 FROM settings WHERE key = 'seeded'").length) return
     if (!this.all('SELECT 1 FROM tags LIMIT 1').length) {
       this.saveTagsNoFlush(
         POSITION_GROUPS.flatMap((group) => DEFAULT_TAGS[group].map(([label, kind]) => ({ group, label, kind })))
@@ -174,6 +176,7 @@ export class Store {
         this.db.run('INSERT INTO chart_fields (name, options, sort) VALUES (?, ?, ?)', [name, JSON.stringify(options), i])
       )
     }
+    this.db.run("INSERT INTO settings (key, value) VALUES ('seeded', 'true')")
   }
 
   // Clips
@@ -262,14 +265,15 @@ export class Store {
     ]).map(toGrade)
   }
 
-  gradedPlayCounts(gameIds: string[]): Map<string, number> {
+  /** Plays with at least one grade for `team`, per game. */
+  gradedPlayCounts(gameIds: string[], team: string): Map<string, number> {
     const out = new Map<string, number>()
     if (!gameIds.length) return out
     const rows = this.all<{ game_id: string; n: number }>(
-      `SELECT game_id, COUNT(DISTINCT play_id) AS n FROM grades WHERE grade IS NOT NULL AND game_id IN (${gameIds
+      `SELECT game_id, COUNT(DISTINCT play_id) AS n FROM grades WHERE grade IS NOT NULL AND team = ? AND game_id IN (${gameIds
         .map(() => '?')
         .join(',')}) GROUP BY game_id`,
-      gameIds
+      [team, ...gameIds]
     )
     for (const r of rows) out.set(r.game_id, r.n)
     return out
@@ -312,14 +316,50 @@ export class Store {
     )
   }
 
-  private saveTagsNoFlush(tags: Omit<TagDef, 'id'>[]) {
+  private saveTagsNoFlush(tags: (Omit<TagDef, 'id'> & { id?: number })[]) {
     this.db.run('DELETE FROM tags')
-    tags.forEach((t, i) => this.db.run('INSERT INTO tags (grp, label, kind, sort) VALUES (?, ?, ?, ?)', [t.group, t.label, t.kind, i]))
+    tags.forEach((t, i) =>
+      this.db.run('INSERT INTO tags (id, grp, label, kind, sort) VALUES (?, ?, ?, ?, ?)', [t.id ?? null, t.group, t.label, t.kind, i])
+    )
   }
 
-  saveTags(tags: Omit<TagDef, 'id'>[]): TagDef[] {
-    this.transaction(() => this.saveTagsNoFlush(tags))
+  /**
+   * Replaces the tag list. A tag that keeps its id under a new label is a rename, and grades tagged with the
+   * old label get the new one. Labels repeat across groups ('Drop' is an RB, WR and TE tag) and grades don't
+   * record the group, so a label still used by another tag, or renamed two different ways, is left as is.
+   */
+  saveTags(tags: (Omit<TagDef, 'id'> & { id?: number })[]): TagDef[] {
+    const old = new Map(this.tags().map((t) => [t.id, t.label]))
+    const next = knownIds(tags, old)
+    const labels = new Set(next.map((t) => t.label))
+    const renames = new Map<string, string | null>()
+    for (const t of next) {
+      const from = t.id === undefined ? undefined : old.get(t.id)!
+      if (from === undefined || from === t.label || labels.has(from)) continue
+      renames.set(from, renames.has(from) && renames.get(from) !== t.label ? null : t.label)
+    }
+    this.transaction(() => {
+      this.saveTagsNoFlush(next)
+      this.renameGradeTags(new Map([...renames].filter((r): r is [string, string] => r[1] !== null)))
+    })
     return this.tags()
+  }
+
+  private renameGradeTags(renames: Map<string, string>) {
+    if (!renames.size) return
+    const rows = this.all<{ game_id: string; play_id: number; player_id: string; tags: string }>(
+      "SELECT game_id, play_id, player_id, tags FROM grades WHERE tags != '[]'"
+    )
+    for (const r of rows) {
+      const tags: string[] = JSON.parse(r.tags)
+      if (!tags.some((t) => renames.has(t))) continue
+      this.db.run('UPDATE grades SET tags = ? WHERE game_id = ? AND play_id = ? AND player_id = ?', [
+        JSON.stringify([...new Set(tags.map((t) => renames.get(t) ?? t))]),
+        r.game_id,
+        r.play_id,
+        r.player_id
+      ])
+    }
   }
 
   chartFields(): ChartField[] {
@@ -330,12 +370,45 @@ export class Store {
     }))
   }
 
-  saveChartFields(fields: Omit<ChartField, 'id'>[]): ChartField[] {
+  /**
+   * Replaces the charting fields. Play charts are keyed by field name, so a field that keeps its id under a
+   * new name has its charted values moved to the new name, and an option renamed in place (same spot in
+   * the list) has its charted values renamed too.
+   */
+  saveChartFields(fields: (Omit<ChartField, 'id'> & { id?: number })[]): ChartField[] {
+    const old = new Map(this.chartFields().map((f) => [f.id, f]))
+    const next = knownIds(fields, old)
+    const names = new Set(next.map((f) => f.name))
+    const moves: { from: string; to: string; options: Map<string, string> }[] = []
+    for (const f of next) {
+      const prev = f.id === undefined ? undefined : old.get(f.id)!
+      if (!prev) continue
+      const options = new Map<string, string>()
+      for (let i = 0; i < Math.min(prev.options.length, f.options.length); i++) {
+        const [a, b] = [prev.options[i], f.options[i]]
+        if (a !== b && !f.options.includes(a) && !prev.options.includes(b)) options.set(a, b)
+      }
+      if (prev.name !== f.name || options.size) moves.push({ from: prev.name, to: f.name, options })
+    }
     this.transaction(() => {
       this.db.run('DELETE FROM chart_fields')
-      fields.forEach((f, i) =>
-        this.db.run('INSERT INTO chart_fields (name, options, sort) VALUES (?, ?, ?)', [f.name, JSON.stringify(f.options), i])
+      next.forEach((f, i) =>
+        this.db.run('INSERT INTO chart_fields (id, name, options, sort) VALUES (?, ?, ?, ?)', [f.id ?? null, f.name, JSON.stringify(f.options), i])
       )
+      if (!moves.length) return
+      for (const r of this.all<{ game_id: string; play_id: number; chart: string }>("SELECT game_id, play_id, chart FROM play_notes WHERE chart != '{}'")) {
+        const chart: Record<string, string> = JSON.parse(r.chart)
+        const moved = { ...chart }
+        for (const m of moves) if (m.from !== m.to && !names.has(m.from)) delete moved[m.from]
+        // Read from the old chart so fields that swap names don't overwrite each other.
+        for (const m of moves) {
+          const v = chart[m.from]
+          if (v === undefined) delete moved[m.to]
+          else moved[m.to] = m.options.get(v) ?? v
+        }
+        if (JSON.stringify(moved) === JSON.stringify(chart)) continue
+        this.db.run('UPDATE play_notes SET chart = ? WHERE game_id = ? AND play_id = ?', [JSON.stringify(moved), r.game_id, r.play_id])
+      }
     })
     return this.chartFields()
   }
@@ -365,6 +438,16 @@ export class Store {
     this.flush()
     this.db.close()
   }
+}
+
+/** Drops ids that aren't in the table or are repeated, so those rows are saved as new. */
+function knownIds<T extends { id?: number }>(items: T[], existing: Map<number, unknown>): T[] {
+  const seen = new Set<number>()
+  return items.map((t) => {
+    if (t.id === undefined || !existing.has(t.id) || seen.has(t.id)) return { ...t, id: undefined }
+    seen.add(t.id)
+    return t
+  })
 }
 
 function toClip(r: Record<string, SqlValue>): Clip {

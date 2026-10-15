@@ -4,7 +4,7 @@ import { TEAM_BY_ABBR } from '@shared/teams'
 import { api } from '../api'
 import { Score, useAsync } from '../components/common'
 import { downDistance, gradeSymbol, pct, quarterLabel, shortDesc } from '../format'
-import { GameLog, GradeTrend, SeasonLine } from './PlayerPage'
+import { GameLog, GradeTrend, reelGameLabel, SeasonLine } from './PlayerPage'
 
 /** A printable one-player scouting report; the main process turns this page into a PDF. */
 export function Report({ season, playerId }: { season: number; playerId: string }) {
@@ -78,7 +78,7 @@ export function Report({ season, playerId }: { season: number; playerId: string 
                   <td style={{ width: 24, fontWeight: 800 }}>{gradeSymbol(r.grade)}</td>
                   <td style={{ whiteSpace: 'normal' }}>
                     <div className="muted" style={{ fontSize: 11 }}>
-                      Wk {r.week} vs {r.opponent}
+                      {reelGameLabel(p, r)}
                       {r.play ? ` · ${quarterLabel(r.play.qtr)} ${r.play.time} · ${downDistance(r.play)} · ${shortDesc(r.play.desc)}` : ''}
                     </div>
                     <div>{r.note}</div>

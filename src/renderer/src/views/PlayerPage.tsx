@@ -4,14 +4,15 @@ import { gradeScore, plusRate } from '@shared/stats'
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { Angle, PlayerGameLine, PlayerProfile, ReelItem } from '@shared/types'
 import { api } from '../api'
-import { Crumbs } from '../App'
+import { Crumbs, useSeason } from '../App'
 import { ErrorBox, errorText, GradeBar, GradeSymbol, Headshot, Loading, Score, TeamChip, toast, useAsync } from '../components/common'
-import { downDistance, pct, quarterLabel, shortDesc, statColumns } from '../format'
+import { downDistance, opponentLabel, pct, quarterLabel, shortDesc, statColumns, weekLabel } from '../format'
 import { links, navigate } from '../router'
 
 export function PlayerPage({ season, playerId }: { season: number; playerId: string }) {
   const profile = useAsync(() => api.playerProfile(season, playerId), [season, playerId])
   const [exporting, setExporting] = useState(false)
+  const { setSeason } = useSeason()
   if (profile.error) return <div className="page"><ErrorBox error={profile.error} /></div>
   if (profile.loading && !profile.data) return <Loading />
   if (!profile.data) return <div className="page"><div className="empty">Player not found in the {season} data.</div></div>
@@ -35,7 +36,14 @@ export function PlayerPage({ season, playerId }: { season: number; playerId: str
     <div className="page">
       <Crumbs>
         <span className="sep">/</span>
-        <a onClick={() => navigate(links.home())}>{season}</a>
+        <a
+          onClick={() => {
+            setSeason(season)
+            navigate(links.home())
+          }}
+        >
+          {season}
+        </a>
         <span className="sep">/</span>
         <a onClick={() => navigate(links.team(season, player.team))}>{team?.name ?? player.team}</a>
         <span className="sep">/</span>
@@ -219,7 +227,7 @@ export function GradeTrend({ games, print }: { games: PlayerGameLine[]; print?: 
             color: 'var(--text)'
           }}
         >
-          Wk {graded[hover].game.week} vs {graded[hover].opponent}: {gradeScore(graded[hover].tally)} ({graded[hover].tally.plus}+ /{' '}
+          {weekLabel(graded[hover].game)} {opponentLabel(graded[hover].game, graded[hover].team)}: {gradeScore(graded[hover].tally)} ({graded[hover].tally.plus}+ /{' '}
           {graded[hover].tally.zero} / {graded[hover].tally.minus}–)
         </div>
       )}
@@ -282,6 +290,12 @@ export function GameLog({ profile }: { profile: PlayerProfile }) {
       </tbody>
     </table>
   )
+}
+
+/** Which game a graded play is from, like "Wk 2 @ KC" or "Wild Card vs PIT". */
+export function reelGameLabel(profile: PlayerProfile, r: ReelItem): string {
+  const game = profile.games.find((l) => l.game.gameId === r.gameId)?.game
+  return game ? `${weekLabel(game)} ${opponentLabel(game, r.team)}` : `Wk ${r.week}`
 }
 
 const ANGLE_PREF: Angle[] = ['sideline', 'main', 'endzone']
@@ -375,7 +389,7 @@ function Reel({ profile }: { profile: PlayerProfile }) {
               <GradeSymbol grade={r.grade} />
               <div style={{ minWidth: 0 }}>
                 <div className="faint" style={{ fontSize: 11 }}>
-                  Wk {r.week} vs {r.opponent}
+                  {reelGameLabel(profile, r)}
                   {r.play ? ` · ${quarterLabel(r.play.qtr)} ${r.play.time} · ${downDistance(r.play)}` : ''}
                 </div>
                 <div className="desc" style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

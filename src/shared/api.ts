@@ -50,9 +50,11 @@ export interface Api {
   playerProfile(season: number, playerId: string): Promise<PlayerProfile | null>
 
   tags(): Promise<TagDef[]>
-  saveTags(tags: Omit<TagDef, 'id'>[]): Promise<TagDef[]>
+  /** Tags that keep their id are renames: grades tagged with the old label get the new one. */
+  saveTags(tags: (Omit<TagDef, 'id'> & { id?: number })[]): Promise<TagDef[]>
   chartFields(): Promise<ChartField[]>
-  saveChartFields(fields: Omit<ChartField, 'id'>[]): Promise<ChartField[]>
+  /** Fields that keep their id are renames: values already charted move to the new name. */
+  saveChartFields(fields: (Omit<ChartField, 'id'> & { id?: number })[]): Promise<ChartField[]>
   settings(): Promise<Settings>
   saveSettings(patch: Partial<Settings>): Promise<Settings>
 
