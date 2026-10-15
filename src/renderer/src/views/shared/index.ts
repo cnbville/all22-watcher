@@ -16,9 +16,10 @@ export {
   requestAddToCutup,
   requestExportVideo,
   useExportVideoAvailable,
-  type AddToCutupRequest
+  type AddToCutupRequest,
+  type ExportSheetRequest
 } from './requests'
-export { drawShapes, letterbox, type VideoRect } from './reel/drawShapes'
+export { drawShapes, letterbox, paintShapes, type VideoRect } from './reel/drawShapes'
 export { SeasonGate, useSeasonReady } from './SeasonGate'
 
 export { axisNumber, type ChartBaseProps, Tip, TipLine, TipTitle, valueEndBar } from './charts/base'

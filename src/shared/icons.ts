@@ -28,7 +28,9 @@ export const ICON_NAMES = [
   // Status and help
   'info', 'circle-check', 'triangle-alert', 'circle-alert', 'keyboard', 'circle-help', 'clock',
   // Edit
-  'trash-2', 'copy', 'pencil'
+  'trash-2', 'copy', 'pencil',
+  // Cut-up rules and export
+  'circle-minus', 'circle-plus', 'folder'
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

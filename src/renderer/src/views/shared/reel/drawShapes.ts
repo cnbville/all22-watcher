@@ -22,7 +22,7 @@ export function letterbox(boxW: number, boxH: number, videoW: number, videoH: nu
   return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h }
 }
 
-function arrowHead(ctx: CanvasRenderingContext2D, from: [number, number], to: [number, number], size: number) {
+function arrowHead(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, from: [number, number], to: [number, number], size: number) {
   const angle = Math.atan2(to[1] - from[1], to[0] - from[0])
   ctx.beginPath()
   ctx.moveTo(to[0], to[1])
@@ -32,7 +32,7 @@ function arrowHead(ctx: CanvasRenderingContext2D, from: [number, number], to: [n
   ctx.stroke()
 }
 
-function blockEnd(ctx: CanvasRenderingContext2D, from: [number, number], to: [number, number], size: number) {
+function blockEnd(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, from: [number, number], to: [number, number], size: number) {
   const angle = Math.atan2(to[1] - from[1], to[0] - from[0]) + Math.PI / 2
   ctx.beginPath()
   ctx.moveTo(to[0] - size * Math.cos(angle), to[1] - size * Math.sin(angle))
@@ -53,6 +53,14 @@ export function drawShapes(canvas: HTMLCanvasElement, shapes: Shape[], t: number
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   ctx.clearRect(0, 0, cw, ch)
+  paintShapes(ctx, shapes, t, rect, frame)
+}
+
+/**
+ * Paints the shapes visible at clip time `t` into any 2D context (an on-screen canvas or the export's
+ * OffscreenCanvas, 03 §11.5), inside the picture rect. The caller sets the transform and clears.
+ */
+export function paintShapes(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, shapes: Shape[], t: number, rect: VideoRect, frame = 1 / 30) {
   const scale = Math.max(0.6, rect.h / 540)
   const P = ([x, y]: [number, number]): [number, number] => [rect.x + x * rect.w, rect.y + y * rect.h]
   const visible = shapes.filter((s) => shapeVisibleAt(s, t, frame))
