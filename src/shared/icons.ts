@@ -26,7 +26,7 @@ export const ICON_NAMES = [
   'funnel', 'arrow-down-wide-narrow', 'grip-vertical', 'calendar', 'history', 'chart-column', 'chart-line',
   'chart-scatter', 'layout-grid', 'list', 'sliders-horizontal',
   // Status and help
-  'info', 'circle-check', 'triangle-alert', 'circle-alert', 'keyboard', 'circle-help',
+  'info', 'circle-check', 'triangle-alert', 'circle-alert', 'keyboard', 'circle-help', 'clock',
   // Edit
   'trash-2', 'copy', 'pencil'
 ] as const

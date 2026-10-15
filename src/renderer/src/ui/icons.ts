@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   ChevronLeft,
+  Clock,
   ChevronRight,
   ChevronUp,
   ChevronDown,
@@ -198,6 +199,7 @@ export const ICONS: Record<IconName, LucideIcon> = {
   'circle-alert': CircleAlert,
   'keyboard': Keyboard,
   'circle-help': CircleHelp,
+  clock: Clock,
   'trash-2': Trash2,
   'copy': Copy,
   'pencil': Pencil

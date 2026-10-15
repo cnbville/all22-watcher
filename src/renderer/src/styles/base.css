@@ -158,6 +158,9 @@ img {
 .c-danger {
   color: var(--danger);
 }
+.c-warning {
+  color: var(--warning);
+}
 .num {
   font-variant-numeric: tabular-nums;
 }
