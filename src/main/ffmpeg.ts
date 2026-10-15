@@ -36,7 +36,8 @@ function onPath(name: string): string | null {
 export function locateFfmpeg(): FfmpegLocation | null {
   const override = process.env.ALL22_FFMPEG
   if (override && existsSync(override)) return { path: override, source: 'env' }
-  const bundled = bundledFfmpegCandidates().find((p) => isFile(p))
+  // The bundled builds are macOS binaries.
+  const bundled = process.platform === 'darwin' ? bundledFfmpegCandidates().find((p) => isFile(p)) : undefined
   if (bundled) return { path: bundled, source: 'bundled' }
   const system = SYSTEM_CANDIDATES.find((p) => existsSync(p)) ?? onPath('ffmpeg')
   return system ? { path: system, source: 'system' } : null

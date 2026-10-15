@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "smoke": "node e2e/smoke.mjs",
-    "dist": "electron-vite build && electron-builder --mac --publish never"
+    "fetch-ffmpeg": "node scripts/fetch-ffmpeg.mjs",
+    "dist": "node scripts/fetch-ffmpeg.mjs && electron-vite build && electron-builder --mac --publish never"
   },
   "build": {
     "appId": "com.cnbville.all22watcher",
@@ -22,6 +23,15 @@
     ],
     "mac": {
       "category": "public.app-category.sports",
+      "extraResources": [
+        {
+          "from": "resources/ffmpeg/${arch}",
+          "to": "ffmpeg",
+          "filter": [
+            "ffmpeg"
+          ]
+        }
+      ],
       "target": [
         {
           "target": "dmg",
