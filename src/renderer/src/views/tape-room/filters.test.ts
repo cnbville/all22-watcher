@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterToken } from '@shared/playQuery'
 import type { GradeEntry, Play, PlayNote } from '@shared/types'
-import { addTokenValue, fromSearchTokens, lineupOptions, matchPlay, setTokenValues, suggestFilters, toSearchToken } from './filters'
+import { addTokenValue, buildSuggestions, fromSearchTokens, lineupOptions, matchPlay, setTokenValues, suggestFilters, toSearchToken } from './filters'
 import { entry, GAME, note, play } from './testPlays'
 
 const ctx = (p: Play, extra: { entries?: GradeEntry[]; note?: PlayNote | null; player?: string } = {}) => ({
@@ -137,5 +137,21 @@ describe('suggestFilters', () => {
     expect(suggestFilters('cover', 'PHI', [], lineup).map((x) => x.label)).toEqual(['Cover 3'])
     expect(s('3rd', [{ key: 'down', values: ['3'] }])).not.toContain('down:3')
     expect(s('')).toEqual([])
+  })
+})
+
+describe('buildSuggestions', () => {
+  it('starts with "Search descriptions for", then the filters under "Filter by"', () => {
+    let kept = false
+    const rows = buildSuggestions('sack', 'PHI', [], lineupOptions([], 'PHI'), () => (kept = true))
+    expect(rows[0].token.label).toBe('Search descriptions for “sack”')
+    expect(rows[0].section).toBeUndefined()
+    rows[0].run?.()
+    expect(kept).toBe(true)
+    expect(rows[1]).toMatchObject({ section: 'Filter by', token: { keyLabel: 'Result:', label: 'Sack' } })
+    expect(fromSearchTokens([rows[1].token])).toEqual([{ key: 'result', values: ['sack'] }])
+  })
+  it('offers nothing for empty text', () => {
+    expect(buildSuggestions('  ', 'PHI', [], lineupOptions([], 'PHI'), () => {})).toEqual([])
   })
 })

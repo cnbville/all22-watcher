@@ -1,962 +1,1525 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { POSITION_GROUPS, sideOfGroup, TEAM_BY_ABBR } from '@shared/teams'
-import type {
-  Angle,
-  ChartField,
-  Clip,
-  GameFilm,
-  Grade,
-  GradeEntry,
-  Play,
-  PlayNote,
-  PositionGroup,
-  RosterPlayer,
-  Settings,
-  TagDef
-} from '@shared/types'
-import type { PenShape as Stroke, Shape } from '@shared/drawing'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { DRAW_TOOLS } from '@shared/commands'
+import type { Shape } from '@shared/drawing'
+import type { FilterToken } from '@shared/playQuery'
+import { clipStartTime } from '@shared/snap'
+import { TEAM_BY_ABBR } from '@shared/teams'
+import type { Angle, ChartField, GameFilm, Grade, GradeEntry, Play, PlayNote, RosterPlayer, Settings, TagDef, TeamGame } from '@shared/types'
 import { api } from '../../api'
-import { Kbd, TeamChip, useAsync } from '../../components/common'
-import { INK, SPEEDS, type VideoHandle, VideoStage } from '../../components/VideoStage'
-import {
-  downDistance,
-  lastName,
-  playKind,
-  playTypeLabel,
-  prettyEnum,
-  quarterLabel,
-  resultLabel,
-  shortDesc,
-  weekLabel
-} from '../../format'
-import { banner } from '../../shell/Banners'
-import { runCommand, setDynamicMenus, useCommand, useDynamicMenus } from '../../shell/commands'
+import { banner, errorBanner } from '../../shell/Banners'
+import { runCommand, useCommand, useDynamicMenus } from '../../shell/commands'
+import { action, playerMenu, sep, showMenu, submenu } from '../../shell/contextMenus'
 import { useDataEvent } from '../../shell/dataEvents'
-import { openImport, setImportContext } from '../../shell/importRequest'
-import { links, navigate } from '../../shell/router'
-import { Loading, LoadError, Screen } from '../../shell/Screen'
+import { setImportContext } from '../../shell/importRequest'
+import { useEscape } from '../../shell/keyRouter'
+import { links, navigate, setEntrySelection, useRoute } from '../../shell/router'
+import { Screen } from '../../shell/Screen'
+import { saveSettings, useSettings } from '../../shell/store'
 import { Toolbar } from '../../shell/Toolbar'
+import { setUi, useUi } from '../../shell/uiState'
+import { EmptyState } from '../../ui/EmptyState'
+import { isTyping } from '../../ui/keyboard'
+import { type MenuItemSpec, openMenu } from '../../ui/Menu'
 import { Segmented } from '../../ui/Segmented'
-import '../legacy.css'
+import { Spinner } from '../../ui/Spinner'
+import { teamMarkFor } from '../../ui/teamMark'
+import { SPEEDS, useVideoController } from '../../ui/video/engine'
+import { quantize } from '../../ui/video/frameLength'
+import { secondsLabel } from '../../ui/video/time'
+import { viewerToast } from '../../ui/video/ViewerToast'
+import { checkClipAlignment, openFixMatches } from '../import/fixMatches'
+import { SeasonDownload, useSeasonReady } from '../shared/SeasonGate'
+import { AddPlayerPopover } from './Inspector/AddPlayerPopover'
+import { FocusPicker } from './Inspector/FocusPicker'
+import { TapeInspector } from './Inspector/TapeInspector'
+import { fromSearchTokens, lineupOptions, matchPlay, toSearchToken } from './filters'
+import { focusProgress, focusSnaps } from './focus'
+import {
+  emptyEntry,
+  entryKey,
+  firstToGrade,
+  gradeCounts,
+  isEmptyEntry,
+  listedPlayers,
+  playIsUngraded,
+  playProgress,
+  stubPlayer,
+  tagsFor,
+  withGrade,
+  withOffField,
+  withTag
+} from './grading'
+import { tapeRoomHooks } from './hooks'
+import {
+  ANGLE_ORDER,
+  angleTitle,
+  type DrawStyle,
+  type EndPanel,
+  type FocusState,
+  type GroupBy,
+  type InspectorTab,
+  type Layout,
+  type PaneInfo,
+  type Room,
+  snapSeconds,
+  titleFromGameId,
+  type Tool,
+  weekName
+} from './model'
+import { PlayBrowser } from './PlayBrowser'
+import { readPref, usePref, writePref } from './prefs'
+import { buildSuggestions, tokenMenu } from './searchMenus'
+import { useUndoStack, type UndoTarget } from './undo'
+import { useTapeData } from './useTapeData'
+import { copyFrame, Viewer } from './Viewer'
+import './tape-room.css'
 
-const TAG_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p']
-const ANGLE_ORDER: Angle[] = ['sideline', 'endzone', 'main']
-
-interface Filters {
-  side: 'all' | 'off' | 'def'
-  kind: 'all' | 'pass' | 'run' | 'special'
-  down: string
-  qtr: string
-  status: 'all' | 'ungraded' | 'graded' | 'flagged' | 'noted'
-  formation: string
-  personnel: string
-  coverage: string
-  search: string
-}
-
-const NO_FILTERS: Filters = {
-  side: 'all', kind: 'all', down: '', qtr: '', status: 'all', formation: '', personnel: '', coverage: '', search: ''
-}
-
-const gradeKey = (playId: number, playerId: string) => `${playId}|${playerId}`
-const NO_GRADES: GradeEntry[] = []
-
+/**
+ * The tape room (02): watch and grade a game's film. `TapeRoom` loads the season, the film, tags and chart fields
+ * and shows the whole-room states (§17); `Room` owns the state, registers every command (§15) and renders the play
+ * browser, the viewer and the inspector.
+ */
 export function TapeRoom({ gameId, team, initialPlay }: { gameId: string; team: string; initialPlay: number | null }) {
-  const film = useAsync(() => api.gameFilm(gameId), [gameId])
-  const meta = useAsync(() => Promise.all([api.tags(), api.chartFields(), api.settings()]), [])
-  useDataEvent('settings', meta.reload)
-  if (film.error || meta.error) {
+  const season = Number(gameId.slice(0, 4)) || 0
+  const ready = useSeasonReady(season)
+  if (!ready) {
     return (
-      <Screen name="tape-room" scroll="none" takeover className="legacy">
-        <Toolbar title="Tape Room" separator="always" />
-        <LoadError what="the film" error={film.error ?? meta.error} retry={() => (film.reload(), meta.reload())} />
-      </Screen>
+      <Shell gameId={gameId}>
+        <div className="tape-room__state">
+          <SeasonDownload season={season} />
+        </div>
+      </Shell>
     )
   }
-  if (!film.data || !meta.data) {
-    return (
-      <Screen name="tape-room" scroll="none" takeover className="legacy">
-        <Toolbar title="Tape Room" separator="always" />
-        <Loading label="Loading film…" />
-      </Screen>
-    )
-  }
-  const [tags, fields, settings] = meta.data
+  return <FilmLoader gameId={gameId} team={team} initialPlay={initialPlay} />
+}
+
+const TABS: InspectorTab[] = ['grade', 'notes', 'chart', 'info']
+
+/** The room's frame before the film is in: the toolbar from the game id, empty panes (02 §3, §17). */
+function Shell({ gameId, children, inspector }: { gameId: string; children: React.ReactNode; inspector?: React.ReactNode }) {
+  const head = titleFromGameId(gameId)
+  const [away, home] = head.title.split(' @ ')
   return (
-    <Room
-      key={`${tags.length}-${fields.length}`}
-      film={film.data}
-      tags={tags}
-      chartFields={fields}
-      initialSettings={settings}
-      team={team || film.data.game.homeTeam}
-      initialPlay={initialPlay}
-      reload={film.reload}
-    />
+    <Screen name="tape-room" scroll="none" takeover inspector={inspector ?? <div className="tape-inspector" />} inspectorWidth={340} inspectorMin={300}>
+      <Toolbar
+        title={head.title}
+        subtitle={head.subtitle}
+        separator="always"
+        center={
+          away && home ? (
+            <div className="tape-study" data-disabled style={{ '--dot-0': teamMarkFor(away), '--dot-1': teamMarkFor(home) } as React.CSSProperties}>
+              <Segmented size="toolbar" value={home} onChange={() => {}} label="Studying" options={[away, home].map((t) => ({ value: t, label: t }))} />
+            </div>
+          ) : undefined
+        }
+        trailing={[
+          { kind: 'button', command: 'view.playList', icon: 'layout-list', priority: 1 },
+          { kind: 'button', command: 'play.sideBySide', icon: 'columns-2', priority: 3 },
+          { kind: 'button', command: 'draw.toggle', icon: 'pen-line', priority: 3 },
+          { kind: 'button', command: 'grade.focus', icon: 'scan-eye', priority: 4 },
+          { kind: 'pulldown', icon: 'ellipsis', label: 'More', items: [], test: 'tape-more' }
+        ]}
+        search={{ placeholder: 'Search plays', value: '', onChange: () => {}, test: 'play-search' }}
+        inspector
+      />
+      {children}
+    </Screen>
   )
+}
+
+function FilmLoader({ gameId, team, initialPlay }: { gameId: string; team: string; initialPlay: number | null }) {
+  const [film, setFilm] = useState<GameFilm | null>(null)
+  const [meta, setMeta] = useState<{ tags: TagDef[]; fields: ChartField[] } | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const settings = useSettings()
+  const seq = useRef(0)
+  const load = useCallback(() => {
+    const id = ++seq.current
+    setError(null)
+    Promise.all([api.gameFilm(gameId), api.tags(), api.chartFields()]).then(
+      ([f, tags, fields]) => {
+        if (id !== seq.current) return
+        setFilm(f)
+        setMeta({ tags, fields })
+      },
+      (e) => id === seq.current && setError(e)
+    )
+  }, [gameId])
+  useEffect(load, [load])
+  // Settings changed in the Settings window (tags, chart fields).
+  useDataEvent('settings', () => {
+    void Promise.all([api.tags(), api.chartFields()]).then(([tags, fields]) => setMeta({ tags, fields }))
+  })
+
+  if (error && !film) {
+    return (
+      <Shell gameId={gameId}>
+        <div className="tape-room__state" data-test="tape-error">
+          <EmptyState icon="circle-alert" title="Couldn’t load the film" body={String((error as Error)?.message ?? error).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')} selectableBody primary={{ label: 'Try Again', run: load }} />
+        </div>
+      </Shell>
+    )
+  }
+  if (!film || !meta || !settings) {
+    return (
+      <Shell gameId={gameId}>
+        <LoadingPanes />
+      </Shell>
+    )
+  }
+  if (!film.plays.length) {
+    return (
+      <Shell gameId={gameId}>
+        <div className="tape-room__state" data-test="tape-no-plays">
+          <EmptyState
+            icon="calendar"
+            title="This game hasn’t been played yet"
+            body="Plays appear once nflverse publishes the play-by-play, usually the morning after the game."
+            primary={{ label: `Update ${film.game.season} Season Data`, run: () => runCommand('file.updateData') }}
+          />
+        </div>
+      </Shell>
+    )
+  }
+  return <Room film={film} tags={meta.tags} chartFields={meta.fields} settings={settings} routeTeam={team} initialPlay={initialPlay} reload={load} />
+}
+
+/** Empty panes with a spinner in the viewer after 200ms (02 §17). */
+function LoadingPanes() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 200)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <div className="tape-room" data-test="tape-loading">
+      <div className="tape-room__panes">
+        <div className="play-browser" style={{ width: readPref('ui.tape.list.width', 300) }} />
+        <div className="viewer viewer--loading">
+          {show && (
+            <div className="viewer__loading" role="status">
+              <Spinner size={20} />
+              <span>Loading film…</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const DEFAULT_STYLE: DrawStyle = { color: '#FFD60A', width: 4, textSize: 24, penEnd: 'arrow', lineEnd: 'none', showFor: null }
+
+function initialPlayId(film: GameFilm, team: string, requested: number | null): number | null {
+  const { plays } = film
+  if (requested !== null && plays.some((p) => p.playId === requested)) return requested
+  const last = readPref<number | null>(`ui.tape.lastPlay.${film.game.gameId}.${team}`, null)
+  if (last !== null && plays.some((p) => p.playId === last)) return last
+  const withClip = new Set(film.clips.map((c) => c.playId))
+  return plays.find((p) => withClip.has(p.playId))?.playId ?? plays[0]?.playId ?? null
 }
 
 function Room({
   film,
   tags,
   chartFields,
-  initialSettings,
-  team: initialTeam,
+  settings,
+  routeTeam,
   initialPlay,
   reload
 }: {
   film: GameFilm
   tags: TagDef[]
   chartFields: ChartField[]
-  initialSettings: Settings
-  team: string
+  settings: Settings
+  routeTeam: string
   initialPlay: number | null
   reload: () => void
 }) {
-  const { game, plays } = film
-  const [team, setTeam] = useState(initialTeam)
-  const [settings, setSettings] = useState(initialSettings)
-  useEffect(() => setSettings(initialSettings), [initialSettings])
-  const [grades, setGrades] = useState(() => new Map(film.grades.map((g) => [gradeKey(g.playId, g.playerId), g])))
-  const [notes, setNotes] = useState(() => new Map(film.notes.map((n) => [n.playId, n])))
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
-  const [speed, setSpeed] = useState(settings.defaultSpeed)
-  const [loop, setLoop] = useState(true)
-  const [drawing, setDrawing] = useState(false)
-  const [ink, setInk] = useState(INK[0])
-  const [onlyFocus, setOnlyFocus] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
-  const video = useRef<VideoHandle>(null)
-  const noteRef = useRef<HTMLTextAreaElement>(null)
+  const { game, plays, players } = film
+  const gameId = game.gameId
+  const route = useRoute()
+  const shellUi = useUi()
+  const filmOnly = shellUi.filmOnly
+  const rootRef = useRef<HTMLDivElement>(null)
+  const undo = useUndoStack()
 
-  const clipsByPlay = useMemo(() => {
-    const m = new Map<number, Clip[]>()
-    for (const c of film.clips) if (c.playId !== null) m.set(c.playId, [...(m.get(c.playId) ?? []), c])
-    return m
-  }, [film.clips])
-  const angles = useMemo(
-    () => ANGLE_ORDER.filter((a) => film.clips.some((c) => c.angle === a)),
-    [film.clips]
-  )
-  const [angle, setAngle] = useState<Angle>(angles[0] ?? 'main')
-  // Film can be imported or replaced while the room is open; fall back to the preferred angle.
-  useEffect(() => {
-    if (angles.length && !angles.includes(angle)) setAngle(angles[0])
-  }, [angles, angle])
-
+  // ── Studied team ──────────────────────────────────────────────────────────
+  const [team, setTeamState] = useState(() => (routeTeam === game.homeTeam || routeTeam === game.awayTeam ? routeTeam : game.homeTeam))
   const opponent = team === game.homeTeam ? game.awayTeam : game.homeTeam
-  useEffect(() => {
-    if (film.clips.length) void api.openedFilm(game.gameId, team)
-  }, [game.gameId, team, film.clips.length])
-  const pinned = settings.pinned[team] ?? []
-  const sideOf = (p: Play) => (p.posteam === team ? 'off' : 'def')
 
-  const gradesByPlay = useMemo(() => {
-    const m = new Map<number, GradeEntry[]>()
-    for (const g of grades.values()) {
-      if (g.team !== team || g.grade === null) continue
-      const list = m.get(g.playId)
-      if (list) list.push(g)
-      else m.set(g.playId, [g])
-    }
-    return m
-  }, [grades, team])
-  const playGrades = useCallback((playId: number) => gradesByPlay.get(playId) ?? NO_GRADES, [gradesByPlay])
+  // ── Current play, selection, focus ────────────────────────────────────────
+  const [currentId, setCurrentId] = useState<number | null>(() => initialPlayId(film, team, initialPlay))
+  const [sel, setSel] = useState<{ playId: number | null; team: string; id: string | null }>({ playId: null, team, id: null })
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const [multi, setMulti] = useState<Set<number>>(() => new Set())
+  const [endPanel, setEndPanel] = useState<EndPanel | null>(null)
 
-  const options = useMemo(() => {
-    const uniq = (f: (p: Play) => string | null) => [...new Set(plays.map(f).filter((v): v is string => !!v))].sort()
-    return {
-      formation: uniq((p) => p.formation),
-      personnel: uniq((p) => (p.posteam === team ? p.offPersonnel : p.defPersonnel)),
-      coverage: uniq((p) => p.coverage)
-    }
-  }, [plays, team])
+  // ── Preferences ───────────────────────────────────────────────────────────
+  const [starredOnly, setStarredOnly] = usePref('ui.tape.starredOnly', false)
+  const [tab, setTabPref] = usePref<InspectorTab>('ui.tape.inspectorTab', 'grade', { validate: (v) => TABS.includes(v) })
+  const drivesAvailable = plays.some((p) => p.drive !== null)
+  const [groupPref, setGroup] = usePref<GroupBy>('ui.tape.group', 'quarter', { validate: (v) => ['quarter', 'drive', 'none'].includes(v) })
+  const group: GroupBy = groupPref === 'drive' && !drivesAvailable ? 'quarter' : groupPref
+  const [listVisible, setListVisible] = usePref('ui.tape.list.visible', true)
+  const [layoutPref, setLayout] = usePref<Layout>('ui.tape.layout', 'single', { validate: (v) => ['single', 'sideBySide', 'pip'].includes(v) })
+  const [lastMulti, setLastMulti] = usePref<'sideBySide' | 'pip'>('ui.tape.lastMulti', 'sideBySide')
+  const [anglePref, setAnglePref] = usePref<Angle | null>('ui.tape.angle', null)
+  const [secondPref, setSecondPref] = usePref<Angle | null>('ui.tape.secondAngle', null)
+  const [loop, setLoop] = usePref('ui.tape.loop', true)
+  const [sound, setSound] = usePref('ui.tape.sound', false)
+  const [timeMode, setTimeMode] = usePref<'snap' | 'clip'>('ui.tape.timeMode', 'snap')
+  const [speed, setSpeed] = useState(() => (SPEEDS as readonly number[]).includes(settings.defaultSpeed) ? settings.defaultSpeed : 1)
+  const [hideControls, setHideControls] = useState(false)
+  const [activeAngle, setActiveAngle] = useState<Angle | null>(null)
 
-  const visible = useMemo(() => {
-    const q = filters.search.trim().toLowerCase()
-    return plays.filter((p) => {
-      if (filters.side !== 'all' && sideOf(p) !== filters.side) return false
-      if (filters.kind !== 'all' && playKind(p) !== filters.kind) return false
-      if (filters.down && String(p.down) !== filters.down) return false
-      if (filters.qtr && String(Math.min(p.qtr, 5)) !== filters.qtr) return false
-      if (filters.formation && p.formation !== filters.formation) return false
-      if (filters.personnel && (p.posteam === team ? p.offPersonnel : p.defPersonnel) !== filters.personnel) return false
-      if (filters.coverage && p.coverage !== filters.coverage) return false
-      if (filters.status === 'graded' && !playGrades(p.playId).length) return false
-      if (filters.status === 'ungraded' && playGrades(p.playId).length) return false
-      if (filters.status === 'flagged' && !notes.get(p.playId)?.flagged) return false
-      if (filters.status === 'noted' && !notes.get(p.playId)?.note.trim()) return false
-      if (q && !p.desc.toLowerCase().includes(q)) return false
-      return true
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plays, filters, team, notes, playGrades])
+  // Drawing.
+  const [drawMode, setDrawMode] = useState(false)
+  const [tool, setToolPref] = usePref<Tool>('ui.draw.tool', 'pen', { validate: (v) => (DRAW_TOOLS as readonly string[]).includes(v) })
+  const [color, setColor] = usePref('ui.draw.color', DEFAULT_STYLE.color)
+  const [width, setWidth] = usePref<2 | 4 | 6>('ui.draw.width', 4)
+  const [textSize, setTextSize] = usePref<18 | 24 | 32>('ui.draw.textSize', 24)
+  const [penEnd, setPenEnd] = usePref<'none' | 'arrow'>('ui.draw.end.pen', 'arrow')
+  const [lineEnd, setLineEnd] = usePref<DrawStyle['lineEnd']>('ui.draw.end.line', 'none')
+  const [showFor, setShowFor] = usePref<DrawStyle['showFor']>('ui.draw.showFor', null)
+  const [selectedShape, setSelectedShape] = useState<string | null>(null)
+  const style: DrawStyle = { color, width, textSize, penEnd, lineEnd, showFor }
 
-  const [currentId, setCurrentId] = useState<number | null>(() => {
-    if (initialPlay !== null && plays.some((p) => p.playId === initialPlay)) return initialPlay
-    return plays.find((p) => clipsByPlay.has(p.playId))?.playId ?? plays[0]?.playId ?? null
+  // Filters: per game and team for this launch (02 §4.3).
+  const filterKey = `ui.tape.filters.${gameId}.${team}`
+  const [filters, setFilters] = useState(() => readPref<{ tokens: FilterToken[]; text: string }>(filterKey, { tokens: [], text: '' }, 'session'))
+  const filtersFor = useRef(filterKey)
+  if (filtersFor.current !== filterKey) {
+    filtersFor.current = filterKey
+    const next = readPref<{ tokens: FilterToken[]; text: string }>(filterKey, { tokens: [], text: '' }, 'session')
+    if (JSON.stringify(next) !== JSON.stringify(filters)) setFilters(next)
+  }
+  const setTokens = (tokens: FilterToken[]) => {
+    const next = { ...filters, tokens }
+    setFilters(next)
+    writePref(filterKey, next, 'session')
+  }
+  const setText = (text: string) => {
+    const next = { ...filters, text }
+    setFilters(next)
+    writePref(filterKey, next, 'session')
+  }
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+  const revealRef = useRef<(t: UndoTarget) => void>(() => {})
+  const data = useTapeData(film, undo, (t) => revealRef.current(t))
+  useDataEvent('film', () => {
+    if (!data.consumeOwnFilmEvent()) reload()
   })
-  const current = plays.find((p) => p.playId === currentId) ?? null
-  const currentClips = current ? clipsByPlay.get(current.playId) ?? [] : []
-  const clip = currentClips.find((c) => c.angle === angle) ?? currentClips[0] ?? null
-  const note: PlayNote | null = current
-    ? notes.get(current.playId) ?? { gameId: game.gameId, playId: current.playId, note: '', chart: {}, drawing: {}, flagged: false }
-    : null
+  const clipsByPlay = useMemo(() => {
+    const m = new Map<number, typeof data.clips>()
+    for (const c of data.clips) if (c.playId !== null) m.set(c.playId, [...(m.get(c.playId) ?? []), c])
+    return m
+  }, [data.clips])
+  const gameAngles = useMemo(() => ANGLE_ORDER.filter((a) => data.clips.some((c) => c.angle === a)), [data.clips])
+  const hasFilm = data.clips.length > 0
+  const pinned = useMemo(() => settings.pinned[team] ?? [], [settings.pinned, team])
+  const lineup = useMemo(() => lineupOptions(plays, team), [plays, team])
 
-  const go = useCallback(
-    (delta: number) => {
-      if (!visible.length) return
-      const i = visible.findIndex((p) => p.playId === currentId)
-      let next: Play | undefined
-      if (i !== -1) next = visible[Math.min(visible.length - 1, Math.max(0, i + delta))]
-      else {
-        // The current play can drop out of the list (graded while showing Ungraded): step from where it sat.
-        const pi = plays.findIndex((p) => p.playId === currentId)
-        const before = visible.filter((p) => plays.indexOf(p) < pi).length
-        next = pi === -1 ? visible[0] : visible[delta > 0 ? before + delta - 1 : before + delta]
-      }
-      if (!next || next.playId === currentId) return
-      // Notes save on blur, so blur a note still being typed before its field is swapped for the next play's.
-      const typing = document.activeElement
-      if (typing instanceof HTMLElement && typing.closest('.tape-side')) typing.blur()
-      setCurrentId(next.playId)
-    },
-    [visible, plays, currentId]
-  )
-
-  // Who's being graded on this play: the 11 on the field when nflverse has participation data,
-  // otherwise the players you've starred plus anyone credited in the play-by-play.
-  const roster = useMemo(
-    () => Object.values(film.players).filter((p) => p.team === team).sort(byPosition),
-    [film.players, team]
-  )
-  const gradingList = useMemo((): RosterPlayer[] => {
-    if (!current) return []
-    const onOffense = current.posteam === team
-    const onField = onOffense ? current.offensePlayers : current.defensePlayers
-    const ids: string[] = []
-    if (onField.length) {
-      ids.push(...onField)
-      if (onlyFocus && pinned.length) ids.splice(0, ids.length, ...onField.filter((id) => pinned.includes(id)))
-    } else {
-      const side = current.special ? 'special' : onOffense ? 'offense' : 'defense'
-      ids.push(...pinned.filter((id) => {
-        const p = film.players[id]
-        return !p || current.special || sideOfGroup(p.group) === side
-      }))
-      if (!onlyFocus) ids.push(...current.involved.filter((id) => film.players[id]?.team === team))
+  // Alignment check results (improvement 14): the list's warning marker.
+  const [alignment, setAlignment] = useState<Map<number, string>>(() => new Map())
+  useEffect(() => {
+    let live = true
+    void api.alignment(gameId).then(
+      (r) => live && r && setAlignment(new Map(r.suspects.map((s) => [s.playId, s.message] as [number, string]))),
+      () => {}
+    )
+    return () => {
+      live = false
     }
-    for (const g of grades.values()) if (g.playId === current.playId && g.team === team) ids.push(g.playerId)
-    return [...new Set(ids)].map((id) => film.players[id] ?? stubPlayer(id, team)).sort(byPosition)
-  }, [current, team, film.players, pinned, onlyFocus, grades])
+  }, [gameId, data.clips])
 
-  useEffect(() => {
-    if (!gradingList.some((p) => p.id === selected)) setSelected(gradingList[0]?.id ?? null)
-  }, [gradingList, selected])
-
-  // Each new play starts at the top of the player list.
-  const firstPlayer = gradingList[0]?.id ?? null
-  useEffect(() => {
-    setSelected(firstPlayer)
+  const entriesByPlay = useMemo(() => {
+    const m = new Map<number, GradeEntry[]>()
+    for (const e of data.grades.values()) m.set(e.playId, [...(m.get(e.playId) ?? []), e])
+    return m
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentId])
+  }, [data.version])
+  const teamEntries = useCallback((playId: number) => (entriesByPlay.get(playId) ?? []).filter((e) => e.team === team), [entriesByPlay, team])
+  const entryOf = data.entryOf
 
-  // Keep the selected play visible in the list.
+  const listedMap = useMemo(() => {
+    const m = new Map<number, RosterPlayer[]>()
+    for (const p of plays) m.set(p.playId, listedPlayers(p, team, pinned, starredOnly, entriesByPlay.get(p.playId) ?? [], players))
+    return m
+  }, [plays, team, pinned, starredOnly, entriesByPlay, players])
+  const listedFor = useCallback((p: Play) => listedMap.get(p.playId) ?? [], [listedMap])
+  const progressOf = useCallback((p: Play) => playProgress(listedFor(p), (id) => entryOf(p.playId, id)), [listedFor, entryOf])
+  const playGradeCounts = useCallback((p: Play) => {
+    const es = teamEntries(p.playId)
+    return { ...gradeCounts(es), graded: es.filter((e) => e.grade !== null).length }
+  }, [teamEntries])
+  const gradedPlays = useMemo(() => plays.filter((p) => teamEntries(p.playId).some((e) => e.grade !== null)).length, [plays, teamEntries])
+
+  // ── Player Focus ──────────────────────────────────────────────────────────
+  const allEntries = useMemo(() => [...data.grades.values()], [data.grades, data.version]) // eslint-disable-line react-hooks/exhaustive-deps
+  const focus: FocusState | null = useMemo(() => {
+    if (!focusId) return null
+    const player = players[focusId] ?? stubPlayer(focusId, team)
+    const snaps = focusSnaps(player, team, plays, allEntries, film.hasParticipation)
+    return { player, snaps, snapIds: new Set(snaps.map((p) => p.playId)), progress: focusProgress(player.id, snaps, allEntries) }
+  }, [focusId, players, team, plays, allEntries, film.hasParticipation])
+
+  // ── The list ──────────────────────────────────────────────────────────────
+  const baseList = focus ? focus.snaps : plays
+  const visible = useMemo(
+    () =>
+      baseList.filter((p) =>
+        matchPlay(p, filters.tokens, filters.text, {
+          game,
+          team,
+          entries: entriesByPlay.get(p.playId) ?? [],
+          note: data.notes.get(p.playId) ?? null,
+          player: focus?.player.id
+        })
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [baseList, filters, game, team, entriesByPlay, data.version, focus?.player.id]
+  )
+
+  // ── Current play ──────────────────────────────────────────────────────────
+  const current = plays.find((p) => p.playId === currentId) ?? null
+  const currentNote = current ? data.noteOf(current.playId) : null
+  const currentClips = useMemo(() => (current ? (clipsByPlay.get(current.playId) ?? []) : []), [current, clipsByPlay])
+  const listed = current ? listedFor(current) : []
+  const defaultSel = current ? firstToGrade(listed, (id) => entryOf(current.playId, id)) : null
+  let selectedId = sel.playId === currentId && sel.team === team ? sel.id : defaultSel
+  if (selectedId && !listed.some((p) => p.id === selectedId)) selectedId = listed[0]?.id ?? null
+  const selected = listed.find((p) => p.id === selectedId) ?? null
   useEffect(() => {
-    document.querySelector('.play-row.current')?.scrollIntoView({ block: 'nearest' })
-  }, [currentId])
+    if (sel.playId !== currentId || sel.team !== team) setSel({ playId: currentId, team, id: defaultSel })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId, team])
+  const onFocusSnap = !!focus && !!current && focus.snapIds.has(current.playId)
+  const target = focus ? (onFocusSnap ? focus.player : null) : selected
+  const targetEntry = target && current ? entryOf(current.playId, target.id) : undefined
 
-  const tagsFor = (p: RosterPlayer | undefined) => tags.filter((t) => t.group === (p?.group ?? 'ST'))
+  // ── Angles and layout (02 §8) ─────────────────────────────────────────────
+  const twoAngles = gameAngles.length >= 2
+  const layout: Layout = twoAngles ? layoutPref : 'single'
+  const primary: Angle = anglePref && gameAngles.includes(anglePref) ? anglePref : (gameAngles[0] ?? 'sideline')
+  const second: Angle = secondPref && gameAngles.includes(secondPref) && secondPref !== primary ? secondPref : (gameAngles.find((a) => a !== primary) ?? primary)
+  const playAngles = ANGLE_ORDER.filter((a) => currentClips.some((c) => c.angle === a))
+  const clipOf = (a: Angle) => currentClips.find((c) => c.angle === a) ?? null
+  const shown: Angle = playAngles.includes(primary) ? primary : (playAngles[0] ?? primary)
+  const twoPane = layout !== 'single' && currentClips.length > 0
+  const panes: PaneInfo[] = twoPane
+    ? [
+        { angle: primary, clip: clipOf(primary) },
+        { angle: second, clip: clipOf(second) }
+      ]
+    : [{ angle: shown, clip: clipOf(shown) }]
+  let active: Angle | null = panes[0]?.angle ?? null
+  if (layout === 'sideBySide' && twoPane && activeAngle && panes.some((p) => p.angle === activeAngle && p.clip)) active = activeAngle
+  if (twoPane && !panes.find((p) => p.angle === active)?.clip) active = panes.find((p) => p.clip)?.angle ?? active
+  const activeClip = active ? clipOf(active) : null
 
-  const saveGrade = (entry: GradeEntry) => {
-    setGrades((m) => new Map(m).set(gradeKey(entry.playId, entry.playerId), entry))
-    void api.saveGrade(entry)
-  }
-  const entryFor = (playerId: string): GradeEntry =>
-    grades.get(gradeKey(current!.playId, playerId)) ?? {
-      gameId: game.gameId, playId: current!.playId, playerId, team, grade: null, tags: [], note: '', critical: false, offField: false
+  // ── Video ─────────────────────────────────────────────────────────────────
+  const preload = useMemo(() => {
+    const i = visible.findIndex((p) => p.playId === currentId)
+    const near = [visible[i + 1], visible[i - 1]].filter(Boolean) as Play[]
+    const out = []
+    for (const p of near) {
+      const cs = clipsByPlay.get(p.playId) ?? []
+      for (const a of twoPane ? [primary, second] : [shown]) {
+        const c = cs.find((x) => x.angle === a) ?? (twoPane ? null : cs[0])
+        if (c) out.push(c)
+      }
     }
-  const setGrade = (playerId: string, grade: Grade | null) => {
-    if (!current) return
-    saveGrade({ ...entryFor(playerId), grade })
+    return out.slice(0, 4)
+  }, [visible, currentId, clipsByPlay, twoPane, primary, second, shown])
+  const video = useVideoController({
+    panes: panes.map((p) => ({ id: p.angle, clip: p.clip })),
+    active,
+    startAtSnap: settings.startAtSnap,
+    preRoll: settings.preRoll,
+    speed,
+    loop,
+    sound,
+    autoplay: !drawMode,
+    preload
+  })
+  const [vstate, setVstate] = useState(() => ({ playing: false, ready: false, clock: null as string | null }))
+  useEffect(
+    () =>
+      video.engine.subscribe(() => {
+        const s = video.engine.getState()
+        setVstate((v) => (v.playing === s.playing && v.ready === s.ready && v.clock === s.clock ? v : { playing: s.playing, ready: s.ready, clock: s.clock }))
+      }),
+    [video]
+  )
+  const playable = !!vstate.clock && panes.some((p) => p.clip)
+  const activePlayable = !!activeClip && !video.engine.getState().panes[active ?? '']?.error
+
+  // Keep the display awake while film plays (02 §5.10).
+  useEffect(() => {
+    window.shell?.setPlaybackActive(vstate.playing)
+  }, [vstate.playing])
+  useEffect(() => () => window.shell?.setPlaybackActive(false), [])
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  const refocus = useCallback(() => rootRef.current?.focus({ preventScroll: true }), [])
+  useEffect(() => refocus(), [refocus])
+
+  const blurFields = () => {
+    const a = document.activeElement
+    if (a instanceof HTMLElement && isTyping(a) && (a.closest('.screen-tape-room') || a.closest('#inspector-slot'))) a.blur()
   }
-  /** Grades everyone on the play who has no grade yet as 0, for snaps where nobody stood out. */
-  const fillZeros = () => {
+
+  const goTo = useCallback(
+    (playId: number, opts: { mouse?: boolean; keepMulti?: boolean } = {}) => {
+      blurFields()
+      data.flushNotes()
+      setEndPanel(null)
+      setSelectedShape(null)
+      if (!opts.keepMulti) setMulti(new Set())
+      setCurrentId(playId)
+      if (opts.mouse) refocus()
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data.flushNotes, refocus]
+  )
+
+  const showEnd = useCallback(() => {
+    video.pause()
+    if (focus) {
+      if (focus.progress.graded < focus.progress.total) setEndPanel({ kind: 'focusLast' })
+      else setEndPanel({ kind: 'focusDone', nextGame: null })
+      return
+    }
+    const anyUngraded = visible.some((p) => playIsUngraded(listedFor(p), (id) => entryOf(p.playId, id)))
+    setEndPanel({ kind: anyUngraded ? 'lastUngraded' : 'allGraded' })
+  }, [video, focus, visible, listedFor, entryOf])
+
+  /** ↑/↓ in the filtered list; v1's `go()` when the current play was filtered out (02 §13.1). */
+  const step = (delta: number) => {
+    if (!visible.length) return
+    const i = visible.findIndex((p) => p.playId === currentId)
+    let next: Play | undefined
+    if (i !== -1) next = visible[i + delta]
+    else {
+      const pi = plays.findIndex((p) => p.playId === currentId)
+      const before = visible.filter((p) => plays.indexOf(p) < pi).length
+      next = pi === -1 ? visible[0] : visible[delta > 0 ? before + delta - 1 : before + delta]
+    }
+    if (!next) {
+      if (delta < 0) window.shell?.beep()
+      else showEnd()
+      return
+    }
+    goTo(next.playId)
+  }
+
+  const isUngraded = (p: Play) =>
+    focus
+      ? (() => {
+          const e = entryOf(p.playId, focus.player.id)
+          return !e || (e.grade === null && !e.offField)
+        })()
+      : playIsUngraded(listedFor(p), (id) => entryOf(p.playId, id))
+  const stepUngraded = (dir: 1 | -1) => {
+    if (!visible.length) return
+    const start = Math.max(-1, visible.findIndex((p) => p.playId === currentId))
+    for (let k = 1; k <= visible.length; k++) {
+      const p = visible[(((start + dir * k) % visible.length) + visible.length) % visible.length]
+      if (p.playId !== currentId && isUngraded(p)) return goTo(p.playId)
+    }
+    if (dir > 0) showEnd()
+    else window.shell?.beep()
+  }
+  const anyUngradedInList = useMemo(() => visible.some((p) => isUngraded(p)), [visible, listedMap, data.version, focus]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Route and history ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const url = links.tape(gameId, team, {
+      play: currentId ?? undefined,
+      player: focus?.player.id,
+      focus: !!focus,
+      angles: layout !== 'single' ? 'both' : undefined
+    })
+    if (`/${route.path.join('/')}?${route.query.toString()}` !== url) navigate(url, { replace: true })
+    if (currentId !== null) {
+      writePref(`ui.tape.lastPlay.${gameId}.${team}`, currentId)
+      setEntrySelection(String(currentId))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameId, team, currentId, focus?.player.id, layout])
+
+  // Back/Forward between entries of the same game: follow the route.
+  useEffect(() => {
+    const qTeam = route.query.get('team')
+    const qPlay = route.query.get('play')
+    if (qTeam && qTeam !== team && (qTeam === game.homeTeam || qTeam === game.awayTeam)) setTeamState(qTeam)
+    if (qPlay && Number(qPlay) !== currentId && plays.some((p) => p.playId === Number(qPlay))) setCurrentId(Number(qPlay))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route])
+
+  // Opened with ?player=&focus=1 or ?angles=both.
+  useEffect(() => {
+    const pid = route.query.get('player')
+    if (pid && route.query.get('focus') === '1') {
+      const known = players[pid] || plays.some((p) => p.offensePlayers.includes(pid) || p.defensePlayers.includes(pid) || p.involved.includes(pid))
+      if (known) enterFocus(pid)
+      else banner({ title: players[pid] ? `${players[pid].name} isn’t in this game` : 'This player isn’t in this game' })
+    }
+    if (route.query.get('angles') === 'both' && twoAngles && layoutPref === 'single') setLayout(lastMulti)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Recorded as opened (clears the sidebar Film badge); the drop target and File › Import Film use this game.
+  useEffect(() => {
+    if (hasFilm) void api.openedFilm(gameId, team).catch(() => {})
+  }, [gameId, team, hasFilm])
+  useEffect(() => {
+    setImportContext({ game, team })
+    return () => setImportContext(null)
+  }, [game, team])
+
+  // The studied team's games with film, for the title menu.
+  const [teamGames, setTeamGames] = useState<TeamGame[]>([])
+  useEffect(() => {
+    let live = true
+    void api.teamOverview(game.season, team).then(
+      (o) => live && setTeamGames(o.games.filter((g) => g.clipCount > 0)),
+      () => {}
+    )
+    return () => {
+      live = false
+    }
+  }, [game.season, team, gradedPlays])
+
+  // ── Grading actions (02 §7) ───────────────────────────────────────────────
+  const entryFor = (playId: number, playerId: string) => entryOf(playId, playerId) ?? emptyEntry(gameId, playId, playerId, team)
+  const select = (playerId: string) => setSel({ playId: currentId, team, id: playerId })
+
+  revealRef.current = (t) => {
+    if (t.playId !== currentId) goTo(t.playId)
+    if (t.playerId) setSel({ playId: t.playId, team, id: t.playerId })
+    if (t.angle && layout === 'sideBySide') setActiveAngle(t.angle as Angle)
+  }
+
+  const typingInRoom = () => {
+    const a = document.activeElement
+    return a instanceof HTMLElement && isTyping(a) && !!(a.closest('.screen-tape-room') || a.closest('#inspector-slot'))
+  }
+  const autoAdvance = () => {
+    if (settings.autoAdvance && !typingInRoom()) step(1)
+  }
+  /** After a grade by key: the next listed player (skipping Not on Field); after the last, Auto-Advance. */
+  const advanceFrom = (playerId: string) => {
     if (!current) return
-    for (const p of gradingList) if (entryFor(p.id).grade === null) saveGrade({ ...entryFor(p.id), grade: 0 })
+    const i = listed.findIndex((p) => p.id === playerId)
+    for (let j = i + 1; j < listed.length; j++) {
+      const e = entryOf(current.playId, listed[j].id)
+      if (!e?.offField) return select(listed[j].id)
+    }
+    autoAdvance()
+  }
+
+  const grade = (playerId: string, g: Grade, opts: { advance?: boolean; toggle?: boolean } = {}) => {
+    if (!current) return
+    const e = entryFor(current.playId, playerId)
+    const next = opts.toggle && e.grade === g ? withGrade(e, null) : withGrade(e, g)
+    if (!focus) select(playerId)
+    data.changeEntries([next], { label: 'Grade', target: { playId: current.playId, playerId } })
+    if (!opts.advance) return
+    if (focus) step(1)
+    else advanceFrom(playerId)
+  }
+  const clearGrade = (playerId: string) => {
+    if (!current) return
+    data.changeEntries([withGrade(entryFor(current.playId, playerId), null)], { label: 'Clear Grade', target: { playId: current.playId, playerId } })
+  }
+  const toggleCritical = (playerId: string) => {
+    if (!current) return
+    const e = entryFor(current.playId, playerId)
+    data.changeEntries([{ ...e, critical: !e.critical, offField: e.critical ? e.offField : false }], { label: 'Critical', target: { playId: current.playId, playerId } })
+  }
+  const toggleOffField = (playerId: string, byKey = false) => {
+    if (!current) return
+    const e = entryFor(current.playId, playerId)
+    const on = !e.offField
+    data.changeEntries([withOffField(e, on)], { label: 'Not on Field', target: { playId: current.playId, playerId } })
+    if (on && byKey) {
+      if (focus) step(1)
+      else advanceFrom(playerId)
+    }
   }
   const toggleTag = (playerId: string, tag: TagDef) => {
     if (!current) return
-    const e = entryFor(playerId)
-    const has = e.tags.includes(tag.label)
-    const nextTags = has ? e.tags.filter((t) => t !== tag.label) : [...e.tags, tag.label]
-    // A tag implies a grade when none is set yet: positive tags lean +, negative tags lean –.
-    const grade = e.grade ?? (has ? null : tag.kind === 'pos' ? 1 : tag.kind === 'neg' ? -1 : null)
-    saveGrade({ ...e, tags: nextTags, grade })
+    data.changeEntries([withTag(entryFor(current.playId, playerId), tag)], { label: 'Tag', target: { playId: current.playId, playerId } })
   }
-  const saveNote = (patch: Partial<PlayNote>) => {
-    if (!note) return
-    const next = { ...note, ...patch }
-    setNotes((m) => new Map(m).set(next.playId, next))
-    void api.savePlayNote(next)
+  const setPinned = (list: string[]) => void saveSettings({ pinned: { ...settings.pinned, [team]: list } }).catch((e) => errorBanner('Couldn’t save the star', e))
+  const toggleStar = (playerId: string) => {
+    const was = pinned.includes(playerId)
+    const before = pinned
+    const after = was ? pinned.filter((x) => x !== playerId) : [...pinned, playerId]
+    setPinned(after)
+    undo.push({ label: 'Star', undo: () => setPinned(before), redo: () => setPinned(after) })
   }
-  const togglePin = (playerId: string) => {
-    const list = pinned.includes(playerId) ? pinned.filter((x) => x !== playerId) : [...pinned, playerId]
-    const next = { ...settings.pinned, [team]: list }
-    setSettings({ ...settings, pinned: next })
-    void api.saveSettings({ pinned: next })
+  const savePlayerNote = (playerId: string, text: string) => {
+    if (!current) return
+    data.changeEntries([{ ...entryFor(current.playId, playerId), note: text }])
   }
-  const selectNextPlayer = (dir = 1) => {
-    if (!gradingList.length) return
-    const i = gradingList.findIndex((p) => p.id === selected)
-    const ni = i + dir
-    if (ni >= gradingList.length && dir > 0) {
-      if (settings.autoAdvance) go(1)
-      return
+  const fillZeros = () => {
+    if (!current) return
+    const next = listed
+      .map((p) => entryFor(current.playId, p.id))
+      .filter((e) => e.grade === null && !e.offField)
+      .map((e) => withGrade(e, 0))
+    if (next.length) data.changeEntries(next, { label: 'Grade Everyone Left 0', target: { playId: current.playId } })
+    autoAdvance()
+  }
+  const clearPlay = () => {
+    if (!current) return
+    const next = teamEntries(current.playId)
+      .filter((e) => e.grade !== null || e.critical || e.offField)
+      .map((e) => ({ ...e, grade: null, critical: false, offField: false }))
+    if (next.length) data.changeEntries(next, { label: 'Clear Grades', target: { playId: current.playId } })
+  }
+  const toggleFlag = (playIds?: number[]) => {
+    const ids = playIds ?? (current ? [current.playId] : [])
+    if (!ids.length) return
+    const on = !data.noteOf(ids[0]).flagged
+    for (const id of ids) {
+      const was = data.noteOf(id).flagged
+      data.changeNote(id, (n) => ({ ...n, flagged: on }), { kind: 'flag', label: 'Flag', target: { playId: id }, inverse: (n) => ({ ...n, flagged: was }) })
     }
-    setSelected(gradingList[Math.max(0, Math.min(gradingList.length - 1, ni))].id)
+  }
+  const savePlayNote = (text: string) => {
+    if (!current) return
+    data.changeNote(current.playId, (n) => ({ ...n, note: text }), { kind: 'note' })
+  }
+  const setChart = (field: string, value: string) => {
+    if (!current) return
+    const was = data.noteOf(current.playId).chart[field] ?? ''
+    const set = (v: string) => (n: PlayNote) => {
+      const chart = { ...n.chart }
+      if (v) chart[field] = v
+      else delete chart[field]
+      return { ...n, chart }
+    }
+    data.changeNote(current.playId, set(value), { kind: 'chart', label: 'Chart Field', target: { playId: current.playId }, inverse: set(was) })
   }
 
-  // Angle switching cycles through the angles this play has, not every angle in the game.
-  const playAngles = ANGLE_ORDER.filter((a) => currentClips.some((c) => c.angle === a))
-  const nextAngle = () => playAngles.length > 1 && setAngle(playAngles[(playAngles.indexOf(clip!.angle) + 1) % playAngles.length])
+  // ── Player Focus (02 §9) ──────────────────────────────────────────────────
+  const [picker, setPicker] = useState<HTMLElement | null>(null)
+  const pickerAnchor = useRef<HTMLElement | null>(null)
+  const [addPlayer, setAddPlayer] = useState<HTMLElement | null>(null)
+  const addAnchor = useRef<HTMLElement | null>(null)
 
-  // This view draws pen shapes only; other shape kinds are kept as they are when the pens change.
-  const angleShapes: Shape[] = note?.drawing[clip?.angle ?? angle] ?? []
-  const strokes: Stroke[] = angleShapes.filter((s): s is Stroke => s.kind === 'pen')
-  const setStrokes = (s: Stroke[]) =>
-    saveNote({ drawing: { ...note!.drawing, [clip?.angle ?? angle]: [...angleShapes.filter((x) => x.kind !== 'pen'), ...s] } })
-
-  // Keyboard and menus: every v1 hotkey is a command; the shell's key router and the menu bar both run them.
-  const sel = gradingList.find((p) => p.id === selected)
-  const selTags = tagsFor(sel)
-  const entrySel = sel && current ? grades.get(gradeKey(current.playId, sel.id)) : undefined
-  const hasClip = !!clip
-  const gradeAndNext = (g: Grade) => {
-    if (!sel) return
-    setGrade(sel.id, g)
-    selectNextPlayer()
+  function enterFocus(playerId: string) {
+    const p = players[playerId]
+    const ownTeam = p && (p.team === game.homeTeam || p.team === game.awayTeam) ? p.team : team
+    const player = p ?? stubPlayer(playerId, ownTeam)
+    const snaps = focusSnaps(player, ownTeam, plays, [...data.grades.values()], film.hasParticipation)
+    if (ownTeam !== team) setTeamState(ownTeam)
+    setFocusId(playerId)
+    setPicker(null)
+    setTabPref('grade')
+    if (!snaps.some((s) => s.playId === currentId) && snaps.length) {
+      const first = snaps.find((s) => {
+        const e = entryOf(s.playId, playerId)
+        return !e || (e.grade === null && !e.offField)
+      })
+      goTo((first ?? snaps[0]).playId)
+    }
+    refocus()
   }
-  const fixMatches = () =>
-    openImport({
+  const exitFocus = () => {
+    if (!focus) return
+    const id = focus.player.id
+    setFocusId(null)
+    if (current && listed.some((p) => p.id === id)) setSel({ playId: current.playId, team, id })
+  }
+  const openFocusPicker = (anchor?: HTMLElement | null) => {
+    pickerAnchor.current = anchor ?? document.querySelector<HTMLElement>('[data-test="toolbar-focus"]') ?? rootRef.current
+    setPicker(pickerAnchor.current)
+  }
+  const openAddPlayer = (anchor: HTMLElement | null) => {
+    addAnchor.current = anchor ?? document.querySelector<HTMLElement>('[data-test="grade-header"]')
+    setAddPlayer(addAnchor.current)
+  }
+
+  // ── Studied team switch (02 §3) ───────────────────────────────────────────
+  const switchTeam = (t: string) => {
+    if (t === team) return
+    setFocusId(null)
+    setSelectedShape(null)
+    setTeamState(t)
+    refocus()
+  }
+
+  // ── Fix Clip Matches (02 §18) ─────────────────────────────────────────────
+  const fixMatches = (focusPlayId?: number) =>
+    void openFixMatches({
       game,
       team,
-      existing: film.clips.length ? film.clips.map((c) => ({ path: c.path, fileName: c.fileName, angle: c.angle, playId: c.playId })) : undefined,
+      existing: data.clips.length
+        ? data.clips.map((c) => ({ clipId: c.id, path: c.path, fileName: c.fileName, angle: c.angle, playId: c.playId, snapMs: c.snapMs }))
+        : undefined,
+      focusPlayId,
       onImported: () => {
         reload()
         banner({ title: 'Film updated', kind: 'success' })
       }
     })
-  useCommand('play.toggle', () => video.current?.togglePlay(), { enabled: hasClip })
-  useCommand('play.frameBack', () => video.current?.step(-1), { enabled: hasClip })
-  useCommand('play.frameForward', () => video.current?.step(1), { enabled: hasClip })
-  useCommand('play.secondBack', () => video.current?.seekBy(-1), { enabled: hasClip })
-  useCommand('play.secondForward', () => video.current?.seekBy(1), { enabled: hasClip })
-  useCommand('play.prevPlay', () => go(-1), { enabled: visible.length > 0 })
-  useCommand('play.nextPlay', () => go(1), { enabled: visible.length > 0 })
-  useCommand('play.toSnap', () => video.current?.restart(), { enabled: hasClip })
-  useCommand('play.slower', () => setSpeed(SPEEDS[Math.max(0, SPEEDS.indexOf(speed) - 1)] ?? 1))
-  useCommand('play.faster', () => setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(speed) + 1)] ?? 1))
-  useCommand('play.speed', (arg) => arg && setSpeed(Number(arg)))
-  useCommand('play.loop', () => setLoop((v) => !v), { checked: loop })
-  useCommand('play.nextAngle', nextAngle, { enabled: playAngles.length > 1 })
-  useCommand('play.autoAdvance', () => {
-    const next = { ...settings, autoAdvance: !settings.autoAdvance }
-    setSettings(next)
-    void api.saveSettings({ autoAdvance: next.autoAdvance })
-  }, { checked: settings.autoAdvance })
-  useCommand('draw.toggle', () => setDrawing((v) => !v), { checked: drawing, enabled: !!note })
-  useCommand('draw.clear', () => note && setStrokes([]), { enabled: strokes.length > 0 })
-  useCommand('draw.undo', () => note && setStrokes(strokes.slice(0, -1)), { enabled: strokes.length > 0 })
-  useCommand('grade.flag', () => note && saveNote({ flagged: !note.flagged }), { enabled: !!note, label: note?.flagged ? 'Unflag Play' : 'Flag Play' })
-  useCommand('grade.note', () => noteRef.current?.focus(), { enabled: !!note })
-  useCommand('grade.nextPlayer', () => selectNextPlayer(1), { enabled: gradingList.length > 0 })
-  useCommand('grade.prevPlayer', () => selectNextPlayer(-1), { enabled: gradingList.length > 0 })
-  useCommand('grade.selectPlayer', (arg) => {
-    const p = gradingList[Number(arg) - 1]
-    if (p) setSelected(p.id)
-  }, { enabled: gradingList.length > 0 && !drawing })
-  useCommand('grade.plus', () => gradeAndNext(1), { enabled: !!sel })
-  useCommand('grade.zero', () => gradeAndNext(0), { enabled: !!sel })
-  useCommand('grade.minus', () => gradeAndNext(-1), { enabled: !!sel })
-  useCommand('grade.clear', () => sel && setGrade(sel.id, null), { enabled: !!sel })
-  useCommand('grade.fillZeros', fillZeros, { enabled: !!current && gradingList.length > 0 })
-  useCommand('grade.toggleTag', (arg) => {
-    const t = selTags[Number(arg)]
-    if (sel && t) toggleTag(sel.id, t)
-  }, { enabled: !!sel && selTags.length > 0 })
-  useCommand('grade.star', () => sel && togglePin(sel.id), { enabled: !!sel, label: sel && pinned.includes(sel.id) ? 'Unstar Player' : 'Star Player' })
-  useCommand('file.fixMatches', fixMatches)
-  useCommand('file.exportCsv', () => void api.exportGradesCsv(game.season, team).then((path) => path && banner({ title: `Exported ${path.split(/[\\/]/).pop()}`, action: { label: 'Show in Finder', run: () => window.shell.showItemInFolder(path) } })))
-  useCommand('edit.undo', () => note && setStrokes(strokes.slice(0, -1)), { enabled: strokes.length > 0, label: 'Undo Drawing' })
-  useDynamicMenus({
-    speed,
-    tags: selTags.slice(0, 10).map((t, i) => ({ index: i, label: t.label, checked: !!entrySel?.tags.includes(t.label) })),
-    angles: playAngles.map((a) => ({ angle: a, label: a === 'endzone' ? 'End Zone' : a === 'sideline' ? 'Sideline' : 'Main', enabled: true, checked: clip?.angle === a }))
-  })
-  useCommand('play.angle', (arg) => arg && setAngle(arg as Angle), { enabled: playAngles.length > 1 })
-  useEffect(() => {
-    setImportContext({ game, team })
-    return () => {
-      setImportContext(null)
-      setDynamicMenus({ speed: null, tags: [], angles: [] })
-    }
-  }, [game, team])
+  /** More › Check Clip Alignment (File › Check Clip Alignment is the shell's, through the import context). */
+  const checkAlignment = () =>
+    void checkClipAlignment(game, team, reload).then(() =>
+      api.alignment(gameId).then(
+        (r) => r && setAlignment(new Map(r.suspects.map((s) => [s.playId, s.message] as [number, string]))),
+        () => {}
+      )
+    )
 
-  const onEnded = () => {
-    // Don't change plays under a note still being typed: the rest of it would land as hotkeys on the next play.
-    const typing = document.activeElement
-    if ((typing instanceof HTMLTextAreaElement || (typing instanceof HTMLInputElement && typing.type === 'text')) && typing.closest('.tape-side')) return
-    if (settings.autoAdvance) go(1)
+  // ── Snap points (02 §10) ──────────────────────────────────────────────────
+  const paneFrame = (a: Angle) => video.engine.getState().panes[a]?.frame ?? 1 / 30
+  const paneTime = (a: Angle) => video.engine.getState().panes[a]?.time ?? 0
+  const setSnapHere = () => {
+    if (!active || !activeClip || !current) return
+    const f = paneFrame(active)
+    const t = quantize(paneTime(active), f)
+    video.engine.seekPane(active, t)
+    data.setSnap(activeClip.id, Math.round(t * 1000), { label: 'Set Snap', target: { playId: current.playId, angle: active } })
+    viewerToast(`Snap Set at ${secondsLabel(t)}`)
+  }
+  const nudgeSnap = (dir: 1 | -1) => {
+    if (!active || !activeClip || !current) return
+    const f = paneFrame(active)
+    const base = activeClip.snapMs !== null ? activeClip.snapMs / 1000 : quantize(paneTime(active), f)
+    const dur = video.engine.getState().panes[active]?.duration ?? Infinity
+    const t = Math.max(f / 2, Math.min(quantize(base, f) + dir * f, dur - f / 2))
+    video.engine.seekPane(active, t)
+    data.setSnap(activeClip.id, Math.round(t * 1000), { label: 'Set Snap', target: { playId: current.playId, angle: active }, mergeKey: `nudge:${activeClip.id}` })
+    viewerToast(`Snap at ${secondsLabel(t)}`)
+  }
+  const clearSnap = () => {
+    if (!activeClip || !current) return
+    data.setSnap(activeClip.id, null, { label: 'Clear Snap', target: { playId: current.playId, angle: active ?? undefined } })
+    viewerToast('Snap Cleared')
+  }
+  const goToSnap = () => {
+    if (!active || !activeClip || activeClip.snapMs === null) return
+    video.pause()
+    video.engine.seekPane(active, activeClip.snapMs / 1000)
   }
 
-  const studyTeam = TEAM_BY_ABBR[team]
-  const gradedCount = gradesByPlay.size
+  // ── Angles (02 §8.2) ──────────────────────────────────────────────────────
+  const nextAngle = () => {
+    if (layout === 'sideBySide' && twoPane) {
+      const other = panes.find((p) => p.angle !== active && p.clip)
+      if (other) {
+        setActiveAngle(other.angle)
+        viewerToast(`${angleTitle(other.angle)} Active`)
+      }
+      return
+    }
+    if (layout === 'pip' && twoPane) return swapAngles()
+    if (playAngles.length < 2) return
+    const next = playAngles[(playAngles.indexOf(shown) + 1) % playAngles.length]
+    setAnglePref(next)
+    if (next === second) setSecondPref(primary)
+    viewerToast(angleTitle(next))
+  }
+  const swapAngles = () => {
+    setAnglePref(second)
+    setSecondPref(primary)
+    setActiveAngle(second)
+  }
+  const toggleSideBySide = () => {
+    if (!twoAngles) return
+    const next: Layout = layout === 'single' ? lastMulti : 'single'
+    setLayout(next)
+    setActiveAngle(primary)
+    viewerToast(next === 'single' ? 'Single Angle' : next === 'pip' ? 'Picture in Picture' : 'Side by Side')
+  }
+  const togglePip = () => {
+    if (!twoAngles) return
+    if (layout === 'pip') setLayout('single')
+    else {
+      setLayout('pip')
+      setLastMulti('pip')
+    }
+  }
+  const chooseAngle = (a: Angle) => {
+    if (layout !== 'single' && a === second) return swapAngles()
+    setAnglePref(a)
+    if (a === second) setSecondPref(primary)
+  }
+  const chooseLayout = (l: Layout) => {
+    if (l !== 'single') setLastMulti(l)
+    setLayout(l)
+  }
+  const setActive = (a: Angle) => {
+    if (layout === 'sideBySide') setActiveAngle(a)
+  }
+
+  // ── Drawing (02 §11) ──────────────────────────────────────────────────────
+  const shapesOf = (a: Angle): Shape[] => currentNote?.drawing[a] ?? []
+  const activeShapes = active ? shapesOf(active) : []
+  const setShapes = (a: Angle, shapes: Shape[], opts: { label?: string; prev?: Shape[] } = {}) => {
+    if (!current) return
+    const prev = opts.prev ?? shapesOf(a)
+    data.changeNote(current.playId, (n) => ({ ...n, drawing: { ...n.drawing, [a]: shapes } }), {
+      kind: 'drawing',
+      debounce: true,
+      label: opts.label,
+      target: { playId: current.playId, angle: a },
+      inverse: (n) => ({ ...n, drawing: { ...n.drawing, [a]: prev } })
+    })
+  }
+  const toggleDraw = () => {
+    if (!drawMode) {
+      video.pause()
+      setDrawMode(true)
+    } else {
+      setDrawMode(false)
+      setSelectedShape(null)
+    }
+  }
+  const setStyle = (patch: Partial<DrawStyle>) => {
+    if (patch.color !== undefined) setColor(patch.color)
+    if (patch.width !== undefined) setWidth(patch.width)
+    if (patch.textSize !== undefined) setTextSize(patch.textSize)
+    if (patch.penEnd !== undefined) setPenEnd(patch.penEnd)
+    if (patch.lineEnd !== undefined) setLineEnd(patch.lineEnd)
+    if (patch.showFor !== undefined) setShowFor(patch.showFor)
+  }
+  const selShape = activeShapes.find((s) => s.id === selectedShape) ?? null
+  const deleteShape = () => {
+    if (!active || !selShape) return
+    setShapes(active, activeShapes.filter((s) => s.id !== selShape.id), { label: 'Delete Drawing' })
+    setSelectedShape(null)
+  }
+  const arrange = (front: boolean) => {
+    if (!active || !selShape) return
+    const rest = activeShapes.filter((s) => s.id !== selShape.id)
+    setShapes(active, front ? [...rest, selShape] : [selShape, ...rest], { label: 'Arrange Drawing' })
+  }
+  const duplicateShape = () => {
+    if (!active || !selShape) return
+    const copy = offsetShape({ ...selShape, id: crypto.randomUUID().slice(0, 8) } as Shape, 0.02)
+    setShapes(active, [...activeShapes, copy], { label: 'Duplicate Drawing' })
+    setSelectedShape(copy.id)
+  }
+
+  // ── Inspector tabs ────────────────────────────────────────────────────────
+  const setTab = (t: InspectorTab) => setTabPref(t)
+  const toGrade = () => tab !== 'grade' && setTab('grade')
+
+  // ── Context menus (02 §16.1, §16.2) ───────────────────────────────────────
+  const playMenu = (e: React.MouseEvent, play: Play) => {
+    const inMulti = multi.has(play.playId) || play.playId === currentId
+    const ids = inMulti ? [...new Set([...(currentId !== null ? [currentId] : []), ...multi])] : [play.playId]
+    if (!inMulti) setMulti(new Set())
+    const ordered = plays.filter((p) => ids.includes(p.playId))
+    const flagged = data.noteOf(play.playId).flagged
+    const clips = clipsByPlay.get(play.playId) ?? []
+    void api.cutups().then((cutups) => {
+      const manual = cutups.map((c) => c.cutup).filter((c) => c.kind === 'manual')
+      const refs = ordered.map((p) => ({ gameId, playId: p.playId }))
+      void showMenu(null, [
+        action(flagged ? 'Unflag Play' : 'Flag Play', () => toggleFlag(ordered.map((p) => p.playId)), { accelerator: 'F' }),
+        submenu('Add to Cut-up', [
+          ...manual.map((c) => action(c.name, () => void addToCutup(c.id, c.name, refs))),
+          ...(manual.length ? [sep()] : []),
+          action(refs.length === 1 ? 'New Cut-up with This Play' : 'New Cut-up with These Plays', () => void newCutup(refs))
+        ]),
+        sep(),
+        action('Copy Description', () => void navigator.clipboard.writeText(ordered.map((p) => p.desc).join('\n'))),
+        clips.length > 1
+          ? submenu(
+              'Show Clip in Finder',
+              clips.map((c) => action(angleTitle(c.angle), () => void api.revealClip(c.path)))
+            )
+          : action('Show Clip in Finder', () => clips[0] && void api.revealClip(clips[0].path), { enabled: clips.length === 1 && ordered.length === 1 }),
+        sep(),
+        action('Fix Clip Match…', () => fixMatches(play.playId), { enabled: ordered.length === 1 })
+      ])
+    })
+  }
+  const gradingRowMenu = (e: React.MouseEvent, player: RosterPlayer) => {
+    if (!current) return
+    select(player.id)
+    const en = entryOf(current.playId, player.id)
+    const g = en?.grade ?? null
+    const ptags = tagsFor(tags, player)
+    const starred = pinned.includes(player.id)
+    const canOff = !current.offensePlayers.length || !!en?.offField || !film.hasParticipation
+    void showMenu(e, [
+      action('Plus', () => grade(player.id, 1), { accelerator: '=', checked: g === 1 }),
+      action('Zero', () => grade(player.id, 0), { accelerator: '0', checked: g === 0 }),
+      action('Minus', () => grade(player.id, -1), { accelerator: '-', checked: g === -1 }),
+      action('Clear Grade', () => clearGrade(player.id), { accelerator: 'Backspace', enabled: g !== null }),
+      sep(),
+      action(en?.critical ? 'Unmark Critical' : 'Mark Critical', () => toggleCritical(player.id), { accelerator: '!' }),
+      ...(canOff ? [action('Not on Field', () => toggleOffField(player.id), { accelerator: 'X', checked: !!en?.offField })] : []),
+      submenu(
+        'Tags',
+        ptags.length
+          ? ptags.map((t, i) => ({ ...action(t.label, () => toggleTag(player.id, t), { checked: !!en?.tags.includes(t.label), accelerator: i < 10 ? 'QWERTYUIOP'[i] : undefined }) }))
+          : [{ item: { label: 'No Tags', enabled: false } }]
+      ),
+      sep(),
+      action('Grade in Player Focus', () => enterFocus(player.id)),
+      action(starred ? 'Unstar for Grading' : 'Star for Grading', () => toggleStar(player.id)),
+      action('Add Player Note', () => focusPlayerNote(player.id), { accelerator: 'Shift+N' }),
+      sep(),
+      ...playerMenu(game.season, player).filter((a) => a.item.label === 'Open Player' || a.item.label === 'Copy Name')
+    ])
+  }
+  const focusPlayerNote = (playerId: string) => {
+    toGrade()
+    if (!focus) select(playerId)
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-test="player-note"]')?.focus())
+  }
+
+  // Cut-ups (⌘D, the play row menu).
+  const addToCutup = async (id: string, name: string, refs: { gameId: string; playId: number }[]) => {
+    try {
+      const r = await api.addToCutup(id, refs)
+      banner({ title: r.added ? `Added to “${name}”` : `Already in “${name}”`, kind: 'success', action: { label: 'Open', run: () => navigate(links.cutup(id)) } })
+    } catch (e) {
+      errorBanner('Couldn’t add to the cut-up', e)
+    }
+  }
+  const newCutup = async (refs: { gameId: string; playId: number }[]) => {
+    try {
+      const c = await api.createCutup({ kind: 'manual', plays: refs })
+      banner({ title: `Added to “${c.name}”`, kind: 'success', action: { label: 'Open', run: () => navigate(links.cutup(c.id)) } })
+    } catch (e) {
+      errorBanner('Couldn’t create the cut-up', e)
+    }
+  }
+  const openCutupMenu = () => {
+    if (!current) return
+    const refs = [{ gameId, playId: current.playId }]
+    const anchor =
+      document.querySelector('[data-test="play-row"][data-current="true"]') ?? document.querySelector('[data-test="viewer"]') ?? document.body
+    void api.cutups().then((cutups) => {
+      const manual = cutups.map((c) => c.cutup).filter((c) => c.kind === 'manual')
+      const items: MenuItemSpec[] = [
+        { kind: 'header', label: 'Add Play to Cut-up' },
+        ...manual.map((c): MenuItemSpec => ({ label: c.name, run: () => void addToCutup(c.id, c.name, refs) })),
+        ...(manual.length ? [{ kind: 'separator' } as MenuItemSpec] : []),
+        { label: 'New Cut-up with This Play', run: () => void newCutup(refs) }
+      ]
+      openMenu({ anchor, items, placement: 'below', minWidth: 240 })
+    })
+  }
+
+  const exportPlayVideo = () => {
+    if (!current) return
+    const req = { source: { kind: 'plays' as const, label: `${game.awayTeam} @ ${game.homeTeam}`, team, plays: [{ gameId, playId: current.playId }] }, playerId: focus?.player.id ?? null }
+    if (tapeRoomHooks.exportVideo) tapeRoomHooks.exportVideo(req)
+    else banner({ title: 'Export Video isn’t available yet', kind: 'info' })
+  }
+  const exportCsv = () =>
+    void api.exportGradesCsv(game.season, team).then(
+      (path) => path && banner({ title: `Exported ${path.split(/[\\/]/).pop()}`, kind: 'success', action: { label: 'Show in Finder', run: () => window.shell.showItemInFolder(path) } }),
+      (e) => errorBanner('Couldn’t export the grades', e)
+    )
+
+  // ── Video helpers ─────────────────────────────────────────────────────────
+  const poke = useRef<() => void>(() => {})
+  const pb = (fn: () => void) => () => {
+    poke.current()
+    fn()
+  }
+  const changeSpeed = (s: number) => {
+    setSpeed(s)
+    viewerToast(`${s}×`)
+  }
+  const speedStep = (dir: 1 | -1) => {
+    const i = (SPEEDS as readonly number[]).indexOf(speed)
+    const next = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, (i < 0 ? 3 : i) + dir))]
+    if (next !== speed) changeSpeed(next)
+  }
+
+  // Clip ended with Loop off: Auto-Advance (02 §13.2).
+  const ended = useRef<() => void>(() => {})
+  ended.current = () => {
+    window.shell?.setPlaybackActive(false)
+    if (settings.autoAdvance && !typingInRoom()) step(1)
+  }
+  useEffect(() => video.onEnded(() => ended.current()), [video])
+
+  // ── Commands (02 §15) ─────────────────────────────────────────────────────
+  const hasTarget = !!target && !!current
+  const targetTags = tagsFor(tags, target ?? undefined)
+  const canOffField = hasTarget && (!film.hasParticipation || !(current!.offensePlayers.length || current!.defensePlayers.length) || !!targetEntry?.offField)
+  const listUngraded = !focus && listed.some((p) => {
+    const e = current ? entryOf(current.playId, p.id) : undefined
+    return !e || (e.grade === null && !e.offField)
+  })
+  const playHasMarks = !!current && teamEntries(current.playId).some((e) => e.grade !== null || e.critical || e.offField)
+
+  useCommand('play.toggle', pb(() => video.toggle()), { enabled: playable, label: vstate.playing ? 'Pause' : 'Play' })
+  useCommand('play.frameBack', pb(() => video.stepFrames(-1)), { enabled: playable })
+  useCommand('play.frameForward', pb(() => video.stepFrames(1)), { enabled: playable })
+  useCommand('play.secondBack', pb(() => video.seekBy(-1)), { enabled: playable })
+  useCommand('play.secondForward', pb(() => video.seekBy(1)), { enabled: playable })
+  useCommand('play.prevPlay', pb(() => step(-1)), { enabled: !!current && visible.length > 0 })
+  useCommand('play.nextPlay', pb(() => step(1)), { enabled: !!current && visible.length > 0 })
+  useCommand('play.prevUngraded', pb(() => stepUngraded(-1)), { enabled: anyUngradedInList })
+  useCommand('play.nextUngraded', pb(() => stepUngraded(1)), { enabled: visible.length > 0 })
+  useCommand('play.toSnap', pb(() => video.replay()), { enabled: playable })
+  useCommand('play.setSnap', pb(setSnapHere), { enabled: activePlayable })
+  useCommand('play.snapEarlier', pb(() => nudgeSnap(-1)), { enabled: activePlayable })
+  useCommand('play.snapLater', pb(() => nudgeSnap(1)), { enabled: activePlayable })
+  useCommand('play.clearSnap', clearSnap, { enabled: !!activeClip && activeClip.snapMs !== null })
+  useCommand('play.startAtSnap', () => void saveSettings({ startAtSnap: !settings.startAtSnap }), { checked: settings.startAtSnap })
+  useCommand('play.slower', pb(() => speedStep(-1)), { enabled: speed > SPEEDS[0] })
+  useCommand('play.faster', pb(() => speedStep(1)), { enabled: speed < SPEEDS[SPEEDS.length - 1] })
+  useCommand('play.speed', (arg) => arg && changeSpeed(Number(arg)))
+  useCommand(
+    'play.loop',
+    pb(() => {
+      setLoop(!loop)
+      viewerToast(loop ? 'Loop Off' : 'Loop On')
+    }),
+    { checked: loop }
+  )
+  useCommand(
+    'play.sound',
+    pb(() => {
+      setSound(!sound)
+      viewerToast(sound ? 'Sound Off' : 'Sound On')
+    }),
+    { checked: sound, enabled: playable }
+  )
+  useCommand('play.angle', (arg) => arg && chooseAngle(arg as Angle), { enabled: playAngles.length > 0 })
+  useCommand('play.nextAngle', pb(nextAngle), { enabled: playAngles.length > 1 || twoPane })
+  useCommand('play.sideBySide', pb(toggleSideBySide), { enabled: twoAngles && !!current, checked: layout !== 'single' })
+  useCommand('play.pip', togglePip, { enabled: twoAngles && !!current, checked: layout === 'pip' })
+  useCommand('play.secondAngle', (arg) => arg && setSecondPref(arg as Angle), { enabled: layout !== 'single' && gameAngles.length > 2 })
+  useCommand('play.swapAngles', swapAngles, { enabled: layout !== 'single' && twoPane })
+  useCommand('play.autoAdvance', () => void saveSettings({ autoAdvance: !settings.autoAdvance }), { checked: settings.autoAdvance })
+  useCommand('view.playList', () => setListVisible(!listVisible), { enabled: !filmOnly, label: listVisible ? 'Hide Play List' : 'Show Play List' })
+  useCommand(
+    'view.controls',
+    () => {
+      const hide = !hideControls
+      setHideControls(hide)
+      if (hide) viewerToast('Controls Hidden · Press H to Show')
+      else poke.current()
+    },
+    { enabled: !!current, label: hideControls ? 'Show Controls' : 'Hide Controls' }
+  )
+  useCommand('view.filmOnly', () => setUi({ filmOnly: !filmOnly }), { label: filmOnly ? 'Exit Film Only' : 'Enter Film Only' })
+  useCommand('view.section', (arg) => {
+    const t = TABS[Number(arg) - 1]
+    if (t) setTab(t)
+  })
+  useDynamicMenus({
+    sections: [
+      { index: 1, label: 'Show Grade Inspector', checked: tab === 'grade' },
+      { index: 2, label: 'Show Notes Inspector', checked: tab === 'notes' },
+      { index: 3, label: 'Show Chart Inspector', checked: tab === 'chart' },
+      { index: 4, label: 'Show Info Inspector', checked: tab === 'info' }
+    ],
+    speed,
+    tags: targetTags.slice(0, 10).map((t, i) => ({ index: i, label: t.label, checked: !!targetEntry?.tags.includes(t.label) })),
+    angles: gameAngles.map((a) => ({ angle: a, label: angleTitle(a), enabled: playAngles.includes(a), checked: (layout === 'single' ? shown : primary) === a })),
+    secondAngle: layout !== 'single' && gameAngles.length > 2 ? gameAngles.filter((a) => a !== primary).map((a) => ({ angle: a, label: angleTitle(a), checked: a === second })) : [],
+    layout: current ? layout : null,
+    drawTool: drawMode ? tool : null
+  })
+
+  const gradeKey = (g: Grade) => () => {
+    if (!target) return
+    toGrade()
+    grade(target.id, g, { advance: true })
+  }
+  useCommand('grade.selectPlayer', (arg) => {
+    const p = listed[Number(arg) - 1]
+    if (p) {
+      toGrade()
+      select(p.id)
+    }
+  }, { enabled: !drawMode && !focus && listed.length > 0 })
+  const movePlayer = (dir: 1 | -1) => {
+    toGrade()
+    if (!listed.length || !current) return
+    const i = listed.findIndex((p) => p.id === selectedId)
+    for (let j = i + dir; j >= 0 && j < listed.length; j += dir) {
+      if (!entryOf(current.playId, listed[j].id)?.offField) return select(listed[j].id)
+    }
+    if (dir > 0) autoAdvance()
+  }
+  useCommand('grade.nextPlayer', () => movePlayer(1), { enabled: !focus && listed.length > 0 })
+  useCommand('grade.prevPlayer', () => movePlayer(-1), { enabled: !focus && listed.length > 0 })
+  useCommand('grade.plus', gradeKey(1), { enabled: hasTarget })
+  useCommand('grade.zero', gradeKey(0), { enabled: hasTarget })
+  useCommand('grade.minus', gradeKey(-1), { enabled: hasTarget })
+  useCommand('grade.clear', () => target && (toGrade(), clearGrade(target.id)), { enabled: hasTarget && !selectedShape })
+  useCommand('grade.fillZeros', () => (toGrade(), fillZeros()), { enabled: !focus && listUngraded })
+  useCommand('grade.clearPlay', clearPlay, { enabled: playHasMarks })
+  useCommand('grade.critical', () => target && (toGrade(), toggleCritical(target.id)), { enabled: hasTarget, label: targetEntry?.critical ? 'Unmark Critical' : 'Mark Critical' })
+  useCommand('grade.offField', () => target && (toGrade(), toggleOffField(target.id, true)), { enabled: canOffField, checked: !!targetEntry?.offField })
+  useCommand('grade.toggleTag', (arg) => {
+    const t = targetTags[Number(arg)]
+    if (target && t) {
+      toGrade()
+      toggleTag(target.id, t)
+    }
+  }, { enabled: hasTarget && targetTags.length > 0 })
+  useCommand('grade.addPlayer', () => (toGrade(), openAddPlayer(null)), { enabled: !!current })
+  useCommand('grade.star', () => target && toggleStar(target.id), { enabled: !!target, label: target && pinned.includes(target.id) ? 'Unstar Player' : 'Star Player' })
+  useCommand('grade.playerNote', () => target && focusPlayerNote(target.id), { enabled: hasTarget })
+  useCommand('grade.focus', () => openFocusPicker(), { enabled: !!current })
+  useCommand('grade.exitFocus', exitFocus, { enabled: !!focus })
+  useCommand('grade.flag', () => toggleFlag(), { enabled: !!current, label: currentNote?.flagged ? 'Unflag Play' : 'Flag Play' })
+  useCommand('grade.note', () => {
+    setTab('notes')
+    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[data-test="play-note"]')?.focus())
+  }, { enabled: !!current })
+  useCommand('grade.addToCutup', openCutupMenu, { enabled: !!current })
+  useCommand('draw.toggle', toggleDraw, { enabled: activePlayable || drawMode, checked: drawMode })
+  useCommand('draw.tool', (arg) => {
+    if (arg && (DRAW_TOOLS as readonly string[]).includes(arg)) {
+      setToolPref(arg as Tool)
+      if (arg !== 'select') setSelectedShape(null)
+    }
+  }, { enabled: drawMode })
+  useCommand('draw.deleteShape', deleteShape, { enabled: !!selShape })
+  useCommand(
+    'draw.undo',
+    () => {
+      if (!active || !activeShapes.length) return
+      setShapes(active, activeShapes.slice(0, -1), { label: 'Delete Drawing' })
+      setSelectedShape(null)
+    },
+    { enabled: activeShapes.length > 0 }
+  )
+  useCommand(
+    'draw.clear',
+    () => {
+      if (!active) return
+      setShapes(active, [], { label: 'Clear Drawings' })
+      setSelectedShape(null)
+    },
+    { enabled: activeShapes.length > 0 }
+  )
+  useCommand('draw.duplicate', duplicateShape, { enabled: !!selShape })
+  useCommand('draw.bringToFront', () => arrange(true), { enabled: !!selShape })
+  useCommand('draw.sendToBack', () => arrange(false), { enabled: !!selShape })
+  useCommand('file.fixMatches', () => fixMatches(currentId ?? undefined))
+  useCommand('file.exportVideo', exportPlayVideo, { enabled: playable, label: 'Export Play Video…' })
+  useCommand('file.exportCsv', exportCsv)
+  const nextUndo = undo.peekUndo()
+  const nextRedo = undo.peekRedo()
+  useCommand(
+    'edit.undo',
+    () => {
+      if (isTyping(document.activeElement)) return void document.execCommand('undo')
+      undo.undo()
+    },
+    { enabled: !!nextUndo || isTyping(document.activeElement), label: nextUndo ? `Undo ${nextUndo.label}` : 'Undo' }
+  )
+  useCommand(
+    'edit.redo',
+    () => {
+      if (isTyping(document.activeElement)) return void document.execCommand('redo')
+      undo.redo()
+    },
+    { enabled: !!nextRedo || isTyping(document.activeElement), label: nextRedo ? `Redo ${nextRedo.label}` : 'Redo' }
+  )
+
+  // esc in the tape room (02 §14.6), after fields, text editing and drags have had it.
+  useEscape(() => {
+    if (selectedShape) return setSelectedShape(null), true
+    if (endPanel) return setEndPanel(null), true
+    if (drawMode) return toggleDraw(), true
+    if (filmOnly) return setUi({ filmOnly: false }), true
+    if (focus) return exitFocus(), true
+    if (multi.size) return setMulti(new Set()), true
+    return false
+  })
+
+  // ── Toolbar (02 §3) ───────────────────────────────────────────────────────
+  const subtitle = focus
+    ? `Player Focus · ${focus.player.name} · ${focus.progress.graded} of ${focus.progress.total} graded`
+    : `${weekName(game)} · ${game.season} · ${gradedPlays} of ${plays.length} graded`
+  const titleMenu = (): MenuItemSpec[] => {
+    const list = [...teamGames].sort((a, b) => a.week - b.week || a.gameday.localeCompare(b.gameday))
+    if (!list.some((g) => g.gameId === gameId)) list.push({ ...game, clipCount: data.clips.length, playCount: plays.length, gradedPlays })
+    return [
+      { kind: 'header', label: `${team} Film` },
+      ...list.map(
+        (g): MenuItemSpec => ({
+          label: `${weekName(g)} · ${g.awayTeam} @ ${g.homeTeam} — ${g.gradedPlays ? `${g.gameId === gameId ? gradedPlays : g.gradedPlays} of ${g.playCount} graded` : 'not started'}`,
+          checked: g.gameId === gameId,
+          run: () => {
+            if (g.gameId === gameId) return
+            navigate(links.tape(g.gameId, team, focus ? { player: focus.player.id, focus: true } : undefined))
+          }
+        })
+      ),
+      { kind: 'separator' },
+      { label: `Open ${TEAM_BY_ABBR[team]?.name ?? team}`, run: () => navigate(links.team(game.season, team)) },
+      { label: 'Show All Film', run: () => runCommand('go.film') }
+    ]
+  }
+  const moreItems = (): MenuItemSpec[] => [
+    hasFilm
+      ? { label: 'Fix Clip Matches…', shortcut: '⇧⌘I', run: () => fixMatches(currentId ?? undefined) }
+      : { label: 'Import Film…', shortcut: '⌘I', run: () => runCommand('file.importFilm') },
+    { label: 'Check Clip Alignment', disabled: !hasFilm, run: checkAlignment },
+    { kind: 'separator' },
+    { label: 'Export Play Video…', shortcut: '⌘E', disabled: !playable, run: exportPlayVideo },
+    { label: 'Export Grades as CSV…', shortcut: '⇧⌘E', run: exportCsv },
+    { kind: 'separator' },
+    { label: 'Edit Tags…', run: () => void window.shell.openSettings('grading') },
+    { label: 'Keyboard Shortcuts', shortcut: '⌘/', run: () => runCommand('help.shortcuts', 'tape') }
+  ]
+
+  // Focusing the search field shows the play browser (02 §3).
+  const [listOverlay, setListOverlay] = useState(false)
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      if (!(e.target as HTMLElement)?.closest?.('[data-test="play-search"]')) return
+      if (!listVisible) setListVisible(true)
+      setListOverlay(true)
+    }
+    document.addEventListener('focusin', onFocus)
+    return () => document.removeEventListener('focusin', onFocus)
+  }, [listVisible, setListVisible])
+
+  // ── Narrow windows (02 §2.3) ──────────────────────────────────────────────
+  const [roomWidth, setRoomWidth] = useState(1100)
+  useLayoutEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setRoomWidth(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  const [listWidth, setListWidth] = usePref('ui.tape.list.width', 300)
+  const overlayList = roomWidth < listWidth + 480
+  useEffect(() => {
+    if (!overlayList) setListOverlay(false)
+  }, [overlayList])
+
+  const room: Room = {
+    film,
+    game,
+    team,
+    opponent,
+    plays,
+    players,
+    tags,
+    chartFields,
+    settings,
+    data,
+    undo,
+    video,
+    lineup,
+    hasFilm,
+    gameAngles,
+    clipsByPlay,
+    alignment,
+    baseList,
+    visible,
+    tokens: filters.tokens,
+    text: filters.text,
+    setTokens,
+    setText,
+    group,
+    setGroup,
+    drivesAvailable,
+    multi,
+    setMulti,
+    listedFor,
+    progressOf,
+    playGradeCounts,
+    current,
+    currentNote,
+    currentClips,
+    listed,
+    selected,
+    target,
+    targetEntry,
+    pinned,
+    starredOnly,
+    setStarredOnly,
+    focus,
+    onFocusSnap,
+    panes,
+    layout,
+    active,
+    activeClip,
+    playable,
+    drawMode,
+    tool,
+    style,
+    selectedShape,
+    goTo: (id, opts) => {
+      goTo(id, opts)
+      if (opts?.mouse && overlayList) setListOverlay(false)
+    },
+    step,
+    select: (id) => {
+      select(id)
+    },
+    grade,
+    clearGrade,
+    toggleCritical,
+    toggleOffField: (id) => toggleOffField(id),
+    toggleTag,
+    toggleStar,
+    savePlayerNote,
+    fillZeros,
+    clearPlay,
+    toggleFlag: () => toggleFlag(),
+    savePlayNote,
+    setChart,
+    enterFocus,
+    exitFocus,
+    openFocusPicker,
+    openAddPlayer,
+    fixMatches,
+    openPlayer: (id) => navigate(links.player(game.season, id)),
+    setActive,
+    setTab,
+    tab,
+    refocus,
+    playMenu,
+    gradingRowMenu,
+    setTool: (t) => setToolPref(t),
+    setStyle,
+    selectShape: setSelectedShape,
+    shapesOf,
+    setShapes
+  }
+
+  const searchTokens = filters.tokens.map((t) => toSearchToken(t, team))
+  const subtitleText = subtitle
+  const studyOptions = [game.awayTeam, game.homeTeam].map((t) => ({
+    value: t,
+    label: t,
+    title: `Study ${TEAM_BY_ABBR[t]?.name ?? t}`,
+    test: `study-team-${t}`
+  }))
 
   return (
-    <Screen name="tape-room" scroll="none" takeover className="legacy">
+    <Screen name="tape-room" scroll="none" takeover inspector={<TapeInspector room={room} />} inspectorWidth={340} inspectorMin={300}>
       <Toolbar
         title={`${game.awayTeam} @ ${game.homeTeam}`}
-        subtitle={`${weekLabel(game)} · ${game.season} · ${gradedCount} of ${plays.length} graded`}
-        windowTitle={`${game.awayTeam} @ ${game.homeTeam} — Week ${game.week}, ${game.season}`}
+        subtitle={subtitleText}
+        windowTitle={`${game.awayTeam} @ ${game.homeTeam} — ${weekName(game)}, ${game.season}`}
         separator="always"
+        titleMenu={titleMenu}
         center={
-          <Segmented
-            size="toolbar"
-            value={team}
-            onChange={setTeam}
-            label="Studying"
-            options={[game.awayTeam, game.homeTeam].map((t) => ({ value: t, label: t, title: `Study ${TEAM_BY_ABBR[t]?.name ?? t}` }))}
-          />
+          <div className="tape-study" data-test="study-team" style={{ '--dot-0': teamMarkFor(game.awayTeam), '--dot-1': teamMarkFor(game.homeTeam) } as React.CSSProperties}>
+            <Segmented size="toolbar" value={team} onChange={switchTeam} label="Studying" options={studyOptions} />
+          </div>
         }
         trailing={[
-          { kind: 'button', command: 'draw.toggle', icon: 'pen-line', label: 'Draw' },
-          {
-            kind: 'pulldown',
-            icon: 'ellipsis',
-            label: 'More',
-            test: 'tape-more',
-            items: [
-              { label: film.clips.length ? 'Fix Clip Matches…' : 'Import Film…', shortcut: '⇧⌘I', run: fixMatches },
-              { kind: 'separator' },
-              { label: 'Export Grades as CSV…', shortcut: '⇧⌘E', run: () => void api.exportGradesCsv(game.season, team) },
-              { label: 'Edit Tags…', run: () => void window.shell.openSettings('grading') },
-              { label: 'Keyboard Shortcuts', shortcut: '⌘/', run: () => runCommand('help.shortcuts', 'tape') }
-            ]
-          }
+          { kind: 'button', command: 'view.playList', icon: 'layout-list', pressed: listVisible && !overlayList ? true : overlayList ? listOverlay : false, priority: 1, test: 'toolbar-playlist' },
+          { kind: 'button', command: 'play.sideBySide', icon: 'columns-2', label: twoAngles ? 'Side-by-Side Angles' : 'This game has one camera angle', pressed: layout !== 'single', priority: 3, test: 'toolbar-angles' },
+          { kind: 'button', command: 'draw.toggle', icon: 'pen-line', pressed: drawMode, priority: 3, test: 'toolbar-draw' },
+          focus
+            ? { kind: 'button', command: 'grade.exitFocus', icon: 'scan-eye', label: 'Exit Player Focus', pressed: true, priority: 4, test: 'toolbar-focus' }
+            : { kind: 'button', command: 'grade.focus', icon: 'scan-eye', label: 'Player Focus', pressed: false, priority: 4, test: 'toolbar-focus' },
+          { kind: 'pulldown', icon: 'ellipsis', label: 'More', items: moreItems, test: 'tape-more' }
         ]}
+        search={{
+          placeholder: 'Search plays',
+          value: filters.text,
+          onChange: setText,
+          tokens: searchTokens,
+          onTokensChange: (list) => setTokens(fromSearchTokens(list)),
+          suggest: (t) => buildSuggestions(t, team, filters.tokens, lineup, () => setText(t)),
+          onTokenClick: (tok, anchor) => tokenMenu(tok, anchor, team, filters.tokens, lineup, setTokens),
+          test: 'play-search'
+        }}
+        inspector
       />
-      {!film.hasParticipation && (
-        <div className="tape-notice">
-          On-field lineups for this game aren’t published yet: star the players you’re studying so they’re listed on every snap.
-        </div>
-      )}
-      <div className="tape" data-test="tape-room">
-        <PlayList
-          plays={visible}
-          total={plays.length}
-          filters={filters}
-          setFilters={setFilters}
-          options={options}
-          team={team}
-          opponent={opponent}
-          currentId={currentId}
-          onSelect={setCurrentId}
-          clipsByPlay={clipsByPlay}
-          playGrades={playGrades}
-          notes={notes}
-          hasParticipation={film.hasParticipation}
-        />
-        <div className="tape-stage">
-          <VideoStage
-            ref={video}
-            clip={clip}
-            speed={speed}
-            loop={loop}
-            drawing={drawing}
-            ink={ink}
-            strokes={strokes}
-            onStrokes={setStrokes}
-            onEnded={onEnded}
-            overlay={
-              current && (
-                <>
-                  <span className="badge">
-                    {quarterLabel(current.qtr)} {current.time}
-                  </span>
-                  <span className="badge">
-                    {current.posteam} {downDistance(current)}
-                  </span>
-                  {clip && angles.length > 1 && <span className="badge">{clip.angle === 'endzone' ? 'End zone' : clip.angle === 'sideline' ? 'Sideline' : 'Main'}</span>}
-                  {speed !== 1 && <span className="badge">{speed}×</span>}
-                  {note?.flagged && <span className="badge" style={{ color: 'var(--flag)' }}>⚑ Flagged</span>}
-                </>
-              )
-            }
-            transportExtra={
-              <>
-                <select className="input" style={{ height: 24, width: 70 }} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title="Speed ([ and ])">
-                  {SPEEDS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}×
-                    </option>
-                  ))}
-                </select>
-                <button className={`btn small ${loop ? 'active' : ''}`} onClick={() => setLoop(!loop)} title="Loop the clip (L)">
-                  Loop
-                </button>
-                {playAngles.length > 1 && (
-                  <button className="btn small" onClick={nextAngle} title="Switch camera angle (A)">
-                    {clip?.angle === 'endzone' ? 'End zone' : clip?.angle === 'sideline' ? 'Sideline' : 'Angle'}
-                  </button>
-                )}
-                <button className={`btn small ${drawing ? 'active' : ''}`} onClick={() => setDrawing(!drawing)} title="Draw on the film (D)">
-                  Draw
-                </button>
-                {drawing && (
-                  <>
-                    {INK.map((c) => (
-                      <span key={c} className={`swatch ${ink === c ? 'on' : ''}`} style={{ background: c }} onClick={() => setInk(c)} />
-                    ))}
-                    <button className="btn small ghost" onClick={() => setStrokes(strokes.slice(0, -1))} title="Undo (Z)">
-                      Undo
-                    </button>
-                    <button className="btn small ghost" onClick={() => setStrokes([])} title="Clear (C)">
-                      Clear
-                    </button>
-                  </>
-                )}
-              </>
-            }
+      <div
+        ref={rootRef}
+        className="tape-room"
+        data-test="tape-room"
+        tabIndex={-1}
+        data-film-only={filmOnly || undefined}
+        data-draw={drawMode || undefined}
+      >
+        <div className="tape-room__panes">
+          <PlayBrowser
+            room={room}
+            visible={!filmOnly && (overlayList ? listOverlay : listVisible)}
+            overlay={overlayList}
+            width={listWidth}
+            onWidth={setListWidth}
+            onHide={() => (overlayList ? setListOverlay(false) : setListVisible(false))}
+          />
+          <Viewer
+            room={room}
+            filmOnly={filmOnly}
+            hideControls={hideControls}
+            timeMode={timeMode}
+            onTimeMode={() => setTimeMode(timeMode === 'snap' ? 'clip' : 'snap')}
+            endPanel={endPanel}
+            onEndPanel={setEndPanel}
+            pokeRef={poke}
+            onViewerClick={() => overlayList && listOverlay && setListOverlay(false)}
+            actions={{
+              setSnapHere,
+              clearSnap,
+              goToSnap,
+              nudgeSnap,
+              chooseAngle,
+              chooseLayout,
+              swapAngles,
+              setSecondAngle: (a) => setSecondPref(a),
+              toggleDraw,
+              copyFrame: (a) => void copyFrame(video.engine, a, shapesOf(a)),
+              switchTeam: () => switchTeam(opponent),
+              firstPlay: () => visible[0] && goTo(visible[0].playId),
+              firstUngraded: () => {
+                const p = visible.find((x) => isUngraded(x))
+                if (p) goTo(p.playId)
+              },
+              continueIn: (g) => navigate(links.tape(g.gameId, team, focus ? { player: focus.player.id, focus: true } : undefined)),
+              teamGames,
+              exportVideo: exportPlayVideo,
+              deleteShape,
+              duplicateShape,
+              arrange,
+              gradedPlays,
+              startPoint: activeClip ? clipStartTime(activeClip, settings) : null,
+              snap: snapSeconds(activeClip),
+              playAngles,
+              twoPane,
+              primary,
+              second
+            }}
           />
         </div>
-        <div className="tape-side">
-          {current && note ? (
-            <>
-              <PlayInfo play={current} clip={clip} flagged={note.flagged} onFlag={() => saveNote({ flagged: !note.flagged })} />
-              <div className="side-section">
-                <div className="row" style={{ marginBottom: 8 }}>
-                  <TeamChip abbr={team} size="sm" />
-                  <h3>
-                    Grade {team} {current.special ? 'special teams' : current.posteam === team ? 'offense' : 'defense'}
-                  </h3>
-                  <span className="spacer" />
-                  <label className="row faint" style={{ fontSize: 12, gap: 4 }} title="Only show players you've starred">
-                    <input type="checkbox" checked={onlyFocus} onChange={(e) => setOnlyFocus(e.target.checked)} />
-                    Starred only
-                  </label>
-                </div>
-                {gradingList.length === 0 && (
-                  <p className="faint" style={{ margin: '4px 0 8px' }}>
-                    No players listed for this play. Add the players you’re studying below and star them so they show up on
-                    every snap.
-                  </p>
-                )}
-                {gradingList.map((p, i) => {
-                  const e = grades.get(gradeKey(current.playId, p.id))
-                  return (
-                    <PlayerGradeRow
-                      key={p.id}
-                      index={i}
-                      season={game.season}
-                      playId={current.playId}
-                      player={p}
-                      entry={e}
-                      tags={tagsFor(p)}
-                      selected={selected === p.id}
-                      starred={pinned.includes(p.id)}
-                      onSelect={() => setSelected(p.id)}
-                      onGrade={(g) => setGrade(p.id, e?.grade === g ? null : g)}
-                      onTag={(t) => toggleTag(p.id, t)}
-                      onStar={() => togglePin(p.id)}
-                      onNote={(text) => saveGrade({ ...entryFor(p.id), note: text })}
-                    />
-                  )
-                })}
-                <select
-                  className="input"
-                  style={{ width: '100%', marginTop: 8, height: 28 }}
-                  value=""
-                  onChange={(e) => {
-                    const id = e.target.value
-                    if (!id) return
-                    if (!pinned.includes(id)) togglePin(id)
-                    setSelected(id)
-                  }}
-                >
-                  <option value="">+ Star a {team} player to grade…</option>
-                  {roster
-                    .filter((p) => !pinned.includes(p.id))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.jersey ? `#${p.jersey} ` : ''}
-                        {p.name} ({p.depthPos || p.position})
-                      </option>
-                    ))}
-                </select>
-              </div>
-              {chartFields.length > 0 && (
-                <div className="side-section">
-                  <h4 style={{ marginBottom: 8 }}>Charting</h4>
-                  <div className="chart-fields">
-                    {chartFields.map((f) => (
-                      <ChartSelect key={f.id} field={f} value={note.chart[f.name] ?? ''} onChange={(v) => saveNote({ chart: { ...note.chart, [f.name]: v } })} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="side-section">
-                <h4 style={{ marginBottom: 8 }}>
-                  Play notes <Kbd>N</Kbd>
-                </h4>
-                <NoteBox key={current.playId} value={note.note} inputRef={noteRef} onSave={(text) => saveNote({ note: text })} />
-              </div>
-            </>
-          ) : (
-            <div className="empty">No plays match these filters.</div>
-          )}
-        </div>
       </div>
+      <FocusPicker room={room} anchor={pickerAnchor} open={!!picker} onClose={() => (setPicker(null), refocus())} />
+      <AddPlayerPopover room={room} anchor={addAnchor} open={!!addPlayer} onClose={() => (setAddPlayer(null), refocus())} />
     </Screen>
   )
 }
 
-function byPosition(a: RosterPlayer, b: RosterPlayer) {
-  return (
-    POSITION_GROUPS.indexOf(a.group) - POSITION_GROUPS.indexOf(b.group) ||
-    (Number(a.jersey) || 99) - (Number(b.jersey) || 99) ||
-    a.name.localeCompare(b.name)
-  )
-}
-
-function stubPlayer(id: string, team: string): RosterPlayer {
-  return {
-    id, name: id, team, position: '', depthPos: '', group: 'ST' as PositionGroup, jersey: '', status: '',
-    headshot: '', college: '', height: '', weight: '', yearsExp: ''
+/** A copy of a shape moved by `d` picture units (Duplicate Drawing). */
+function offsetShape(s: Shape, d: number): Shape {
+  switch (s.kind) {
+    case 'pen':
+      return { ...s, points: s.points.map(([x, y]) => [x + d, y + d] as [number, number]) }
+    case 'line':
+      return { ...s, from: [s.from[0] + d, s.from[1] + d], to: [s.to[0] + d, s.to[1] + d] }
+    default:
+      return { ...s, x: s.x + d, y: s.y + d }
   }
 }
 
-function PlayList(props: {
-  plays: Play[]
-  total: number
-  filters: Filters
-  setFilters: (f: Filters) => void
-  options: { formation: string[]; personnel: string[]; coverage: string[] }
-  team: string
-  opponent: string
-  currentId: number | null
-  onSelect: (id: number) => void
-  clipsByPlay: Map<number, Clip[]>
-  playGrades: (playId: number) => GradeEntry[]
-  notes: Map<number, PlayNote>
-  hasParticipation: boolean
-}) {
-  const { filters: f, setFilters } = props
-  const set = (patch: Partial<Filters>) => setFilters({ ...f, ...patch })
-  const active = JSON.stringify(f) !== JSON.stringify(NO_FILTERS)
-  return (
-    <div className="tape-list">
-      <div className="tape-filters">
-        <input className="input" placeholder="Search plays (e.g. sack, Lamb, deep left)" value={f.search} onChange={(e) => set({ search: e.target.value })} />
-        <div className="row">
-          <select className="input" value={f.side} onChange={(e) => set({ side: e.target.value as Filters['side'] })}>
-            <option value="all">Both sides</option>
-            <option value="off">{props.team} offense</option>
-            <option value="def">{props.team} defense</option>
-          </select>
-          <select className="input" value={f.kind} onChange={(e) => set({ kind: e.target.value as Filters['kind'] })}>
-            <option value="all">All plays</option>
-            <option value="pass">Pass</option>
-            <option value="run">Run</option>
-            <option value="special">Special teams</option>
-          </select>
-        </div>
-        <div className="row">
-          <select className="input" value={f.down} onChange={(e) => set({ down: e.target.value })}>
-            <option value="">Down</option>
-            {[1, 2, 3, 4].map((d) => (
-              <option key={d} value={d}>
-                {['1st', '2nd', '3rd', '4th'][d - 1]} down
-              </option>
-            ))}
-          </select>
-          <select className="input" value={f.qtr} onChange={(e) => set({ qtr: e.target.value })}>
-            <option value="">Quarter</option>
-            {[1, 2, 3, 4, 5].map((q) => (
-              <option key={q} value={q}>
-                {quarterLabel(q)}
-              </option>
-            ))}
-          </select>
-          <select className="input" value={f.status} onChange={(e) => set({ status: e.target.value as Filters['status'] })}>
-            <option value="all">Status</option>
-            <option value="ungraded">Ungraded</option>
-            <option value="graded">Graded</option>
-            <option value="flagged">Flagged</option>
-            <option value="noted">Has notes</option>
-          </select>
-        </div>
-        {props.hasParticipation && (
-          <div className="row">
-            <select className="input" value={f.formation} onChange={(e) => set({ formation: e.target.value })}>
-              <option value="">Formation</option>
-              {props.options.formation.map((o) => (
-                <option key={o} value={o}>
-                  {prettyEnum(o)}
-                </option>
-              ))}
-            </select>
-            <select className="input" value={f.personnel} onChange={(e) => set({ personnel: e.target.value })} title={`${props.team} personnel`}>
-              <option value="">Personnel</option>
-              {props.options.personnel.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-            <select className="input" value={f.coverage} onChange={(e) => set({ coverage: e.target.value })}>
-              <option value="">Coverage</option>
-              {props.options.coverage.map((o) => (
-                <option key={o} value={o}>
-                  {prettyEnum(o)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="row faint" style={{ fontSize: 11.5 }}>
-          {props.plays.length} of {props.total} plays
-          <span className="spacer" />
-          {active && (
-            <a onClick={() => setFilters(NO_FILTERS)} style={{ fontSize: 11.5 }}>
-              Clear filters
-            </a>
-          )}
-        </div>
-      </div>
-      <div className="plays">
-        {props.plays.map((p) => {
-          const kind = playKind(p)
-          const gs = props.playGrades(p.playId)
-          const res = resultLabel(p)
-          const good = p.posteam === props.team ? (p.epa ?? 0) > 0 : (p.epa ?? 0) < 0
-          const n = props.notes.get(p.playId)
-          return (
-            <div
-              key={p.playId}
-              className={`play-row ${p.playId === props.currentId ? 'current' : ''} ${props.clipsByPlay.has(p.playId) ? '' : 'noclip'}`}
-              onClick={() => props.onSelect(p.playId)}
-            >
-              <div className="top">
-                <span className={`kind-dot ${kind}`} />
-                <span>
-                  {quarterLabel(p.qtr)} {p.time}
-                </span>
-                <span>·</span>
-                <span>
-                  {p.posteam} {p.down ? downDistance(p) : playTypeLabel(p.playType)}
-                </span>
-                {n?.flagged && <span style={{ color: 'var(--flag)' }}>⚑</span>}
-                {n?.note.trim() && <span title="Has notes">✎</span>}
-                <span className={`result ${p.epa === null ? '' : good ? 'good' : 'bad'}`}>{res}</span>
-              </div>
-              <div className="desc" title={p.desc}>
-                {shortDesc(p.desc)}
-              </div>
-              {gs.length > 0 && (
-                <div className="grade-pips" style={{ marginTop: 3 }}>
-                  {gs.map((g) => (
-                    <i key={g.playerId} style={{ background: g.grade! > 0 ? 'var(--plus)' : g.grade! < 0 ? 'var(--minus)' : '#6f7a88' }} />
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function PlayInfo({ play, clip, flagged, onFlag }: { play: Play; clip: Clip | null; flagged: boolean; onFlag: () => void }) {
-  const facts: [string, string][] = [
-    ['Result', `${playTypeLabel(play.playType)}${play.yardsGained !== null ? `, ${play.yardsGained} yds` : ''}`],
-    ['EPA', play.epa === null ? '—' : `${play.epa >= 0 ? '+' : ''}${play.epa.toFixed(2)}`]
-  ]
-  if (play.formation || play.offPersonnel) {
-    facts.push(['Formation', prettyEnum(play.formation)])
-    facts.push(['Off. personnel', play.offPersonnel ?? '—'])
-    facts.push(['Def. personnel', play.defPersonnel ?? '—'])
-    facts.push(['In the box', play.defendersInBox?.toString() ?? '—'])
-    if (play.isPass) facts.push(['Rushers', play.passRushers?.toString() ?? '—'])
-    if (play.coverage) facts.push(['Coverage', `${prettyEnum(play.coverage)}${play.manZone ? ` (${prettyEnum(play.manZone)})` : ''}`])
-    if (play.isPass && play.wasPressure !== null) facts.push(['Pressure', play.wasPressure ? 'Yes' : 'No'])
-  } else if (play.shotgun || play.noHuddle) {
-    facts.push(['Look', [play.shotgun && 'Shotgun', play.noHuddle && 'No huddle'].filter(Boolean).join(', ')])
-  }
-  return (
-    <div className="side-section">
-      <div className="row">
-        <span className="play-head">
-          {quarterLabel(play.qtr)} {play.time} · {downDistance(play)}
-          {play.yrdln ? ` at ${play.yrdln}` : ''}
-        </span>
-        <span className="spacer" />
-        <button className={`btn small ${flagged ? 'active' : ''}`} onClick={onFlag} title="Flag this play for your cut-ups (F)">
-          ⚑ {flagged ? 'Flagged' : 'Flag'}
-        </button>
-      </div>
-      <div className="faint" style={{ fontSize: 12 }}>
-        {play.posteam} ball vs {play.defteam}
-      </div>
-      <div className="play-desc">{play.desc}</div>
-      <dl className="facts">
-        {facts.map(([k, v]) => (
-          <div key={k} style={{ display: 'contents' }}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
-      {clip && (
-        <div className="faint" style={{ fontSize: 11, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          <a className="faint" onClick={() => api.revealClip(clip.path)} title="Show in Finder">
-            {clip.fileName}
-          </a>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function PlayerGradeRow({
-  index, season, playId, player, entry, tags, selected, starred, onSelect, onGrade, onTag, onStar, onNote
-}: {
-  index: number
-  season: number
-  playId: number
-  player: RosterPlayer
-  entry: GradeEntry | undefined
-  tags: TagDef[]
-  selected: boolean
-  starred: boolean
-  onSelect: () => void
-  onGrade: (g: Grade) => void
-  onTag: (t: TagDef) => void
-  onStar: () => void
-  onNote: (text: string) => void
-}) {
-  const g = entry?.grade ?? null
-  // A label whose tag was since removed (or renamed in only one of the groups sharing it) still shows, so it can be cleared.
-  const stale = (entry?.tags ?? []).filter((l) => !tags.some((t) => t.label === l))
-  const shownTags = [
-    ...(selected ? tags : tags.filter((t) => entry?.tags.includes(t.label))),
-    ...stale.map((label, i): TagDef => ({ id: -1 - i, group: player.group, label, kind: 'neutral' }))
-  ]
-  return (
-    <div className={`player-row ${selected ? 'selected' : ''}`} onClick={onSelect}>
-      <div className="line">
-        <span className="hot">{index < 9 ? index + 1 : ''}</span>
-        <span
-          className={`star ${starred ? 'on' : ''}`}
-          onClick={(e) => {
-            e.stopPropagation()
-            onStar()
-          }}
-          title={starred ? 'Unstar' : 'Star: always list this player'}
-        >
-          {starred ? '★' : '☆'}
-        </span>
-        <span className="jersey">{player.jersey}</span>
-        <span className="pname">
-          <a
-            style={{ color: 'inherit' }}
-            data-test="grading-player-name"
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate(links.player(season, player.id))
-            }}
-          >
-            {player.name}
-          </a>
-        </span>
-        <span className="ppos">{player.depthPos || player.position}</span>
-        <div className="gbtns" onClick={(e) => e.stopPropagation()}>
-          <button className={`gbtn minus ${g === -1 ? 'on' : ''}`} data-test="grade-minus" aria-pressed={g === -1} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(-1)} title="Minus (−)">
-            –
-          </button>
-          <button className={`gbtn zero ${g === 0 ? 'on' : ''}`} data-test="grade-zero" aria-pressed={g === 0} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(0)} title="Zero (0)">
-            0
-          </button>
-          <button className={`gbtn plus ${g === 1 ? 'on' : ''}`} data-test="grade-plus" aria-pressed={g === 1} onMouseDown={(e) => e.preventDefault()} onClick={() => onGrade(1)} title="Plus (=)">
-            +
-          </button>
-        </div>
-      </div>
-      {shownTags.length > 0 && (
-        <div className="tags" onClick={(e) => e.stopPropagation()}>
-          {shownTags.map((t) => (
-            <span
-              key={t.id}
-              className={`tag ${t.kind} ${entry?.tags.includes(t.label) ? 'on' : ''}`}
-              onClick={() => {
-                onSelect()
-                onTag(t)
-              }}
-            >
-              {selected && <span className="k">{TAG_KEYS[tags.indexOf(t)]?.toUpperCase()}</span>}
-              {t.label}
-            </span>
-          ))}
-        </div>
-      )}
-      {selected && (
-        <input
-          className="input"
-          style={{ width: '100%', marginTop: 6, height: 26, fontSize: 12 }}
-          placeholder={`Note on ${lastName(player.name)} this play`}
-          defaultValue={entry?.note ?? ''}
-          key={`${playId}-${player.id}`}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur()
-          }}
-          onBlur={(e) => e.target.value !== (entry?.note ?? '') && onNote(e.target.value)}
-        />
-      )}
-    </div>
-  )
-}
-
-function ChartSelect({ field, value, onChange }: { field: ChartField; value: string; onChange: (v: string) => void }) {
-  return (
-    <>
-      <span className="faint" style={{ fontSize: 12 }}>
-        {field.name}
-      </span>
-      <select className="input" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">—</option>
-        {field.options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-    </>
-  )
-}
-
-function NoteBox({ value, onSave, inputRef }: { value: string; onSave: (v: string) => void; inputRef: React.RefObject<HTMLTextAreaElement | null> }) {
-  const [text, setText] = useState(value)
-  return (
-    <textarea
-      ref={inputRef}
-      className="input"
-      style={{ width: '100%' }}
-      rows={3}
-      placeholder="What did you see on this play?"
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onKeyDown={(e) => e.key === 'Escape' && (e.target as HTMLTextAreaElement).blur()}
-      onBlur={() => text !== value && onSave(text)}
-    />
-  )
-}
+export { entryKey, isEmptyEntry }

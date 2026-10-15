@@ -1,7 +1,7 @@
 import { type FilterToken, matchRule, type PlayContext, textContains, tokensToRules } from '@shared/playQuery'
 import type { Play } from '@shared/types'
 import { prettyEnum } from '../../format'
-import type { SearchToken } from '../../ui/SearchField'
+import type { SearchSuggestion, SearchToken } from '../../ui/SearchField'
 
 /**
  * The play list's filters (02 §4.3): tokens of one key with one or more values (OR within a key, AND across keys and
@@ -273,4 +273,26 @@ export function suggestFilters(text: string, team: string, tokens: readonly Filt
     }
   }
   return out.slice(0, 8)
+}
+
+/**
+ * The toolbar search field's suggestion list and token menus (02 §4.3). The first row always keeps the text as a
+ * description search; the rest, under "Filter by", turn it into a token.
+ */
+export function buildSuggestions(
+  text: string,
+  team: string,
+  tokens: readonly FilterToken[],
+  lineup: LineupOptions,
+  keepText: () => void
+): SearchSuggestion[] {
+  const q = text.trim()
+  if (!q) return []
+  const rows: SearchSuggestion[] = [
+    { token: { key: 'text', keyLabel: '', value: q, label: `Search descriptions for “${q}”` }, run: keepText }
+  ]
+  for (const s of suggestFilters(q, team, tokens, lineup)) {
+    rows.push({ section: 'Filter by', token: toSearchToken({ key: s.key, values: [s.value] }, team) })
+  }
+  return rows
 }
