@@ -162,15 +162,20 @@ export function CommandProvider({ children }: { children: ReactNode }) {
     const offMenu = window.shell.onMenu((id, arg) => {
       runCommand(id, arg)
     })
-    const offLayers = subscribeLayers(changed)
     let typing = false
+    // A menu, popover, Quick Open, preview or sheet gets every key (01 §7.3 step 3), so plain-key menu
+    // equivalents come off the menu bar while one is open, as they do while typing.
     const report = () => {
-      const now = isTyping(document.activeElement)
+      const now = isTyping(document.activeElement) || layers().length > 0
       if (now !== typing) {
         typing = now
         window.shell.setTextFocus(now)
       }
     }
+    const offLayers = subscribeLayers(() => {
+      changed()
+      report()
+    })
     const onFocusOut = () => setTimeout(report, 0)
     document.addEventListener('focusin', report)
     document.addEventListener('focusout', onFocusOut)
