@@ -76,9 +76,9 @@ export function Team({ season, team }: { season: number; team: string }) {
   const nextOpp = nextGame ? opponentOf(nextGame, team) : null
 
   useCommand('file.exportCsv', () => void exportCsv(season, team))
-  useCommand('view.section', (arg) => setSection(SECTIONS[Number(arg ?? 0)]?.value ?? 'overview'))
+  useCommand('view.section', (arg) => setSection(SECTIONS[Number(arg ?? 1) - 1]?.value ?? 'overview'))
   useCommand('go.matchups', () => navigate(links.matchup(season, team, nextOpp ?? undefined)))
-  useDynamicMenus({ sections: SECTIONS.map((s, i) => ({ index: i, label: s.label, checked: s.value === section })) })
+  useDynamicMenus({ sections: SECTIONS.map((s, i) => ({ index: i + 1, label: s.label, checked: s.value === section })) })
   useEffect(() => {
     const g = o ? (latestFilm(o.games) ?? latestPlayed(o.games)) : null
     setImportContext(g ? { game: g, team } : null)

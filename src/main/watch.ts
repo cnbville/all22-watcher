@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, type FSWatcher, watch } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { basename, join, relative } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 import { matchGameName } from '@shared/gameMatch'
 import { gameTitle, weekName } from '@shared/labels'
 import { extensionOf, VIDEO_EXTENSIONS } from '@shared/matching'
@@ -19,6 +19,8 @@ import type { Library } from './library'
  */
 
 export const SETTLE_MS = 10_000
+
+const isInside = (path: string, dir: string) => path.startsWith(dir.endsWith(sep) ? dir : dir + sep)
 export const RESCAN_MS = 60_000
 /** Files a copy or download is still writing. */
 const PARTIAL = /\.(part|partial|crdownload|download|tmp)$/i
@@ -127,22 +129,26 @@ export class WatchFolder {
   }
 
   private startWatching(folder: string) {
-    if (this.opts.fsWatch !== false && existsSync(folder)) {
-      try {
-        this.watcher = watch(folder, { recursive: true }, () => this.soon())
-        this.watcher.on('error', () => this.stopFsWatch())
-      } catch {
-        // Recursive watching isn't available everywhere; the rescan still finds new folders.
-        try {
-          this.watcher = watch(folder, () => this.soon())
-          this.watcher.on('error', () => this.stopFsWatch())
-        } catch {
-          this.watcher = null
-        }
-      }
-    }
+    this.startFsWatch(folder)
     this.rescan = setInterval(() => void this.scan(), this.opts.rescanMs ?? RESCAN_MS)
     this.rescan.unref?.()
+  }
+
+  /** fs.watch on the folder, when it exists. A folder that was missing (an unplugged drive) gets one once it's back. */
+  private startFsWatch(folder: string) {
+    if (this.watcher || this.opts.fsWatch === false || !existsSync(folder)) return
+    try {
+      this.watcher = watch(folder, { recursive: true }, () => this.soon())
+      this.watcher.on('error', () => this.stopFsWatch())
+    } catch {
+      // Recursive watching isn't available everywhere; the rescan still finds new folders.
+      try {
+        this.watcher = watch(folder, () => this.soon())
+        this.watcher.on('error', () => this.stopFsWatch())
+      } catch {
+        this.watcher = null
+      }
+    }
   }
 
   private stopFsWatch() {
@@ -208,9 +214,12 @@ export class WatchFolder {
     if (!folder || this.paused) return
     this.lastChecked = new Date().toISOString()
     if (!existsSync(folder)) {
+      // A watcher on a folder that went away sees nothing when it comes back.
+      this.stopFsWatch()
       this.push()
       return
     }
+    this.startFsWatch(folder)
     let dirs: string[]
     try {
       dirs = (await readdir(folder, { withFileTypes: true })).filter((e) => e.isDirectory() && !e.name.startsWith('.')).map((e) => join(folder, e.name))
@@ -271,7 +280,9 @@ export class WatchFolder {
         this.unmatched.set(dir, { signature, reason: match.reason ?? 'No game matches the folder name.' })
         return
       }
-      if (filmed.has(match.game.gameId)) {
+      // Film that came from this very folder is the same import again: the app quit before it was logged.
+      const fromHere = filmed.has(match.game.gameId) && store.clipsForGame(match.game.gameId).some((c) => isInside(c.path, dir))
+      if (filmed.has(match.game.gameId) && !fromHere) {
         this.unmatched.set(dir, { signature, reason: `${gameTitle(match.game)} (${weekName(match.game)}, ${match.game.season}) already has film. Import it from the Film screen to replace it.` })
         return
       }
@@ -296,11 +307,17 @@ export class WatchFolder {
         const ffmpeg = findFfmpeg()
         if (ffmpeg) {
           activity.update({ detail: `Converting ${preview.unsupported.length} clips`, done: 0, total: preview.unsupported.length })
-          await convertClips(ffmpeg, preview.unsupported, this.library.convertedDir(game.gameId), (done, total) => {
-            this.current = { title, done, total }
-            activity.update({ detail: `Converting ${done} of ${total}`, done, total })
-            this.push()
-          })
+          await convertClips(
+            ffmpeg,
+            preview.unsupported,
+            this.library.convertedDir(game.gameId),
+            (done, total) => {
+              this.current = { title, done, total }
+              activity.update({ detail: `Converting ${done} of ${total}`, done, total })
+              this.push()
+            },
+            () => cancelled
+          )
           preview = await this.library.previewMatch(game.gameId, [dir])
         }
       }
@@ -326,7 +343,7 @@ export class WatchFolder {
         notification: {
           title: `Imported ${title}`,
           body: `${weekName(game)} · ${matched.length} clips matched to ${plays} plays${suspects ? ` · ${suspects} need a check` : ''}`,
-          route: `/film/${game.gameId}`
+          route: `/film/${game.gameId}?team=${team}`
         }
       })
       changed('film')

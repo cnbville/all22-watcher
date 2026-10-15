@@ -139,8 +139,8 @@ export function PlayerPage({ season, playerId }: { season: number; playerId: str
 
   useCommand('file.exportReport', () => void saveReport(), { enabled: !!p && !saving, label: saving ? 'Saving Report…' : undefined })
   useCommand('file.exportVideo', exportVideo, { enabled: !!p && exportAvailable && entries.some((e) => e.clips.length), label: 'Export Reel Video…' })
-  useCommand('view.section', (arg) => changeSection(PLAYER_SECTIONS[Number(arg ?? 0)]?.value ?? 'overview'))
-  useDynamicMenus({ sections: PLAYER_SECTIONS.map((s, i) => ({ index: i, label: s.label, checked: s.value === section })) })
+  useCommand('view.section', (arg) => changeSection(PLAYER_SECTIONS[Number(arg ?? 1) - 1]?.value ?? 'overview'))
+  useDynamicMenus({ sections: PLAYER_SECTIONS.map((s, i) => ({ index: i + 1, label: s.label, checked: s.value === section })) })
 
   const subtitle = player ? [player.jersey ? `#${player.jersey}` : '', player.depthPos || player.position, team?.name ?? player.team, String(season)].filter(Boolean).join(' · ') : String(season)
   const ctx: PlayerCtx | null = p

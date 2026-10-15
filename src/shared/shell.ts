@@ -77,7 +77,7 @@ export interface DynamicMenus {
   angles: { angle: string; label: string; enabled: boolean; checked: boolean }[]
   secondAngle: { angle: string; label: string; checked: boolean }[]
   layout: 'single' | 'sideBySide' | 'pip' | null
-  /** 03 §17 A5: the View menu's section items for the current screen. */
+  /** 03 §17 A5: the View menu's section items for the current screen. `index` is 1-based: the ⌥⌘ digit and the command's arg. */
   sections: { index: number; label: string; checked: boolean }[]
   /** The global season, for "Update 2025 Season Data". */
   season: number | null
