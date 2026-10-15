@@ -299,6 +299,7 @@ export function reelGameLabel(profile: PlayerProfile, r: ReelItem): string {
 }
 
 const ANGLE_PREF: Angle[] = ['sideline', 'main', 'endzone']
+const ANGLE_NAMES: Record<Angle, string> = { sideline: 'Sideline', main: 'Main', endzone: 'End zone' }
 
 function Reel({ profile }: { profile: PlayerProfile }) {
   const [gradeFilter, setGradeFilter] = useState<'all' | 'plus' | 'zero' | 'minus'>('all')
@@ -325,7 +326,8 @@ function Reel({ profile }: { profile: PlayerProfile }) {
 
   const item: ReelItem | undefined = items[index]
   const clip = item ? item.clips.find((c) => c.angle === angle) ?? [...item.clips].sort((a, b) => ANGLE_PREF.indexOf(a.angle) - ANGLE_PREF.indexOf(b.angle))[0] : undefined
-  const angles = item ? [...new Set(item.clips.map((c) => c.angle))] : []
+  const angles = item ? ANGLE_PREF.filter((a) => item.clips.some((c) => c.angle === a)) : []
+  const nextAngle = clip && angles[(angles.indexOf(clip.angle) + 1) % angles.length]
   const next = () => setIndex((i) => (i + 1 < items.length ? i + 1 : i))
 
   return (
@@ -367,9 +369,9 @@ function Reel({ profile }: { profile: PlayerProfile }) {
               <button className="btn small" disabled={index >= items.length - 1} onClick={next}>
                 Next ▶︎
               </button>
-              {angles.length > 1 && (
-                <button className="btn small" onClick={() => setAngle(clip?.angle === 'endzone' ? 'sideline' : 'endzone')}>
-                  {clip?.angle === 'endzone' ? 'Sideline' : 'End zone'} view
+              {angles.length > 1 && nextAngle && (
+                <button className="btn small" onClick={() => setAngle(nextAngle)}>
+                  {ANGLE_NAMES[nextAngle]} view
                 </button>
               )}
               <span className="faint" style={{ marginLeft: 6 }}>
