@@ -5,6 +5,8 @@ import { Button } from '../ui/Button'
 import { MenuHost } from '../ui/Menu'
 import { commandTooltip } from '@shared/commands'
 import { ImportFilm } from '../views/import/ImportFilm'
+import { AnalysisHost } from '../views/AnalysisHost'
+import { newSmartCutup } from '../views/cutups/actions'
 import type { CutupSummary, SidebarBadges } from '@shared/types'
 import { banner, BannerHost, errorBanner } from './Banners'
 import { runCommand, setDynamicMenus, useCommand } from './commands'
@@ -52,7 +54,7 @@ function useShellCommands(cutupsList: CutupSummary[], startNewCutup: () => void)
   useCommand('view.sidebar', toggleSidebar, { label: sidebarShown(s) ? 'Hide Sidebar' : 'Show Sidebar', enabled: !s.filmOnly })
   useCommand('view.inspector', toggleInspector, { enabled: s.hasInspector, label: s.inspectorVisible ? 'Hide Inspector' : 'Show Inspector' })
   useCommand('file.newCutup', startNewCutup)
-  useCommand('file.newSmartCutup', () => navigate(`${links.cutups()}?new=smart`))
+  useCommand('file.newSmartCutup', () => newSmartCutup())
   useCommand('file.importFilm', () => {
     const ctx = importContext()
     openImport(ctx ? { game: ctx.game, team: ctx.team } : {})
@@ -186,7 +188,8 @@ export function Shell({ children }: { children: ReactNode }) {
       if (a.state === 'running' || a.state === 'cancelled') return
       if (a.kind === 'import' || a.kind === 'watch' || a.kind === 'convert') emit('film')
       if (a.kind === 'download') emit('season')
-      if (a.notification) {
+      // Exports post their own banner with the file's facts (views/export).
+      if (a.notification && a.kind !== 'export') {
         const n = a.notification
         void window.shell.notify(n).then((where) => {
           if (where !== 'in-app') return
@@ -313,6 +316,7 @@ export function Shell({ children }: { children: ReactNode }) {
             }}
           />
         )}
+        <AnalysisHost />
         {s.shortcuts.open && <KeyboardShortcuts filter={s.shortcuts.filter} onClose={() => setUi({ shortcuts: { open: false } })} />}
       </div>
       <div id="layer-overlay">

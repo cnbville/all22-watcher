@@ -1,0 +1,231 @@
+@layer screens {
+  /* Export Video sheet (03 §11.2). The sheet body carries .screen-export. */
+  .screen-export {
+    padding-top: 4px;
+
+    .export-sheet {
+      display: grid;
+      grid-template-columns: 360px 396px;
+      column-gap: 24px;
+      align-items: start;
+      transition: opacity var(--dur-fast) var(--ease-out);
+    }
+    .export-sheet[data-loading] .export-sheet__form {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .export-sheet__preview-col {
+      position: sticky;
+      top: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .export-sheet__stepper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--label-2);
+    }
+    .export-sheet__step {
+      min-width: 96px;
+      text-align: center;
+      font: var(--t-callout);
+      color: var(--label-2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .export-sheet__form {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .export-sheet__row {
+      display: grid;
+      grid-template-columns: 96px 288px;
+      column-gap: 12px;
+      align-items: center;
+      min-height: 28px;
+    }
+    .export-sheet__row--top {
+      align-items: start;
+    }
+    .export-sheet__row--top .export-sheet__label {
+      padding-top: 5px;
+    }
+    .export-sheet__label {
+      font: var(--t-body);
+      letter-spacing: var(--track-13);
+      color: var(--label-2);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .export-sheet__control {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .export-sheet__stack {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .export-sheet__sub {
+      min-height: 14px;
+      font: var(--t-subheadline);
+      letter-spacing: var(--track-11);
+      color: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .export-sheet__gap {
+      height: 8px;
+    }
+    .export-sheet__inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font: var(--t-body);
+      color: var(--label);
+    }
+    .export-sheet__checks {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-top: 3px;
+
+      .checkbox {
+        min-height: 18px;
+      }
+    }
+    .export-sheet__indent {
+      padding-left: 20px;
+    }
+    .export-sheet__ext {
+      margin-left: 2px;
+      font: var(--t-body);
+      color: var(--label-3);
+    }
+    .export-sheet__info {
+      display: flex;
+      align-items: flex-start;
+      gap: 4px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+
+      svg {
+        flex: none;
+        margin-top: 1px;
+      }
+    }
+    .export-sheet__field-error {
+      font: var(--t-subheadline);
+      color: var(--danger);
+    }
+    .export-sheet__folder {
+      position: relative;
+      display: inline-flex;
+
+      .popup-button {
+        padding-left: 28px;
+      }
+    }
+    .export-sheet__folder-icon {
+      position: absolute;
+      left: 9px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      pointer-events: none;
+    }
+
+    /* Preview: 360 × 203, the burn-ins drawn by the export's own painters. */
+    .export-preview {
+      position: relative;
+      width: 360px;
+      height: 203px;
+      border-radius: var(--r-lg);
+      background: var(--video-black);
+      overflow: hidden;
+      box-shadow: 0 0 0 0.5px var(--hairline-inner);
+    }
+    .export-preview__poster {
+      position: absolute;
+      object-fit: cover;
+      user-select: none;
+    }
+    .export-preview__placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--label-4);
+    }
+    .export-preview__overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+  }
+
+  /* Footer status (outside the body). */
+  .export-sheet__status {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    font: var(--t-callout);
+    color: var(--label-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .export-sheet__status-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .export-sheet__error {
+    color: var(--danger);
+  }
+
+  /* The sidebar footer's export row popover (03 §11.7). */
+  .screen-export-status {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    .export-status__file {
+      font: var(--t-headline);
+      color: var(--label);
+      overflow-wrap: anywhere;
+    }
+    .export-status__detail {
+      font: var(--t-subheadline);
+      color: var(--label-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .export-status__error {
+      font: var(--t-callout);
+      color: var(--danger);
+      user-select: text;
+    }
+    .export-status__item + .export-status__item {
+      border-top: 1px solid var(--sep);
+      padding-top: 10px;
+      margin-top: 4px;
+    }
+    .export-status__item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .export-status__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+  }
+}

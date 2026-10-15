@@ -31,6 +31,8 @@ export interface ExportSheetRequest {
   initial?: string
   /** The burned-in player for cut-up and tape-room sources (the page's player always wins for player sources). */
   playerId?: string | null
+  /** Default file name without ".mp4" ("Cooper DeJean reel"); else the title. */
+  fileName?: string
   /** Default angle: the reel's or cut-up's current one. */
   angle?: 'sideline' | 'endzone' | 'main' | 'sideBySide'
 }
@@ -98,7 +100,23 @@ export async function addToCutupMenu(plays: PlayRef[]): Promise<MenuAction[]> {
   ]
 }
 
-async function addTo(id: string, name: string, plays: PlayRef[]) {
+/** The cut-ups owner's writers, so the submenu and sidebar drops get the same banners and Undo as the popover. */
+interface CutupWriters {
+  addTo: (id: string, name: string, plays: PlayRef[]) => Promise<void>
+  newWith: (plays: PlayRef[]) => Promise<unknown>
+}
+let writers: CutupWriters | null = null
+
+export function registerCutupWriters(w: CutupWriters): () => void {
+  writers = w
+  return () => {
+    if (writers === w) writers = null
+  }
+}
+
+/** Adds plays to a manual cut-up (sidebar drops, the submenu). */
+export async function addTo(id: string, name: string, plays: PlayRef[]) {
+  if (writers) return writers.addTo(id, name, plays)
   try {
     const r = await api.addToCutup(id, plays)
     banner({ title: r.added ? `Added to “${name}”` : `Already in “${name}”` })
@@ -108,6 +126,7 @@ async function addTo(id: string, name: string, plays: PlayRef[]) {
 }
 
 async function newWith(plays: PlayRef[]) {
+  if (writers) return void (await writers.newWith(plays))
   try {
     const c = await api.createCutup({ kind: 'manual', plays })
     banner({ title: `Added to “${c.name}”` })

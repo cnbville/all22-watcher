@@ -19,10 +19,10 @@ import { links, navigate, useHistory, useRoute } from '../../shell/router'
 import { CollapsingTitle, Loading, LoadError, Screen, useScrollRestore } from '../../shell/Screen'
 import { useSeasons } from '../../shell/store'
 import { Toolbar } from '../../shell/Toolbar'
-import { type ReelEntry, requestExportVideo, useExportVideoAvailable, useLoaded, useRouteState } from '../shared'
+import { readLocal, type ReelEntry, requestExportVideo, useExportVideoAvailable, useLoaded, useRouteState } from '../shared'
 import { SeasonGate } from '../shared/SeasonGate'
 import { Career } from './Career'
-import { FilmSection } from './FilmSection'
+import { FilmSection, filmReelState } from './FilmSection'
 import { fromFilter, parseTokensParam, suggest, type TokenEnv, tokenPool, toFilter } from './filmTokens'
 import { GameLogSection } from './GameLog'
 import { type PlayerSection, PLAYER_SECTIONS, reelEntries, type ReelSort, teamsLine } from './model'
@@ -122,7 +122,20 @@ export function PlayerPage({ season, playerId }: { season: number; playerId: str
       setSaving(false)
     }
   }
-  const exportVideo = () => requestExportVideo({ kind: 'player', season, playerId, plays: entries.filter((e) => e.clips.length).map((e) => e.ref) }, player ? `${player.name} ${season}` : undefined)
+  // Plays: All Graded, Shown in the Reel (filters on), Selected (2+ on Film), 03 §11.3.
+  const exportVideo = () => {
+    const all = entries.map((e) => e.ref)
+    const reel = filmReelState.current
+    const choices = [{ key: 'all', label: `All Graded Plays (${all.length})`, plays: all }]
+    if (reel?.filtered) choices.push({ key: 'shown', label: `Shown in the Reel (${reel.shown.length})`, plays: reel.shown })
+    if (reel && reel.selected.length >= 2) choices.push({ key: 'selected', label: `Selected Plays (${reel.selected.length})`, plays: reel.selected })
+    requestExportVideo({ kind: 'player', season, playerId, plays: all }, player ? `${player.name} · ${season} reel` : undefined, {
+      choices,
+      initial: choices[choices.length - 1].key,
+      fileName: player ? `${player.name} reel` : undefined,
+      angle: readLocal('ui.reel.angle', 'sideline')
+    })
+  }
 
   useCommand('file.exportReport', () => void saveReport(), { enabled: !!p && !saving, label: saving ? 'Saving Report…' : undefined })
   useCommand('file.exportVideo', exportVideo, { enabled: !!p && exportAvailable && entries.some((e) => e.clips.length), label: 'Export Reel Video…' })

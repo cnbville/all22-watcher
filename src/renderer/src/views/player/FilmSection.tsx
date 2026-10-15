@@ -1,13 +1,12 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { durationLabel } from '@shared/labels'
 import { type FilterToken, tokensToRules } from '@shared/playQuery'
-import { api } from '../../api'
+import type { PlayRef } from '@shared/types'
+import { openRulesSheet } from '../cutups/actions'
 import { Button } from '../../ui/Button'
 import { EmptyState } from '../../ui/EmptyState'
 import { PopupButton } from '../../ui/PopupButton'
 import { ToggleSegments } from '../../ui/Segmented'
-import { errorBanner } from '../../shell/Banners'
-import { links, navigate } from '../../shell/router'
 import { useSettings } from '../../shell/store'
 import { entryKey, ReelPlayer, type ReelHandle } from '../shared'
 import { toSearchToken } from './filmTokens'
@@ -22,6 +21,9 @@ const SORTS: { value: ReelSort; label: string }[] = [
 ]
 
 const first = (name: string) => name.split(/\s+/)[0] ?? name
+
+/** What Player › Film shows and has selected, for Export Video's Plays popup (03 §11.3). */
+export const filmReelState: { current: { filtered: boolean; shown: PlayRef[]; selected: PlayRef[] } | null } = { current: null }
 
 /** Player › Film (03 §6.3): filter controls, then the reel with its play list. */
 export function FilmSection({ ctx, film, filter }: { ctx: PlayerCtx; film: FilmState; filter: FilterToken[] }) {
@@ -45,14 +47,24 @@ export function FilmSection({ ctx, film, filter }: { ctx: PlayerCtx; film: FilmS
   const duration = settings ? reelDuration(shown, settings) : 0
   const name = first(ctx.p.player.name)
 
-  const saveAsCutup = async () => {
-    try {
-      const rules = [{ field: 'player' as const, op: 'graded' as const, value: [ctx.playerId] }, ...tokensToRules(filter, { text, player: ctx.playerId })]
-      const c = await api.createCutup({ kind: 'smart', name: `${ctx.p.player.name} · ${tokens.map((t) => t.label).join(', ') || text}`, rules: { match: 'all', rules, limit: null, order: 'game' }, focus: { playerId: ctx.playerId } })
-      navigate(`${links.cutup(c.id)}?rules=1`)
-    } catch (e) {
-      errorBanner('Couldn’t create the cut-up', e)
+  useEffect(() => {
+    const keys = new Set(selection)
+    filmReelState.current = { filtered: filtersOn, shown: shown.map((e) => e.ref), selected: shown.filter((e) => keys.has(entryKey(e))).map((e) => e.ref) }
+    return () => {
+      filmReelState.current = null
     }
+  }, [shown, selection, filtersOn])
+
+  // "Save as Cut-up…" (03 §9.4): the rules sheet with the player rule first and Keep Smart / Fixed.
+  const saveAsCutup = () => {
+    const rules = [{ field: 'player' as const, op: 'graded' as const, value: [ctx.playerId] }, ...tokensToRules(filter, { text, player: ctx.playerId })]
+    openRulesSheet({
+      mode: 'filters',
+      name: [...tokens.map((t) => t.label), text.trim()].filter(Boolean).join(' · '),
+      rules,
+      focus: { playerId: ctx.playerId },
+      fixedPlays: shown.map((e) => e.ref)
+    })
   }
 
   if (!ctx.entries.length) {
@@ -85,7 +97,7 @@ export function FilmSection({ ctx, film, filter }: { ctx: PlayerCtx; film: FilmS
         </span>
         <PopupButton<ReelSort> size="sm" variant="inline" value={sort} onChange={setSort} options={SORTS} label={`Sort: ${SORTS.find((s) => s.value === sort)?.label}`} test="reel-sort" />
         <span className="film-controls__spacer" />
-        {filtersOn && <Button variant="borderless" size="sm" label="Save as Cut-up…" onClick={() => void saveAsCutup()} test="save-as-cutup" />}
+        {filtersOn && <Button variant="borderless" size="sm" label="Save as Cut-up…" onClick={saveAsCutup} test="save-as-cutup" />}
         <span className="film-controls__count">
           {shown.length} of {ctx.entries.length} {ctx.entries.length === 1 ? 'play' : 'plays'}
           {duration > 0 ? ` · ${durationLabel(duration)}` : ''}

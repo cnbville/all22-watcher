@@ -4,7 +4,7 @@ import { computeSplits, type SplitGroup, type SplitRow } from '@shared/splits'
 
 import { TEAM_BY_ABBR } from '@shared/teams'
 import type { PlayRule } from '@shared/types'
-import { api } from '../../api'
+import { openRulesSheet } from '../cutups/actions'
 import { formatEpa, formatPct, gameOutcome, ordinal, weekCode } from '../../format'
 import { Button } from '../../ui/Button'
 import { Checkbox } from '../../ui/Checkbox'
@@ -12,7 +12,6 @@ import { EmptyState } from '../../ui/EmptyState'
 import { PopupButton } from '../../ui/PopupButton'
 import { type Column, Table } from '../../ui/Table'
 import { TeamDot } from '../../ui/TeamChip'
-import { errorBanner } from '../../shell/Banners'
 import { action, sep, showMenu } from '../../shell/contextMenus'
 import { links, navigate } from '../../shell/router'
 import { Section } from '../../shell/Screen'
@@ -70,19 +69,15 @@ function Situations({ ctx }: { ctx: PlayerCtx }) {
     const t = rulesToTokens([rule])
     if (t) ctx.openFilm(t.tokens, t.text)
   }
-  const saveSmart = async (r: SplitRow) => {
+  // "Save as Smart Cut-up…" (03 §6.4.1): the rules sheet, prefilled.
+  const saveSmart = (r: SplitRow) => {
     if (!r.rule) return
-    try {
-      const c = await api.createCutup({
-        kind: 'smart',
-        name: `${ctx.p.player.name} · ${r.label}`,
-        rules: { match: 'all', rules: [{ field: 'player', op: 'graded', value: [ctx.playerId] }, r.rule], limit: null, order: 'game' },
-        focus: { playerId: ctx.playerId }
-      })
-      navigate(`${links.cutup(c.id)}?rules=1`)
-    } catch (e) {
-      errorBanner('Couldn’t create the cut-up', e)
-    }
+    openRulesSheet({
+      mode: 'new',
+      name: `${ctx.p.player.name} · ${r.label}`,
+      rules: [{ field: 'player', op: 'graded', value: [ctx.playerId] }, r.rule],
+      focus: { playerId: ctx.playerId }
+    })
   }
   const dash = <span className="c-label-4">—</span>
   const columns: Column<SplitTableRow>[] = [
@@ -151,7 +146,7 @@ function Situations({ ctx }: { ctx: PlayerCtx }) {
           if (!r) return
           void showMenu(e, [
             action('Watch These Plays', () => watch(r.rule), { enabled: !!r.rule && r.tally.graded > 0 }),
-            action('Save as Smart Cut-up…', () => void saveSmart(r), { enabled: !!r.rule }),
+            action('Save as Smart Cut-up…', () => saveSmart(r), { enabled: !!r.rule }),
             sep(),
             action('Copy Row', () =>
               void navigator.clipboard.writeText(

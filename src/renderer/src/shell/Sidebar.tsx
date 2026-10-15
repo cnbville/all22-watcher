@@ -12,6 +12,8 @@ import { TeamDot } from '../ui/TeamChip'
 import * as adapters from './adapters'
 import type { CutupSummary } from './adapters'
 import { DataStatusRow, WatchStatusRow } from './StatusRows'
+import { addPlaysTo, confirmDeleteCutup, cutupMenu, newSmartCutup } from '../views/cutups/actions'
+import { ExportStatusRow } from '../views/export/ExportStatus'
 import { banner, errorBanner } from './Banners'
 import { action, sep, showMenu, teamMenu } from './contextMenus'
 import { links, navigate, useHistory } from './router'
@@ -175,7 +177,7 @@ function SectionHeader({
   label: string
   collapsed: boolean
   onToggle: () => void
-  onAdd: () => void
+  onAdd: (e?: React.MouseEvent) => void
   addLabel: string
   onLabelClick?: () => void
   addRef?: React.Ref<HTMLButtonElement>
@@ -185,7 +187,7 @@ function SectionHeader({
       <span className="sidebar-section__label" data-link={onLabelClick ? true : undefined} onClick={onLabelClick}>
         {label}
       </span>
-      <button ref={addRef} type="button" className="sidebar-section__button" aria-label={addLabel} title={addLabel} onMouseDown={(e) => e.preventDefault()} onClick={onAdd}>
+      <button ref={addRef} type="button" className="sidebar-section__button" aria-label={addLabel} title={addLabel} onMouseDown={(e) => e.preventDefault()} onClick={(e) => onAdd(e)}>
         <Icon name="plus" size={14} />
       </button>
       <button type="button" className="sidebar-section__button" aria-label={collapsed ? `Show ${label}` : `Hide ${label}`} onMouseDown={(e) => e.preventDefault()} onClick={onToggle}>
@@ -267,6 +269,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
   const pickerAnchor = useRef<HTMLElement | null>(null)
   const [dragTeam, setDragTeam] = useState<string | null>(null)
   const [dropCutup, setDropCutup] = useState<string | null>(null)
+  const [dragCutup, setDragCutup] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null)
   const typed = useRef({ text: '', at: 0 })
 
@@ -382,7 +385,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
             ))}
         </div>
         <div className="sidebar-section">
-          <SectionHeader id="cutups" label="Cut-ups" collapsed={cutupsCollapsed} onToggle={toggleCutups} addLabel="New Cut-up" onAdd={onNewCutup} onLabelClick={() => go(links.cutups())} />
+          <SectionHeader id="cutups" label="Cut-ups" collapsed={cutupsCollapsed} onToggle={toggleCutups} addLabel="New Cut-up (⌥-click for Smart)" onAdd={(e) => (e?.altKey ? newSmartCutup() : onNewCutup())} onLabelClick={() => go(links.cutups())} />
           {!cutupsCollapsed &&
             (cutups.length ? (
               cutups.map((c) => {
@@ -400,10 +403,21 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
                     onOpen={() => go(links.cutup(id))}
                     onDoubleClickLabel={() => setRenaming(id)}
                     onContextMenu={(e) => void showMenu(e, cutupMenu(c, () => setRenaming(id)))}
+                    title={`${smart ? 'Smart cut-up' : c.cutup.name} · ${c.playCount} ${c.playCount === 1 ? 'play' : 'plays'} · ${c.gameCount} ${c.gameCount === 1 ? 'game' : 'games'}`}
                     drag={{
-                      draggable: false,
+                      draggable: renaming !== id,
                       dropTarget: dropCutup === id,
+                      onDragStart: (e) => {
+                        setDragCutup(id)
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.dataTransfer.setData('text/x-all22-cutup', id)
+                      },
                       onDragOver: (e) => {
+                        // Reordering cut-ups (03 §9.7), or plays dropped onto a manual one (01 §1.4.6).
+                        if (dragCutup && e.dataTransfer.types.includes('text/x-all22-cutup')) {
+                          if (dragCutup !== id) e.preventDefault()
+                          return
+                        }
                         if (smart || !e.dataTransfer.types.includes('text/x-all22-play')) return
                         e.preventDefault()
                         setDropCutup(id)
@@ -411,13 +425,21 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
                       onDragLeave: () => setDropCutup(null),
                       onDrop: (e) => {
                         setDropCutup(null)
+                        if (dragCutup && e.dataTransfer.types.includes('text/x-all22-cutup')) {
+                          e.preventDefault()
+                          const ids = cutups.map((x) => x.cutup.id)
+                          const from = ids.indexOf(dragCutup)
+                          const order = ids.filter((x) => x !== dragCutup)
+                          order.splice(order.indexOf(id) + (from < ids.indexOf(id) ? 1 : 0), 0, dragCutup)
+                          setDragCutup(null)
+                          void adapters.reorderCutups(order).catch((err) => errorBanner('Couldn’t move the cut-up', err))
+                          return
+                        }
                         if (smart) return
                         e.preventDefault()
                         try {
                           const plays = JSON.parse(e.dataTransfer.getData('text/x-all22-play')) as { gameId: string; playId: number }[]
-                          void adapters.addToCutup(id, plays).then((r) => {
-                            banner({ title: `Added ${r.added} ${r.added === 1 ? 'play' : 'plays'} to “${c.cutup.name}”` })
-                          })
+                          void addPlaysTo(id, c.cutup.name, plays)
                         } catch {
                           // Not a play drag.
                         }
@@ -434,6 +456,7 @@ export function Sidebar({ cutups, badges, onNewCutup, renaming, setRenaming }: {
       <div className="shell-sidebar__footer">
         <WatchStatusRow />
         {season && <DataStatusRow season={season} />}
+        <ExportStatusRow />
       </div>
       <div
         className="shell-sidebar__resize"
@@ -501,24 +524,5 @@ function commitRename(id: string, old: string, name: string | null, setRenaming:
   void adapters.updateCutup(id, { name: next.slice(0, 80) }).catch((e) => errorBanner('Couldn’t rename the cut-up', e))
 }
 
-export async function confirmDeleteCutup(c: CutupSummary) {
-  const ok = await window.shell.confirm({
-    message: `Delete “${c.cutup.name}”?`,
-    detail: 'The plays and their grades stay in your film. This can’t be undone.',
-    confirmLabel: 'Delete'
-  })
-  if (ok) await adapters.deleteCutup(c.cutup.id).catch((e) => errorBanner('Couldn’t delete the cut-up', e))
-}
-
-export function cutupMenu(c: CutupSummary, rename: () => void) {
-  const smart = c.cutup.kind === 'smart'
-  return [
-    action('Play', () => navigate(`${links.cutup(c.cutup.id)}?play=1`)),
-    action('Rename', rename, { accelerator: 'Enter' }),
-    action('Duplicate', () => void adapters.duplicateCutup(c.cutup.id)),
-    ...(smart ? [action('Duplicate as Fixed Cut-up', () => void adapters.duplicateCutup(c.cutup.id, true)), action('Edit Rules…', () => navigate(`${links.cutup(c.cutup.id)}?rules=1`))] : []),
-    action('Export Video…', () => navigate(`${links.cutup(c.cutup.id)}?export=1`)),
-    sep(),
-    action('Delete Cut-up…', () => void confirmDeleteCutup(c), { accelerator: 'Backspace' })
-  ]
-}
+// The Cut-up context menu and delete live with the cut-ups (03 §10.3); re-exported for existing callers.
+export { confirmDeleteCutup, cutupMenu }
