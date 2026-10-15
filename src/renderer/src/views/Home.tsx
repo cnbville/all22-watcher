@@ -42,9 +42,9 @@ export function Home() {
           <span className="spacer" />
           {status.downloaded && <DataStatus status={status} onDone={statuses.reload} />}
         </div>
-        <RecentFilmRow key={dataStamp} />
+        <RecentFilmRow key={`recent ${dataStamp}`} />
         {status.downloaded ? (
-          <TeamGrid key={dataStamp} season={season} />
+          <TeamGrid key={`grid ${dataStamp}`} season={season} />
         ) : (
           <DownloadPanel season={season} onDone={statuses.reload} />
         )}
