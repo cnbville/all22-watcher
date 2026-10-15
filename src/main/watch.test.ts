@@ -235,5 +235,6 @@ describe('season auto-update', () => {
     expect((fail[0] as { activity: { notification?: unknown } }).activity.notification).toBeUndefined()
     lib.store.saveSettings({ autoUpdateSeasons: false })
     expect(await upd.check()).toBe(false)
-  })
+    // Two full season downloads from the fixture mirror: more than the default 5s when the whole suite runs at once.
+  }, 30_000)
 })
