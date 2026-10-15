@@ -302,7 +302,7 @@ export function ExportSheet({ req, onClose }: { req: ExportSheetRequest; onClose
         </div>
 
         <div className="export-sheet__form">
-          <Row label="Plays">
+          <Row label="Plays" top>
             <div className="export-sheet__stack">
               <PopupButton width={288} value={choice} onChange={setChoice} options={choices.map((c) => ({ value: c.key, label: c.label }))} test="export-source" />
               <span className="export-sheet__sub">{sub}</span>

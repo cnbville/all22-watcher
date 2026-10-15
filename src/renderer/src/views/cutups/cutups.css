@@ -1,0 +1,462 @@
+@layer screens {
+  /* One cut-up (03 §9.6): the stage on top, the play list under it. */
+  .screen-cutup {
+    .cutup {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      padding-top: var(--toolbar-h);
+      overflow: hidden;
+    }
+    .cutup__measure {
+      height: 0;
+      flex: none;
+    }
+    .cutup__stage {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      background: var(--video-black);
+
+      .reel--stack {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+      }
+      .reel-stage {
+        flex: 1;
+        aspect-ratio: auto;
+        min-height: 0;
+      }
+    }
+    .cutup__splitter {
+      position: relative;
+      flex: none;
+      height: 1px;
+      background: var(--sep);
+      z-index: 2;
+    }
+    .cutup__splitter::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -3px;
+      height: 7px;
+      cursor: row-resize;
+    }
+    .cutup-notice {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      padding: 0 16px;
+      background: var(--fill-4);
+      border-bottom: 1px solid var(--sep);
+      font: var(--t-callout);
+      color: var(--label-2);
+
+      svg {
+        flex: none;
+        color: var(--label-3);
+      }
+    }
+    .cutup__controls {
+      flex: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 36px;
+      padding: 0 16px;
+    }
+    .cutup__controls-label {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .cutup__controls-spacer {
+      flex: 1;
+    }
+    .cutup__count {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .cutup__rules-line {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+
+    /* The play list. */
+    .cutup-table {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      outline: none;
+      align-content: start;
+    }
+    .cutup-table .table__header {
+      position: sticky;
+      top: 0;
+    }
+    .cutup-row[data-nofilm] .table__cell {
+      color: var(--label-3);
+    }
+    /* Rows are display: contents; the insertion line sits on the cells. */
+    .cutup-row[data-drop='before'] > .table__cell {
+      box-shadow: inset 0 2px 0 var(--accent);
+    }
+    .cutup-row[data-drop='after'] > .table__cell {
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    .cutup-row__n {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 100%;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .cutup-row__now {
+      color: var(--accent);
+    }
+    .cutup-row__grip {
+      position: absolute;
+      left: -6px;
+      color: var(--label-3);
+      opacity: 0;
+    }
+    .cutup-row:hover .cutup-row__grip {
+      opacity: 1;
+    }
+    .cutup-row__clock {
+      font: var(--t-mono-sm);
+      color: var(--label-2);
+    }
+    .cutup-row__tags {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .cutup-row__markers {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .cutup-row__flag {
+      color: var(--flag);
+      fill: var(--flag);
+    }
+    .cutup-row__nofilm {
+      font: var(--t-subheadline);
+      color: var(--label-4);
+    }
+    .cutup-grade {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      font: var(--t-headline);
+    }
+    .cutup-counts {
+      display: inline-flex;
+      gap: 6px;
+      font: var(--t-subheadline);
+      font-weight: 500;
+    }
+  }
+
+  /* The cut-up inspector (portal into the inspector slot). */
+  .cutup-inspector {
+    display: flex;
+    flex-direction: column;
+
+    .cutup-inspector__play {
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid var(--sep);
+    }
+    .cutup-inspector__caption {
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .cutup-inspector__desc {
+      margin: 6px 0 0;
+      font: var(--t-body-prose);
+      color: var(--label-2);
+    }
+    .cutup-inspector__result {
+      margin-top: 6px;
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .cutup-inspector__grades {
+      display: flex;
+      flex-direction: column;
+      margin: 0 -8px;
+    }
+    .cutup-inspector__grade {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-height: 28px;
+      padding: 6px 8px;
+      border-radius: var(--r-md);
+    }
+    .cutup-inspector__grade[data-focus] {
+      background: var(--fill-4);
+    }
+    .cutup-inspector__glyph {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      width: 28px;
+      flex: none;
+      font: var(--t-headline);
+    }
+    .cutup-inspector__who {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 4px;
+      min-width: 0;
+      font: var(--t-body);
+      color: var(--label);
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    }
+    .cutup-inspector__tags {
+      flex-basis: 100%;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .cutup-inspector__none {
+      font: var(--t-callout);
+      color: var(--label-3);
+    }
+    .cutup-inspector__notes p {
+      margin: 0 0 8px;
+      font: var(--t-body-prose);
+      color: var(--label);
+    }
+    .cutup-inspector__lineup {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+
+      div {
+        display: grid;
+        grid-template-columns: 104px 1fr;
+        align-items: center;
+        min-height: 24px;
+      }
+      dt {
+        font: var(--t-callout);
+        color: var(--label-2);
+      }
+      dd {
+        margin: 0;
+        font: var(--t-callout);
+        color: var(--label);
+      }
+    }
+    .cutup-inspector__member {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .cutup-inspector__actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 16px;
+    }
+  }
+  .cutup-inspector__multi {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 16px;
+  }
+  .cutup-inspector__multi-title {
+    font: var(--t-headline);
+    color: var(--label);
+  }
+
+  /* The Cut-ups screen (03 §10.1). */
+  .screen-cutups {
+    .cutups {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .cutups__intro {
+      margin: -4px 0 0;
+      font: var(--t-body-prose);
+      color: var(--label-2);
+    }
+    .cutups__sort {
+      margin: 16px 0 16px -8px;
+    }
+    .cutups__empty {
+      display: flex;
+      min-height: 320px;
+      margin-top: 24px;
+    }
+    .cutups__grid {
+      display: grid;
+      grid-template-columns: repeat(var(--tiles), minmax(0, 1fr));
+      gap: 32px 24px;
+    }
+    .cutups-tile {
+      position: relative;
+      min-width: 0;
+    }
+    .cutups-tile[data-drop]::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 150px;
+      max-height: calc(100% - 56px);
+      border-radius: 1px;
+      background: var(--accent);
+    }
+    .cutups-tile[data-drop='before']::after {
+      left: -13px;
+    }
+    .cutups-tile[data-drop='after']::after {
+      right: -13px;
+    }
+    .cutups-tile__hit {
+      display: block;
+      border-radius: var(--r-2xl);
+      outline: none;
+      cursor: default;
+    }
+    .cutups-tile__poster {
+      border-radius: var(--r-xl);
+      transition: opacity var(--dur-fast);
+    }
+    .cutups-tile__hit:active .cutups-tile__poster {
+      opacity: 0.85;
+    }
+    .cutups-tile__hit:focus-visible .cutups-tile__poster {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .cutups-tile__play {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin: -22px 0 0 -22px;
+      border-radius: 50%;
+      background: var(--mat-hud);
+      backdrop-filter: var(--mat-hud-filter);
+      color: var(--hud-label);
+      opacity: 0;
+      transition: opacity var(--dur-fast) var(--ease-out);
+    }
+    .cutups-tile__hit:hover .cutups-tile__play,
+    .cutups-tile__hit:focus-visible .cutups-tile__play {
+      opacity: 1;
+    }
+    .cutups-tile__line1 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      min-width: 0;
+    }
+    .cutups-tile__kind {
+      flex: none;
+      color: var(--label-3);
+    }
+    .cutups-tile__title {
+      min-width: 0;
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .cutups-tile__line2 {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-2);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cutups-tile__line3 {
+      margin-top: 1px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .cutups__templates {
+      margin-top: 40px;
+    }
+    .cutups__section-title {
+      margin: 0 0 12px;
+      font: var(--t-title-3);
+      letter-spacing: var(--track-title-3);
+      color: var(--label);
+    }
+    .cutups__template-row {
+      display: grid;
+      grid-template-columns: repeat(var(--tiles), minmax(0, 1fr));
+      gap: 24px;
+    }
+    .cutups-template {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 56px;
+      padding: 0 12px;
+      border: 0.5px solid var(--group-border);
+      border-radius: var(--r-xl);
+      background: var(--bg-group);
+      color: var(--label);
+      text-align: left;
+      cursor: default;
+      transition: background var(--dur-fast) var(--ease-out);
+    }
+    .cutups-template:hover {
+      background: var(--fill-3);
+    }
+    .cutups-template:active {
+      background: var(--fill-2);
+    }
+    .cutups-template__icon {
+      flex: none;
+      color: var(--label-2);
+    }
+    .cutups-template__text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .cutups-template__name {
+      font: var(--t-headline);
+      color: var(--label);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cutups-template__sub {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+  }
+}

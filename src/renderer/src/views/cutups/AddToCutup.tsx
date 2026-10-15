@@ -22,7 +22,7 @@ export function anchorRect(anchor: Element | DOMRect | null | undefined): DOMRec
     const x = rect.right - 28
     return new DOMRect(x, rect.top, 1, rect.height)
   }
-  const title = document.querySelector('.toolbar__title')?.getBoundingClientRect()
+  const title = document.querySelector('.shell-toolbar__title')?.getBoundingClientRect()
   if (title) return new DOMRect(title.left + title.width / 2, title.top, 1, title.height)
   return new DOMRect(window.innerWidth / 2, 60, 1, 1)
 }

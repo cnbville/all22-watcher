@@ -60,7 +60,7 @@ export function FilmSection({ ctx, film, filter }: { ctx: PlayerCtx; film: FilmS
     const rules = [{ field: 'player' as const, op: 'graded' as const, value: [ctx.playerId] }, ...tokensToRules(filter, { text, player: ctx.playerId })]
     openRulesSheet({
       mode: 'filters',
-      name: [...tokens.map((t) => t.label), text.trim()].filter(Boolean).join(' · '),
+      name: [ctx.p.player.name, ...tokens.map((t) => (t.label.length > 2 ? t.label : `${t.keyLabel.replace(/:$/, '')} ${t.label}`)), text.trim()].filter(Boolean).join(' · '),
       rules,
       focus: { playerId: ctx.playerId },
       fixedPlays: shown.map((e) => e.ref)
