@@ -96,6 +96,7 @@ try {
     await app.evaluate(({ dialog }, dir) => {
       dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] })
     }, fixtures)
+    await win.click('[data-test="team-section-games"]')
     await win.locator('[data-test="game-row"]:has-text("vs DAL") [data-test="game-action"]').first().click()
     await win.click('[data-test="import-sheet"] [data-test="choose-clips"]')
     await win.waitForSelector('[data-test="match-table"]')
@@ -119,8 +120,16 @@ try {
   await step('opens a player', async () => {
     await win.locator('[data-test="grading-player-name"]').first().click()
     await win.waitForSelector('[data-test="player-header"]', { timeout: 20_000 })
+    await win.click('[data-test="player-section-film"]')
     await win.waitForSelector('[data-test="reel-item"]')
     await shot('4-player')
+  })
+
+  await step('player sections', async () => {
+    await win.click('[data-test="player-section-splits"]')
+    await win.waitForSelector('[data-test="splits-table"]')
+    await win.click('[data-test="player-section-career"]')
+    await win.waitForSelector('[data-test="player-career"] [data-test="career-row"]', { timeout: 20_000 })
   })
 
   await step('exports a PDF report', async () => {
