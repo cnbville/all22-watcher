@@ -1,0 +1,463 @@
+/* Shared video surfaces (02 §5, §20): angle panes, the transport HUD, scrubber, drawing lane and viewer toast. */
+@layer components {
+  /* Angle pane */
+  .angle-pane {
+    position: absolute;
+    overflow: hidden;
+    background: var(--video-black);
+  }
+  .angle-pane__picture,
+  .angle-pane__canvas,
+  .angle-pane__ring,
+  .angle-pane__overlay {
+    position: absolute;
+  }
+  .angle-pane__picture {
+    overflow: hidden;
+  }
+  .angle-pane__video {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--video-black);
+    pointer-events: none;
+  }
+  .angle-pane__canvas {
+    pointer-events: none;
+    z-index: 2;
+  }
+  .angle-pane__ring {
+    z-index: 3;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px var(--pane-active-ring);
+  }
+  .angle-pane__overlay {
+    z-index: 4;
+  }
+  .angle-pane__pill {
+    position: absolute;
+    z-index: 5;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: var(--mat-hud);
+    backdrop-filter: var(--mat-hud-filter);
+    color: var(--hud-label);
+    font: 500 11px/14px var(--font-text);
+    white-space: nowrap;
+    pointer-events: none;
+    transition: opacity var(--dur-fast);
+  }
+  .angle-pane__pill[data-dim] {
+    color: var(--hud-label-2);
+  }
+  .angle-pane__pill[data-hidden] {
+    opacity: 0;
+    transition: opacity var(--dur-base);
+  }
+  .angle-pane__unlink {
+    display: inline-flex;
+    pointer-events: auto;
+  }
+  .angle-pane--inset {
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-hud);
+    z-index: 6;
+    cursor: pointer;
+  }
+  .angle-pane--inset::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px var(--hud-sep);
+    pointer-events: none;
+  }
+
+  /* Pane state messages (white-on-black empty state, 02 §5.11) */
+  .pane-message {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: var(--video-black);
+    text-align: center;
+    cursor: default;
+  }
+  .pane-message[data-test='clip-loading'] {
+    background: transparent;
+    pointer-events: none;
+  }
+  .pane-message__inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 360px;
+  }
+  .pane-message__icon {
+    color: var(--hud-label-2);
+    margin-bottom: 12px;
+  }
+  .pane-message__title {
+    font: var(--t-title-3);
+    color: var(--hud-label);
+  }
+  .pane-message__body {
+    margin-top: 6px;
+    font: 400 13px/18px var(--font-text);
+    color: var(--hud-label-2);
+    user-select: text;
+  }
+  .pane-message__button {
+    margin-top: 16px;
+    height: 24px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: var(--hud-on);
+    color: var(--hud-label);
+    font: 500 13px/16px var(--font-text);
+  }
+  .pane-message__button:hover {
+    background: var(--hud-pressed);
+  }
+  .pane-message__button--primary {
+    background: var(--accent-fill);
+    color: var(--label-on-accent);
+  }
+  .pane-message__button--primary:hover {
+    background: var(--accent-fill-hover);
+  }
+  .pane-message__button--borderless {
+    background: transparent;
+    color: var(--hud-label-2);
+  }
+  .pane-message__button--borderless:hover {
+    background: var(--hud-hover);
+    color: var(--hud-label);
+  }
+
+  /* Transport HUD (large: two rows plus the drawing lane; compact: one 44px row) */
+  .transport-hud {
+    position: absolute;
+    z-index: 20;
+    transition: opacity var(--dur-fast);
+  }
+  .transport-hud[data-state='hidden'] {
+    transition: opacity var(--dur-base);
+  }
+  .transport-hud--large {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .transport-hud__row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 32px;
+  }
+  .transport-hud__group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .transport-hud__group--center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .transport-hud__group--right {
+    margin-left: auto;
+  }
+  .transport-hud__angle {
+    display: flex;
+    margin-left: 4px;
+  }
+  .transport-hud__scrub-row,
+  .transport-hud__lane-row {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    column-gap: 8px;
+    align-items: center;
+  }
+  .transport-hud__scrub-row {
+    height: 20px;
+  }
+  .transport-hud__lane-row {
+    align-items: start;
+  }
+  .transport-hud__lane-icon {
+    display: flex;
+    justify-content: flex-end;
+    color: var(--hud-label-2);
+    height: 8px;
+    align-items: center;
+  }
+  .transport-hud--compact {
+    gap: 8px;
+    height: 44px;
+  }
+  .transport-hud__scrub {
+    flex: 1;
+    min-width: 0;
+  }
+  .hud__button--wide {
+    width: 36px;
+  }
+  .hud__text-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--hud-label);
+    font: 500 12px/15px var(--font-text);
+    white-space: nowrap;
+  }
+  .hud__text-button:hover:not(:disabled) {
+    background: var(--hud-hover);
+  }
+  .hud__text-button:active:not(:disabled) {
+    background: var(--hud-pressed);
+  }
+  .hud__text-button:disabled {
+    color: var(--hud-label-3);
+  }
+  .hud__text-button .icon {
+    color: var(--hud-label-2);
+  }
+  .hud__speed {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
+  }
+  .hud__angle-text {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    max-width: 104px;
+    padding: 0 8px;
+    color: var(--hud-label-2);
+    font: 500 12px/15px var(--font-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud__angle-button {
+    max-width: 104px;
+  }
+  .hud__angle-button > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .hud__time {
+    font: var(--t-mono-md);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .hud__time--elapsed {
+    text-align: right;
+    color: var(--hud-label);
+    cursor: pointer;
+  }
+  .hud__time--elapsed:disabled {
+    cursor: default;
+    color: var(--hud-label);
+  }
+  .hud__time--duration {
+    text-align: left;
+    color: var(--hud-label-2);
+  }
+  .transport-hud--compact .hud__time {
+    width: 48px;
+  }
+
+  /* Scrubber (02 §5.4) */
+  .scrubber {
+    position: relative;
+    height: 20px;
+    min-width: 0;
+    cursor: default;
+    touch-action: none;
+  }
+  .scrubber__track {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 8px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--scrub-track);
+    overflow: hidden;
+  }
+  .scrubber__played {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    background: var(--scrub-played);
+  }
+  .scrubber__playhead {
+    position: absolute;
+    top: 3px;
+    width: 2px;
+    height: 14px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--hud-label);
+    box-shadow: var(--shadow-knob);
+    pointer-events: none;
+  }
+  .scrubber__hover {
+    position: absolute;
+    top: 2px;
+    width: 1px;
+    height: 16px;
+    background: var(--hud-label-2);
+    pointer-events: none;
+  }
+  .scrubber__tip {
+    position: absolute;
+    bottom: 18px;
+    transform: translateX(-50%);
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--mat-hud-solid);
+    color: var(--hud-label);
+    font: var(--t-mono-xs);
+    line-height: 20px;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .scrubber__snap {
+    position: absolute;
+    top: -2px;
+    width: 12px;
+    height: 24px;
+    margin-left: -6px;
+    cursor: ew-resize;
+    z-index: 2;
+  }
+  .scrubber__snap-tri {
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid var(--accent);
+  }
+  .scrubber__snap-bar {
+    position: absolute;
+    left: 5px;
+    top: 6px;
+    width: 2px;
+    height: 12px;
+    border-radius: 1px;
+    background: var(--accent);
+  }
+  .scrubber[aria-disabled='true'] .scrubber__track {
+    opacity: 0.5;
+  }
+
+  /* Drawing lane (02 §11.7) */
+  .drawing-lane {
+    position: relative;
+    min-width: 0;
+  }
+  .drawing-lane__span {
+    position: absolute;
+    height: 6px;
+    margin-top: 1px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--shape) 85%, transparent);
+    cursor: grab;
+    touch-action: none;
+  }
+  .drawing-lane__span:hover {
+    background: var(--shape);
+  }
+  .drawing-lane__span[data-to-end] {
+    border-radius: 3px 0 0 3px;
+  }
+  .drawing-lane__span[data-selected] {
+    background: var(--shape);
+    outline: 1.5px solid var(--hud-label);
+    outline-offset: 0;
+  }
+  .drawing-lane__span[data-selected]::before,
+  .drawing-lane__span[data-selected]::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    width: 3px;
+    height: 10px;
+    border-radius: 1px;
+    background: var(--hud-label);
+  }
+  .drawing-lane__span[data-selected]::before {
+    left: 1px;
+  }
+  .drawing-lane__span[data-selected]::after {
+    right: 1px;
+  }
+  .drawing-lane__more {
+    position: absolute;
+    right: 0;
+    top: -4px;
+    height: 16px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--hud-on);
+    color: var(--hud-label);
+    font: var(--t-footnote);
+  }
+
+  /* Viewer toast (02 §5.2) */
+  .viewer-toast {
+    position: absolute;
+    left: 50%;
+    z-index: 30;
+    transform: translateX(-50%);
+    height: 28px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: var(--mat-hud);
+    backdrop-filter: var(--mat-hud-filter);
+    box-shadow: var(--shadow-hud);
+    color: var(--hud-label);
+    font: 500 13px/28px var(--font-text);
+    white-space: nowrap;
+    pointer-events: none;
+    animation: viewer-toast-in var(--dur-fast) var(--ease-out);
+  }
+  .viewer-toast[data-state='out'] {
+    opacity: 0;
+    transition: opacity var(--dur-base);
+  }
+  @keyframes viewer-toast-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
