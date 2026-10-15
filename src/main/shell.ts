@@ -227,6 +227,9 @@ export function registerShell(deps: ShellDeps) {
         const res = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts)
         return res.response === 0
       }
+      case 'showInMain':
+        showMainWindow().webContents.send(SHELL_CHANNELS.navigate, String(args[0]))
+        return
       case 'showItemInFolder':
         shell.showItemInFolder(args[0] as string)
         return

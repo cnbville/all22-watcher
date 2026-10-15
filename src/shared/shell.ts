@@ -33,6 +33,8 @@ export interface ShellBridge {
   /** Native confirmation alert for destructive actions (01 §3.6). Resolves true when confirmed. */
   confirm(c: { message: string; detail?: string; confirmLabel: string }): Promise<boolean>
   showItemInFolder(path: string): void
+  /** Brings the main window forward on `route` (Settings › Film & Import's recent imports). */
+  showInMain(route: string): void
   openExternal(url: string): void
   /** 02 §19.6: keeps the display awake while film plays. */
   setPlaybackActive(active: boolean): void

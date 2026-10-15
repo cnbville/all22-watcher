@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, rm, stat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import { checkAlignment as runAlignment, type AlignmentClip } from '@shared/alignment'
 import type { MatchOptions } from '@shared/api'
@@ -105,6 +105,22 @@ export function normalizeName(name: string): string {
     .join(' ')
 }
 
+async function folderSize(dir: string): Promise<number> {
+  let total = 0
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return 0
+  }
+  for (const e of entries) {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) total += await folderSize(p)
+    else total += await stat(p).then((st) => st.size, () => 0)
+  }
+  return total
+}
+
 /** The app's brain: joins nflverse data with the user's clips and grades. Has no Electron dependency so it can be tested directly. */
 export class Library {
   private seasons = new Map<number, SeasonData>()
@@ -151,6 +167,21 @@ export class Library {
 
   isDownloading(season: number): boolean {
     return this.downloads.has(season)
+  }
+
+  /** Bytes on disk per downloaded season (Settings › Data). */
+  async seasonStorage(): Promise<Record<number, number>> {
+    const out: Record<number, number> = {}
+    for (const season of await cachedSeasons(this.cacheDir)) out[season] = await folderSize(join(this.cacheDir, String(season)))
+    return out
+  }
+
+  /** Deletes a season's downloaded data. Grades, notes and film are kept; downloading it again brings everything back. */
+  async removeSeason(season: number): Promise<void> {
+    if (this.isDownloading(season)) throw new Error(`The ${season} season is downloading. Try again when it’s done.`)
+    await rm(join(this.cacheDir, String(season)), { recursive: true, force: true })
+    this.seasons.delete(season)
+    for (const key of this.playsCache.keys()) if (key.startsWith(`${season}_`)) this.playsCache.delete(key)
   }
 
   private async runDownload(season: number, onProgress: (p: DataProgress) => void): Promise<SeasonStatus> {
@@ -504,7 +535,8 @@ export class Library {
     const probes = await probeAll(rows.map((r) => r.path))
     const saved = new Map(this.store.clipsForGame(gameId).map((c) => [c.path, c.id]))
     const clips: AlignmentClip[] = rows.map((r) => ({ clipId: saved.get(r.path) ?? null, path: r.path, angle: r.angle, playId: r.playId, duration: probes.get(r.path)?.duration ?? null }))
-    return runAlignment(gameId, clips, await this.filmPlays(gameId))
+    const result = runAlignment(gameId, clips, await this.filmPlays(gameId))
+    return { ...result, durations: Object.fromEntries(clips.map((c) => [c.path, c.duration])) }
   }
 
   /** The first play in play order with a clip and no grade for `team`, and a poster for it. */

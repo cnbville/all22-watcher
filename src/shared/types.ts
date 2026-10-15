@@ -641,6 +641,8 @@ export interface AlignmentResult {
   /** Clips whose duration couldn't be read. */
   unknown: number
   suspects: AlignmentSuspect[]
+  /** Each clip's length in seconds by path (null when unreadable). Filled by checkAlignmentRows, so the sheets can show lengths and re-run the check locally. */
+  durations?: Record<string, number | null>
 }
 
 export interface ImportLogEntry {

@@ -103,11 +103,14 @@ export async function convertClips(
   ffmpeg: string,
   inputs: string[],
   outDir: string,
-  onProgress: (done: number, total: number) => void = () => {}
+  onProgress: (done: number, total: number) => void = () => {},
+  /** Checked before each clip: stops the run (the clips converted so far stay). */
+  cancelled: () => boolean = () => false
 ): Promise<{ converted: string[]; failed: { path: string; error: string }[] }> {
   const converted: string[] = []
   const failed: { path: string; error: string }[] = []
   for (const [i, input] of inputs.entries()) {
+    if (cancelled()) break
     const out = convertedPath(input, outDir)
     // Write under a temporary name so a failed or interrupted conversion never looks finished, unique
     // so two runs over the same clip can't write into each other's file.

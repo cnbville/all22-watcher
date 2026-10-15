@@ -71,6 +71,10 @@ export interface Api {
   dataStatus(season?: number): Promise<DataStatus>
   /** "Update Now": re-downloads the season (default: current) whatever its age. */
   updateSeasonNow(season?: number): Promise<DataStatus>
+  /** Bytes on disk per downloaded season (Settings › Data). */
+  seasonStorage(): Promise<Record<number, number>>
+  /** Deletes a season's downloaded data; grades, notes and film stay. Rejects while it downloads. */
+  removeSeason(season: number): Promise<void>
 
   // Teams, games, players
   teamSummaries(season: number): Promise<TeamSummary[]>
@@ -97,6 +101,7 @@ export interface Api {
   importClips(gameId: string, team: string, rows: ClipMatchRow[]): Promise<void>
   /** Whether ffmpeg is available (bundled, Homebrew or system), so clips in other formats can be converted. */
   canConvert(): Promise<boolean>
+  /** Converts with the bundled ffmpeg as a cancellable `convert` activity (Dock progress); a cancelled run resolves with what it converted. */
   convertClips(gameId: string, paths: string[]): Promise<{ converted: string[]; failed: { path: string; error: string }[] }>
   onConvertProgress(cb: (p: { done: number; total: number }) => void): () => void
   relinkClip(clipId: number, playId: number | null): Promise<void>
@@ -179,7 +184,7 @@ export type ApiListener = 'onDataProgress' | 'onConvertProgress' | 'onApiEvent'
 export type ApiMethod = Exclude<keyof Api, ApiListener>
 
 const METHOD_MAP: Record<ApiMethod, true> = {
-  seasons: true, downloadSeason: true, dataStatus: true, updateSeasonNow: true,
+  seasons: true, downloadSeason: true, dataStatus: true, updateSeasonNow: true, seasonStorage: true, removeSeason: true,
   teamSummaries: true, teamOverview: true, teamCards: true, teamFilmStats: true, gameFilm: true, openedFilm: true, recentFilm: true,
   filmLibrary: true, recentlyGraded: true, playerProfile: true, playerSeasonLine: true, leaderboard: true, matchup: true,
   searchIndex: true, sidebarBadges: true,
