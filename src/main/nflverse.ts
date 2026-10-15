@@ -383,6 +383,11 @@ export async function loadSeason(cacheDir: string, season: number): Promise<Seas
   return { season, meta, games, roster, extraPlayers, playerWeeks, snaps, teams }
 }
 
+export async function loadSeasonGames(cacheDir: string, season: number): Promise<GameInfo[] | null> {
+  if (!(await readSeasonMeta(cacheDir, season))) return null
+  return readJson<GameInfo[]>(join(cacheDir, String(season), 'games.json'))
+}
+
 export async function loadGamePlays(cacheDir: string, gameId: string): Promise<Play[]> {
   const season = gameId.slice(0, 4)
   const file = join(cacheDir, season, 'plays', `${gameId}.json`)

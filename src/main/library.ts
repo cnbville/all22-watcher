@@ -53,6 +53,7 @@ import {
   type Fetcher,
   loadGamePlays,
   loadSeason,
+  loadSeasonGames,
   type SeasonData,
   seasonStatuses
 } from './nflverse'
@@ -212,6 +213,13 @@ export class Library {
   /** Loaded seasons, least recently used first (for tests). */
   loadedSeasons(): number[] {
     return [...this.seasons.keys()]
+  }
+
+  /** A season's schedule without loading the whole season (and without pushing other seasons out of the cache). */
+  async seasonGames(season: number): Promise<GameInfo[] | null> {
+    const loaded = this.seasons.get(season)
+    if (loaded) return loaded.games
+    return loadSeasonGames(this.cacheDir, season)
   }
 
   async seasonOrNull(season: number): Promise<SeasonData | null> {
@@ -932,9 +940,9 @@ export class Library {
     const studied = this.store.studiedTeams()
     const meetings: MatchupData['meetings'] = []
     for (const s of await this.downloadedSeasons()) {
-      const d = s === season ? data : await this.seasonOrNull(s)
-      if (!d) continue
-      for (const g of d.games) {
+      const games = s === season ? data.games : await this.seasonGames(s)
+      if (!games) continue
+      for (const g of games) {
         if (!((g.homeTeam === left && g.awayTeam === right) || (g.homeTeam === right && g.awayTeam === left))) continue
         const team = studied.get(g.gameId) ?? null
         meetings.push({
@@ -946,9 +954,7 @@ export class Library {
       }
     }
     meetings.sort((a, b) => b.game.gameday.localeCompare(a.game.gameday) || b.game.season - a.game.season)
-    // The season stays loaded for the sides even if the meetings walk evicted it.
-    const current = await this.season(season)
-    return { season, left: await this.matchupSide(current, left), right: await this.matchupSide(current, right), meetings }
+    return { season, left: await this.matchupSide(data, left), right: await this.matchupSide(data, right), meetings }
   }
 
   /** Quick Open's index: teams, players and games of the season, and every cut-up. */
