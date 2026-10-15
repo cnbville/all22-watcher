@@ -47,23 +47,26 @@ export function App() {
   }
 
   // Hand focus back to the page after using a control, so hotkeys (Space, arrows) keep driving the film
-  // instead of re-pressing the last button or changing the last dropdown.
+  // instead of re-pressing the last button or changing the last dropdown. Both listen in the bubble phase so
+  // React's handlers run first: blurring earlier can unmount a dropdown before its onChange sees the pick.
   useEffect(() => {
+    const isSliderOrBox = (t: EventTarget | null): t is HTMLInputElement =>
+      t instanceof HTMLInputElement && (t.type === 'range' || t.type === 'checkbox')
     const onClick = (e: Event) => {
-      const button = (e.target as HTMLElement | null)?.closest?.('button')
+      const t = e.target as HTMLElement | null
+      const button = t?.closest?.('button')
       if (button) button.blur()
+      else if (isSliderOrBox(t)) t.blur()
     }
     const onChange = (e: Event) => {
       const t = e.target
-      if (t instanceof HTMLSelectElement || (t instanceof HTMLInputElement && (t.type === 'range' || t.type === 'checkbox'))) {
-        t.blur()
-      }
+      if (t instanceof HTMLSelectElement || isSliderOrBox(t)) t.blur()
     }
     document.addEventListener('click', onClick)
-    document.addEventListener('change', onChange, true)
+    document.addEventListener('change', onChange)
     return () => {
       document.removeEventListener('click', onClick)
-      document.removeEventListener('change', onChange, true)
+      document.removeEventListener('change', onChange)
     }
   }, [])
 

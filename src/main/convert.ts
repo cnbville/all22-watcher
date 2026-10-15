@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, rename, rm } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { link, mkdir, rename, rm } from 'node:fs/promises'
+import { basename, dirname, join, sep } from 'node:path'
+import { angleSource } from '@shared/matching'
 
 const CANDIDATES = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']
 
@@ -37,15 +38,32 @@ async function videoCodec(ffmpeg: string, input: string): Promise<string | null>
   }
 }
 
+const folderHash = (dir: string) => createHash('sha1').update(dir).digest('hex').slice(0, 8)
+
 /**
  * Where a converted copy of `input` goes. A hash of the source folder keeps copies of
- * same-named clips from different folders apart, and the clip's own folder name is kept as
- * the parent so sideline/end zone detection still works.
+ * same-named clips from different folders apart. The clip's own folder name, and any folders
+ * up to the one that names its camera angle, are kept so the copy is detected and sorted like the original.
  */
 export function convertedPath(input: string, outDir: string): string {
   const source = dirname(input)
-  const hash = createHash('sha1').update(source).digest('hex').slice(0, 8)
-  return join(outDir, hash, basename(source), `${basename(input)}.mp4`)
+  const folders = source.split(sep).filter(Boolean).slice(-Math.max(1, angleSource(input).depth))
+  return join(outDir, folderHash(source), ...folders, `${basename(input)}.mp4`)
+}
+
+/**
+ * The converted copy of `input`, or null when there isn't one. Copies made before convertedPath kept the angle
+ * folder sit under the clip's own folder name; one found there is hard-linked into place rather than moved, so
+ * clips already saved with the old path keep playing.
+ */
+export async function findConverted(input: string, outDir: string): Promise<string | null> {
+  const copy = convertedPath(input, outDir)
+  if (existsSync(copy)) return copy
+  const old = join(outDir, folderHash(dirname(input)), basename(dirname(input)), basename(copy))
+  if (old === copy || !existsSync(old)) return null
+  await mkdir(dirname(copy), { recursive: true })
+  await link(old, copy).catch(() => {})
+  return existsSync(copy) ? copy : null
 }
 
 /**
@@ -62,8 +80,9 @@ export async function convertClips(
   const failed: { path: string; error: string }[] = []
   for (const [i, input] of inputs.entries()) {
     const out = convertedPath(input, outDir)
-    // Write under a temporary name so a failed or interrupted conversion never looks finished.
-    const tmp = `${out}.partial.mp4`
+    // Write under a temporary name so a failed or interrupted conversion never looks finished, unique
+    // so two runs over the same clip can't write into each other's file.
+    const tmp = `${out}.${randomBytes(4).toString('hex')}.partial.mp4`
     await mkdir(dirname(out), { recursive: true })
     try {
       const codec = await videoCodec(ffmpeg, input)
