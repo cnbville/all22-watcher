@@ -1,0 +1,158 @@
+/* Film library (/film). The inspector renders in the shell's inspector column, so its rules hang off
+   .film-inspector rather than .screen-film. Tokens only. */
+@layer screens {
+  .screen-film {
+    .film-thumb {
+      width: 64px;
+      border-radius: var(--r-sm);
+      box-shadow: inset 0 0 0 0.5px var(--hairline-inner);
+    }
+    .film-thumb .poster__placeholder svg {
+      width: 16px;
+      height: 16px;
+    }
+    .film-thumb__new {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 1.5px var(--bg-content);
+    }
+    .film-game {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .film-game__title {
+      font: var(--t-headline);
+      color: var(--label);
+    }
+    .film-game__detail {
+      margin-top: 2px;
+      font: var(--t-subheadline);
+      color: var(--label-3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .film-clips {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .film-clips__angles {
+      font: var(--t-subheadline);
+      color: var(--label-3);
+    }
+    .film-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .film-progress__text {
+      font: var(--t-callout);
+      color: var(--label-2);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .film-align {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font: var(--t-callout);
+      white-space: nowrap;
+    }
+    .film-align--ok {
+      color: var(--label-3);
+    }
+    .film-align--warn {
+      color: var(--warning);
+    }
+    .film-imported {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .film-imported__src {
+      display: inline-flex;
+      color: var(--label-3);
+    }
+  }
+
+  .film-inspector {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+  .film-inspector__poster {
+    margin: 0 16px;
+    border-radius: var(--r-lg);
+    box-shadow: inset 0 0 0 0.5px var(--hairline-inner);
+  }
+  .film-inspector__head {
+    padding: 0 16px;
+  }
+  .film-inspector__title {
+    font: var(--t-title-3);
+    color: var(--label);
+  }
+  .film-inspector__sub {
+    margin-top: 2px;
+    font: var(--t-callout);
+    color: var(--label-2);
+  }
+  .film-inspector__actions {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 4px;
+  }
+  .film-inspector__progress {
+    margin-top: 8px;
+  }
+  .film-inspector__note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font: var(--t-callout);
+    color: var(--label-2);
+  }
+  .film-inspector__note--ok svg {
+    color: var(--label-3);
+  }
+  .film-inspector__note--warn svg {
+    color: var(--warning);
+  }
+  .film-suspects {
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+  }
+  .film-suspect {
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0;
+    box-shadow: inset 0 -0.5px 0 var(--sep);
+  }
+  .film-suspect__play {
+    font: var(--t-callout);
+    color: var(--label);
+    cursor: pointer;
+  }
+  .film-suspect__play:hover {
+    text-decoration: underline;
+  }
+  .film-suspect__why {
+    font: var(--t-subheadline);
+    color: var(--label-3);
+  }
+  .film-inspector__footer {
+    padding: 0 16px;
+  }
+}

@@ -685,7 +685,9 @@ export class Library {
           flagged: note?.flagged ?? false,
           playNote: note?.note ?? '',
           teamEpa: play ? teamEpa(play, g.team) : null,
-          teamSuccess: play ? teamSuccess(play, g.team) : null
+          teamSuccess: play ? teamSuccess(play, g.team) : null,
+          chart: note?.chart ?? {},
+          drawing: note?.drawing ?? null
         })
       }
     }
@@ -734,9 +736,15 @@ export class Library {
     const gamesById = new Map(data.games.map((g) => [g.gameId, g]))
     const perGame = new Map<string, GradeTally>()
     for (const g of grades) addToTally(perGame.get(g.gameId) ?? perGame.set(g.gameId, emptyTally()).get(g.gameId)!, g.grade, g.critical)
+    const teamIn = new Map(grades.map((g) => [g.gameId, g.team]))
     const byGame = [...perGame]
       .filter(([, t]) => t.graded)
-      .map(([gameId, t]) => ({ gameId, week: gamesById.get(gameId)?.week ?? 0, grade: gradeScore(t)!, day: gamesById.get(gameId)?.gameday ?? '' }))
+      .map(([gameId, t]) => {
+        const game = gamesById.get(gameId)
+        const team = teamIn.get(gameId) ?? ''
+        const opponent = game ? (game.homeTeam === team ? game.awayTeam : game.homeTeam) : ''
+        return { gameId, week: game?.week ?? 0, grade: gradeScore(t)!, plays: t.graded, opponent, gameType: game?.gameType ?? 'REG', home: game?.homeTeam === team, day: game?.gameday ?? '' }
+      })
       .sort((a, b) => a.day.localeCompare(b.day) || a.week - b.week)
       .map(({ day: _day, ...r }) => r)
     return {

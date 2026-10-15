@@ -1,419 +1,346 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { clipUrl } from '@shared/api'
-import { gradeScore, plusRate } from '@shared/stats'
+import { useEffect, useMemo, useState } from 'react'
+import type { FilterToken } from '@shared/playQuery'
+import { gradeScore, netScore, plusRate } from '@shared/stats'
 import { TEAM_BY_ABBR } from '@shared/teams'
-import type { Angle, PlayerGameLine, PlayerProfile, ReelItem } from '@shared/types'
+import type { ChartField, FilmLibraryItem, PlayerProfile, TagDef, TeamSummary } from '@shared/types'
 import { api } from '../../api'
-import { GradeBar, GradeSymbol, Headshot, Score, TeamChip, useAsync } from '../../components/common'
-import { downDistance, opponentLabel, pct, quarterLabel, shortDesc, statColumns, weekLabel } from '../../format'
+import { experienceLabel, formatPct, formatSigned, heightLabel } from '../../format'
+import { Avatar } from '../../ui/Avatar'
+import { Button } from '../../ui/Button'
+import { RingGauge } from '../../ui/charts/RingGauge'
 import { EmptyState } from '../../ui/EmptyState'
-import { useCommand } from '../../shell/commands'
-import { exportReport } from '../../shell/contextMenus'
+import { Segmented } from '../../ui/Segmented'
+import type { SearchToken } from '../../ui/SearchField'
+import { TeamDot, teamStyle } from '../../ui/TeamChip'
+import { useCommand, useDynamicMenus } from '../../shell/commands'
+import { exportReport, playerMenu, showMenu } from '../../shell/contextMenus'
 import { useDataEvent } from '../../shell/dataEvents'
-import { links, navigate } from '../../shell/router'
+import { links, navigate, useHistory, useRoute } from '../../shell/router'
 import { CollapsingTitle, Loading, LoadError, Screen, useScrollRestore } from '../../shell/Screen'
+import { useSeasons } from '../../shell/store'
 import { Toolbar } from '../../shell/Toolbar'
+import { type ReelEntry, requestExportVideo, useExportVideoAvailable, useLoaded, useRouteState } from '../shared'
 import { SeasonGate } from '../shared/SeasonGate'
-import '../legacy.css'
+import { Career } from './Career'
+import { FilmSection } from './FilmSection'
+import { fromFilter, parseTokensParam, suggest, type TokenEnv, tokenPool, toFilter } from './filmTokens'
+import { GameLogSection } from './GameLog'
+import { type PlayerSection, PLAYER_SECTIONS, reelEntries, type ReelSort, teamsLine } from './model'
+import { Overview } from './Overview'
+import { Splits } from './Splits'
+import './player.css'
+
+/** Everything the sections share. */
+export interface PlayerCtx {
+  p: PlayerProfile
+  season: number
+  playerId: string
+  entries: ReelEntry[]
+  tags: TagDef[]
+  chartFields: ChartField[]
+  summaries: TeamSummary[]
+  /** Chart values by "gameId:playId". */
+  charts: Map<string, Record<string, string>>
+  /** Latest game with film for his team (Grade on Film), or null. */
+  filmGame: { gameId: string; team: string } | null
+  /** Shows Film filtered by these tokens. */
+  openFilm: (tokens: FilterToken[], text?: string) => void
+  gradeOnFilm: () => void
+  setSection: (s: PlayerSection) => void
+}
+
+const firstName = (name: string) => name.split(/\s+/)[0] ?? name
 
 export function PlayerPage({ season, playerId }: { season: number; playerId: string }) {
-  const profile = useAsync(() => api.playerProfile(season, playerId), [season, playerId])
+  const route = useRoute()
+  const routeKey = links.player(season, playerId)
+  const [storedSection, setSection] = useRouteState<PlayerSection>(routeKey, 'section', 'overview')
+  const [querySection, setQuerySection] = useState<PlayerSection | null>(() => {
+    const q = route.query.get('section') as PlayerSection | null
+    return q && PLAYER_SECTIONS.some((s) => s.value === q) ? q : null
+  })
+  const section = querySection ?? storedSection
+  const changeSection = (s: PlayerSection) => {
+    setQuerySection(null)
+    setSection(s)
+  }
+  const [tokens, setTokens] = useRouteState<SearchToken[]>(routeKey, 'tokens', [])
+  const [text, setText] = useRouteState<string>(routeKey, 'text', '')
+  const [sort, setSort] = useRouteState<ReelSort>(routeKey, 'sort', 'game')
+
+  const profile = useLoaded(() => api.playerProfile(season, playerId), [season, playerId])
+  const lists = useLoaded(async () => {
+    const [tags, chartFields] = await Promise.all([api.tags().catch(() => [] as TagDef[]), api.chartFields().catch(() => [] as ChartField[])])
+    return { tags, chartFields }
+  }, [])
+  const summaries = useLoaded(() => api.teamSummaries(season).catch(() => [] as TeamSummary[]), [season])
+  const library = useLoaded(() => api.filmLibrary().catch(() => [] as FilmLibraryItem[]), [])
   useDataEvent(['grades', 'notes', 'film', 'season'], profile.reload)
-  useCommand('file.exportReport', () => void exportReport(season, playerId))
+  useDataEvent('film', library.reload)
+  useDataEvent('settings', lists.reload)
+
   const p = profile.data
   const player = p?.player
   const team = player ? TEAM_BY_ABBR[player.team] : undefined
+  const entries = useMemo(() => (p ? reelEntries(p) : []), [p])
+  const charts = useMemo(() => new Map((p?.reel ?? []).map((r) => [`${r.gameId}:${r.playId}`, r.chart ?? {}])), [p])
+  const chartFields = lists.data?.chartFields ?? []
+  const env: TokenEnv = useMemo(
+    () => ({ games: new Map(entries.map((e) => [e.ref.gameId, e.game])), teams: new Map(entries.map((e) => [e.ref.gameId, e.team])), chartFields }),
+    [entries, chartFields]
+  )
+  const pool = useMemo(() => (p ? tokenPool(entries, playerId, env, charts) : []), [p, entries, playerId, env, charts])
+
+  // ?tokens= from a link (a split's "Watch These Plays", a smart cut-up) replaces the remembered tokens once.
+  const [appliedParam, setAppliedParam] = useState(false)
+  useEffect(() => {
+    if (appliedParam || !p) return
+    const parsed = parseTokensParam(route.query.get('tokens') ?? undefined)
+    if (parsed) {
+      setTokens(fromFilter(parsed, env))
+      setText('')
+    }
+    setAppliedParam(true)
+  }, [appliedParam, p, route.query, env, setTokens, setText])
+
+  const filmGame = useMemo(() => {
+    if (!player || !library.data) return null
+    const mine = library.data.filter((f) => f.game.season === season && (f.game.homeTeam === player.team || f.game.awayTeam === player.team))
+    const latest = mine.sort((a, b) => b.game.gameday.localeCompare(a.game.gameday) || b.game.week - a.game.week)[0]
+    return latest ? { gameId: latest.game.gameId, team: player.team } : null
+  }, [player, library.data, season])
+  const gradeOnFilm = () => {
+    if (filmGame) navigate(links.tape(filmGame.gameId, filmGame.team, { player: playerId, focus: true }))
+  }
+  const exportAvailable = useExportVideoAvailable()
+  const [saving, setSaving] = useState(false)
+  const saveReport = async () => {
+    setSaving(true)
+    try {
+      await exportReport(season, playerId)
+    } finally {
+      setSaving(false)
+    }
+  }
+  const exportVideo = () => requestExportVideo({ kind: 'player', season, playerId, plays: entries.filter((e) => e.clips.length).map((e) => e.ref) }, player ? `${player.name} ${season}` : undefined)
+
+  useCommand('file.exportReport', () => void saveReport(), { enabled: !!p && !saving, label: saving ? 'Saving Report…' : undefined })
+  useCommand('file.exportVideo', exportVideo, { enabled: !!p && exportAvailable && entries.some((e) => e.clips.length), label: 'Export Reel Video…' })
+  useCommand('view.section', (arg) => changeSection(PLAYER_SECTIONS[Number(arg ?? 0)]?.value ?? 'overview'))
+  useDynamicMenus({ sections: PLAYER_SECTIONS.map((s, i) => ({ index: i, label: s.label, checked: s.value === section })) })
+
   const subtitle = player ? [player.jersey ? `#${player.jersey}` : '', player.depthPos || player.position, team?.name ?? player.team, String(season)].filter(Boolean).join(' · ') : String(season)
+  const ctx: PlayerCtx | null = p
+    ? {
+        p,
+        season,
+        playerId,
+        entries,
+        tags: lists.data?.tags ?? [],
+        chartFields,
+        summaries: summaries.data ?? [],
+        charts,
+        filmGame,
+        openFilm: (filter, t = '') => {
+          setTokens(fromFilter(filter, env))
+          setText(t)
+          changeSection('film')
+          document.getElementById('content')?.scrollTo({ top: 0 })
+        },
+        gradeOnFilm,
+        setSection: changeSection
+      }
+    : null
+
   return (
-    <Screen name="player" className="legacy">
+    <Screen name="player">
       <Toolbar
         title={player?.name ?? 'Player'}
         subtitle={subtitle}
         windowTitle={player ? `${player.name} — ${season}` : 'Player'}
         collapsesLargeTitle
+        busy={profile.busy}
+        center={
+          p && (
+            <Segmented
+              size="toolbar"
+              value={section}
+              onChange={changeSection}
+              label="Section"
+              options={PLAYER_SECTIONS.map((s) => ({ ...s, test: `player-section-${s.value}` }))}
+            />
+          )
+        }
         trailing={[
+          {
+            kind: 'custom',
+            width: 32,
+            node: (
+              <GradeOnFilmButton disabled={!filmGame} title={filmGame ? 'Grade on Film' : `No film for the ${team?.nickname ?? player?.team ?? 'team'} yet`} onClick={gradeOnFilm} />
+            )
+          },
           {
             kind: 'pulldown',
             icon: 'share',
             label: 'Export',
             test: 'toolbar-export',
             items: [
-              { label: 'Export Reel Video…', disabled: true, run: () => {} },
-              { label: 'Export Scouting Report (PDF)…', shortcut: '⌥⌘E', run: () => void exportReport(season, playerId), test: 'export-report' }
+              { label: 'Export Reel Video…', shortcut: '⌘E', disabled: !exportAvailable || !entries.some((e) => e.clips.length), run: exportVideo, test: 'export-video' },
+              { label: saving ? 'Saving Report…' : 'Export Scouting Report (PDF)…', shortcut: '⌥⌘E', disabled: saving || !p, run: () => void saveReport(), test: 'export-report' }
             ]
           }
         ]}
+        search={
+          section === 'film' && p
+            ? {
+                placeholder: 'Search plays',
+                value: text,
+                onChange: setText,
+                tokens,
+                onTokensChange: setTokens,
+                suggest: (t) => suggest(t, pool, tokens, env),
+                test: 'film-search'
+              }
+            : undefined
+        }
       />
       <SeasonGate season={season}>
-        {profile.error ? (
+        {profile.error && !p ? (
           <LoadError what="this player" error={profile.error} retry={profile.reload} />
         ) : !p || !player ? (
-          profile.loading ? <Loading /> : <EmptyState icon="user-round-x" title={`Not in the ${season} data`} body="This player isn’t on a roster that season. Choose another season in the sidebar." />
+          profile.loading ? <Loading /> : <NotInSeason season={season} playerId={playerId} />
         ) : (
-          <PlayerBody p={p} season={season} />
+          <PlayerBody
+            ctx={ctx!}
+            section={section}
+            film={{ tokens, setTokens, text, setText, sort, setSort, env }}
+          />
         )}
       </SeasonGate>
     </Screen>
   )
 }
 
-function PlayerBody({ p, season }: { p: PlayerProfile; season: number }) {
-  const { player } = p
-  const team = TEAM_BY_ABBR[player.team]
+function GradeOnFilmButton({ disabled, title, onClick }: { disabled: boolean; title: string; onClick: () => void }) {
+  return <Button variant="toolbar" size="toolbar" iconOnly icon="scan-eye" label="Grade on Film" title={title} disabled={disabled} onClick={onClick} test="grade-on-film" />
+}
+
+function NotInSeason({ season, playerId }: { season: number; playerId: string }) {
+  const h = useHistory()
+  const seasons = useSeasons()
+  const [found, setFound] = useState<number | null>(null)
+  const fromHistory = useMemo(() => {
+    for (let i = h.index - 1; i >= 0; i--) {
+      const m = /^\/player\/(\d{4})\/([^?]+)/.exec(h.entries[i]?.route ?? '')
+      if (m && decodeURIComponent(m[2]) === playerId && Number(m[1]) !== season) return Number(m[1])
+    }
+    return null
+  }, [h, playerId, season])
+  useEffect(() => {
+    if (fromHistory || !seasons) return
+    let live = true
+    const list = seasons.filter((s) => s.downloaded && s.season !== season).map((s) => s.season).sort((a, b) => b - a)
+    void (async () => {
+      for (const s of list) {
+        const line = await api.playerSeasonLine(s, playerId).catch(() => null)
+        if (!live) return
+        if (line) return setFound(s)
+      }
+    })()
+    return () => {
+      live = false
+    }
+  }, [fromHistory, seasons, season, playerId])
+  const target = fromHistory ?? found
+  return (
+    <EmptyState
+      icon="user-round"
+      title={`Not in the ${season} data`}
+      body={`This player has no roster entry, snaps or stats in the ${season} season.`}
+      primary={target ? { label: `Show ${target}`, run: () => navigate(links.player(target, playerId)) } : undefined}
+    />
+  )
+}
+
+export interface FilmState {
+  tokens: SearchToken[]
+  setTokens: (t: SearchToken[]) => void
+  text: string
+  setText: (t: string) => void
+  sort: ReelSort
+  setSort: (s: ReelSort) => void
+  env: TokenEnv
+}
+
+function PlayerBody({ ctx, section, film }: { ctx: PlayerCtx; section: PlayerSection; film: FilmState }) {
   useScrollRestore(true)
   return (
     <>
-      <CollapsingTitle className="player-hero" test="player-header">
-        <Headshot url={player.headshot} name={player.name} />
-        <div>
-          <h1>{player.name}</h1>
-          <div className="row muted" style={{ marginTop: 4 }}>
-            <TeamChip abbr={player.team} size="sm" />
-            <span>
-              {player.jersey ? `#${player.jersey} · ` : ''}
-              {player.depthPos || player.position} ·{' '}
-              <a className="link" onClick={() => navigate(links.team(season, player.team))}>
-                {team?.name ?? player.team}
-              </a>
-            </span>
-          </div>
-          <div className="faint" style={{ marginTop: 4 }}>
-            {[
-              player.college,
-              player.height && `${Math.floor(Number(player.height) / 12)}'${Number(player.height) % 12}"`,
-              player.weight && `${player.weight} lb`,
-              player.yearsExp !== '' && (player.yearsExp === '0' ? 'Rookie' : `${player.yearsExp} yrs exp`)
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </div>
-        </div>
-        <span className="spacer" />
-        <div className="big-grade">
-          <h4>Your grade</h4>
-          <div className="v">
-            <Score tally={p.tally} />
-          </div>
-          <div className="faint" style={{ fontSize: 11 }}>
-            {p.tally.graded} {p.tally.graded === 1 ? 'play' : 'plays'} graded
-          </div>
-        </div>
-      </CollapsingTitle>
-      <SeasonLine profile={p} />
-
-      <div className="stat-grid">
-        <div className="card">
-          <div className="card-title">
-            <h3>Grade breakdown</h3>
-          </div>
-          {p.tally.graded ? (
-            <>
-              <div className="row" style={{ gap: 18, marginBottom: 10 }}>
-                <Count label="Plus" value={p.tally.plus} color="var(--plus)" />
-                <Count label="Zero" value={p.tally.zero} color="var(--zero)" />
-                <Count label="Minus" value={p.tally.minus} color="var(--minus)" />
-                <Count label="Plus rate" value={pct(plusRate(p.tally))} />
-                <Count label="Net" value={(p.tally.plus - p.tally.minus).toString()} />
-              </div>
-              <GradeBar tally={p.tally} />
-              <h4 style={{ margin: '16px 0 8px' }}>Tags</h4>
-              <div className="tags">
-                {p.reel.length === 0 || p.tagCounts.length === 0 ? (
-                  <span className="faint">No tags yet.</span>
-                ) : (
-                  p.tagCounts.map((t) => (
-                    <span className="tag static" key={t.tag}>
-                      {t.tag} <b style={{ color: 'var(--text)' }}>{t.count}</b>
-                    </span>
-                  ))
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="faint">Grade {player.name.split(' ')[0]} in the tape room to see a breakdown here.</div>
-          )}
-        </div>
-        <div className="card">
-          <div className="card-title">
-            <h3>Grade by game</h3>
-            <span className="faint">0–100, 50 is neutral</span>
-          </div>
-          <GradeTrend games={p.games} />
-        </div>
-      </div>
-
-      {p.reel.length > 0 && <Reel profile={p} />}
-
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-title">
-          <h3>Game log</h3>
-        </div>
-        <GameLog profile={p} />
+      <PlayerHeader ctx={ctx} />
+      <div className="player-body">
+        {section === 'overview' && <Overview ctx={ctx} />}
+        {section === 'film' && <FilmSection ctx={ctx} film={film} filter={toFilter(film.tokens)} />}
+        {section === 'splits' && <Splits ctx={ctx} />}
+        {section === 'log' && <GameLogSection ctx={ctx} />}
+        {section === 'career' && <Career ctx={ctx} />}
       </div>
     </>
   )
 }
 
-function Count({ label, value, color }: { label: string; value: number | string; color?: string }) {
+function PlayerHeader({ ctx }: { ctx: PlayerCtx }) {
+  const { p, season } = ctx
+  const player = p.player
+  const team = TEAM_BY_ABBR[player.team]
+  const score = gradeScore(p.tally)
+  const bio = [player.college, heightLabel(player.height), player.weight ? `${player.weight} lb` : '', experienceLabel(player.yearsExp)].filter(Boolean).join(' · ')
+  const moved = teamsLine(p)
+  const menu = (e: React.MouseEvent) => void showMenu(e, playerMenu(season, player))
+  const t = p.tally
+  const tip = t.graded
+    ? `${t.plus} plus · ${t.zero} zero · ${t.minus} minus · ${t.critical} critical · net ${formatSigned(netScore(t))} · ${formatPct(plusRate(t))} plus`
+    : 'Not graded yet'
   return (
-    <div>
-      <div className="faint" style={{ fontSize: 11 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: color ?? 'var(--text)' }}>{value}</div>
-    </div>
-  )
-}
-
-export function SeasonLine({ profile }: { profile: PlayerProfile }) {
-  const cols = statColumns(profile.player.group)
-  const tiles = [
-    ...(profile.totals.snaps ? [{ key: 'snaps', label: 'Snaps', value: String(profile.totals.snaps) }] : []),
-    { key: 'games', label: 'Games', value: String(profile.games.filter((g) => Object.keys(g.stats).length || g.snaps).length) },
-    ...cols.map((c) => ({ key: c.key, label: c.label, value: c.value(profile.totals) }))
-  ]
-  return (
-    <div className="stat-list" style={{ gridTemplateColumns: `repeat(${Math.min(tiles.length, 9)}, 1fr)`, marginBottom: 16 }}>
-      {tiles.map((t) => (
-        <div className="stat-tile" key={t.key}>
-          <div className="label">{t.label}</div>
-          <div className="value">{t.value}</div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-/** One bar per graded game, growing up (green) or down (red) from the neutral 50 line. */
-export function GradeTrend({ games, print }: { games: PlayerGameLine[]; print?: boolean }) {
-  const [hover, setHover] = useState<number | null>(null)
-  const graded = games.filter((g) => g.tally.graded)
-  if (!graded.length) return <div className="faint">No graded games yet.</div>
-  const W = 520
-  const H = 170
-  const pad = { l: 28, r: 8, t: 10, b: 22 }
-  const innerH = H - pad.t - pad.b
-  const y = (v: number) => pad.t + innerH * (1 - v / 100)
-  const slot = (W - pad.l - pad.r) / graded.length
-  const bw = Math.min(26, slot * 0.6)
-  const ink = print ? '#666' : 'var(--text-3)'
-  const grid = print ? '#ddd' : 'var(--line)'
-  return (
-    <div style={{ position: 'relative' }}>
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Grade by game">
-        {[0, 50, 100].map((v) => (
-          <g key={v}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={grid} strokeWidth={v === 50 ? 1.5 : 1} strokeDasharray={v === 50 ? '' : '3 3'} />
-            <text x={pad.l - 6} y={y(v) + 3.5} textAnchor="end" fontSize="10" fill={ink}>
-              {v}
-            </text>
-          </g>
-        ))}
-        {graded.map((g, i) => {
-          const s = gradeScore(g.tally)!
-          const cx = pad.l + slot * (i + 0.5)
-          const top = Math.min(y(s), y(50))
-          const h = Math.max(2, Math.abs(y(s) - y(50)))
-          const up = s >= 50
-          return (
-            <g key={g.game.gameId} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
-              <rect x={cx - slot / 2} y={pad.t} width={slot} height={innerH} fill="transparent" />
-              <path d={roundedBar(cx - bw / 2, top, bw, h, up)} fill={up ? '#35c46a' : '#ff5a5a'} opacity={hover === null || hover === i ? 1 : 0.45} />
-              <text x={cx} y={H - 6} textAnchor="middle" fontSize="10" fill={ink}>
-                {g.opponent}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-      {hover !== null && !print && (
-        <div
-          className="badge"
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: `${((pad.l + slot * (hover + 0.5)) / W) * 100}%`,
-            transform: 'translateX(-50%)',
-            background: 'var(--panel-2)',
-            color: 'var(--text)'
-          }}
-        >
-          {weekLabel(graded[hover].game)} {opponentLabel(graded[hover].game, graded[hover].team)}: {gradeScore(graded[hover].tally)} ({graded[hover].tally.plus}+ /{' '}
-          {graded[hover].tally.zero} / {graded[hover].tally.minus}–)
-        </div>
-      )}
-    </div>
-  )
-}
-
-/** A bar with 4px rounding only on its data end; the end touching the 50 line stays square. */
-function roundedBar(x: number, y: number, w: number, h: number, up: boolean) {
-  const r = Math.min(4, h / 2, w / 2)
-  if (up) {
-    return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`
-  }
-  return `M${x},${y} V${y + h - r} Q${x},${y + h} ${x + r},${y + h} H${x + w - r} Q${x + w},${y + h} ${x + w},${y + h - r} V${y} Z`
-}
-
-export function GameLog({ profile }: { profile: PlayerProfile }) {
-  const cols = statColumns(profile.player.group)
-  if (!profile.games.length) return <div className="faint">No games for this player in the {profile.season} data.</div>
-  return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>Wk</th>
-          <th>Opp</th>
-          <th className="num">Snaps</th>
-          {cols.map((c) => (
-            <th key={c.key} className="num">
-              {c.label}
-            </th>
-          ))}
-          <th className="num">+ / 0 / –</th>
-          <th className="num">Grade</th>
-        </tr>
-      </thead>
-      <tbody>
-        {profile.games.map((g) => {
-          const snaps = g.snaps ? g.snaps.offense + g.snaps.defense + g.snaps.special : null
-          return (
-            <tr key={g.game.gameId}>
-              <td className="faint">{g.game.week}</td>
-              <td>
-                {g.team === g.game.homeTeam ? 'vs' : '@'} {g.opponent}
-              </td>
-              <td className="num">{snaps ?? <span className="faint">—</span>}</td>
-              {cols.map((c) => (
-                <td key={c.key} className="num">
-                  {Object.keys(g.stats).length ? c.value(g.stats) : <span className="faint">—</span>}
-                </td>
-              ))}
-              <td className="num">
-                {g.tally.graded ? `${g.tally.plus} / ${g.tally.zero} / ${g.tally.minus}` : <span className="faint">—</span>}
-              </td>
-              <td className="num">
-                <Score tally={g.tally} />
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
-  )
-}
-
-/** Which game a graded play is from, like "Wk 2 @ KC" or "Wild Card vs PIT". */
-export function reelGameLabel(profile: PlayerProfile, r: ReelItem): string {
-  const game = profile.games.find((l) => l.game.gameId === r.gameId)?.game
-  return game ? `${weekLabel(game)} ${opponentLabel(game, r.team)}` : `Wk ${r.week}`
-}
-
-const ANGLE_PREF: Angle[] = ['sideline', 'main', 'endzone']
-const ANGLE_NAMES: Record<Angle, string> = { sideline: 'Sideline', main: 'Main', endzone: 'End zone' }
-
-function Reel({ profile }: { profile: PlayerProfile }) {
-  const [gradeFilter, setGradeFilter] = useState<'all' | 'plus' | 'zero' | 'minus'>('all')
-  const [tag, setTag] = useState('')
-  const [index, setIndex] = useState(0)
-  const [angle, setAngle] = useState<Angle>('sideline')
-  const listRef = useRef<HTMLDivElement>(null)
-
-  const items = useMemo(
-    () =>
-      profile.reel.filter((r) => {
-        if (gradeFilter === 'plus' && r.grade !== 1) return false
-        if (gradeFilter === 'zero' && r.grade !== 0) return false
-        if (gradeFilter === 'minus' && r.grade !== -1) return false
-        if (tag && !r.tags.includes(tag)) return false
-        return true
-      }),
-    [profile.reel, gradeFilter, tag]
-  )
-  useEffect(() => setIndex(0), [gradeFilter, tag])
-  useEffect(() => {
-    listRef.current?.querySelector('.reel-item.current')?.scrollIntoView({ block: 'nearest' })
-  }, [index])
-
-  const item: ReelItem | undefined = items[index]
-  const clip = item ? item.clips.find((c) => c.angle === angle) ?? [...item.clips].sort((a, b) => ANGLE_PREF.indexOf(a.angle) - ANGLE_PREF.indexOf(b.angle))[0] : undefined
-  const angles = item ? ANGLE_PREF.filter((a) => item.clips.some((c) => c.angle === a)) : []
-  const nextAngle = clip && angles[(angles.indexOf(clip.angle) + 1) % angles.length]
-  const next = () => setIndex((i) => (i + 1 < items.length ? i + 1 : i))
-
-  return (
-    <div className="card">
-      <div className="card-title">
-        <h3>Film reel</h3>
-        <span className="faint">{items.length} graded plays</span>
-        <span className="spacer" />
-        <div className="seg">
-          {(['all', 'plus', 'zero', 'minus'] as const).map((g) => (
-            <button key={g} className={gradeFilter === g ? 'on' : ''} onClick={() => setGradeFilter(g)}>
-              {{ all: 'All', plus: '+', zero: '0', minus: '–' }[g]}
-            </button>
-          ))}
-        </div>
-        <select className="input" style={{ height: 28 }} value={tag} onChange={(e) => setTag(e.target.value)}>
-          <option value="">Any tag</option>
-          {profile.tagCounts.map((t) => (
-            <option key={t.tag} value={t.tag}>
-              {t.tag} ({t.count})
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="reel">
-        <div>
-          <div className="reel-video">
-            {clip ? (
-              <video key={clip.id} src={clipUrl(clip.id)} autoPlay muted playsInline controls onEnded={next} />
-            ) : (
-              <div className="no-clip">{item ? 'No clip linked to this play.' : 'No plays match.'}</div>
-            )}
-          </div>
-          {item && (
-            <div className="row" style={{ marginTop: 8 }}>
-              <button className="btn small" disabled={index === 0} onClick={() => setIndex(index - 1)}>
-                ◀︎ Prev
-              </button>
-              <button className="btn small" disabled={index >= items.length - 1} onClick={next}>
-                Next ▶︎
-              </button>
-              {angles.length > 1 && nextAngle && (
-                <button className="btn small" onClick={() => setAngle(nextAngle)}>
-                  {ANGLE_NAMES[nextAngle]} view
-                </button>
-              )}
-              <span className="faint" style={{ marginLeft: 6 }}>
-                {index + 1} / {items.length}
-              </span>
-              <span className="spacer" />
-              <a onClick={() => navigate(links.tape(item.gameId, item.team, { play: item.playId }))}>
-                Open in tape room
+    <CollapsingTitle className="player-header" test="player-header">
+      <div className="player-header__rule" style={teamStyle(player.team)} />
+      <div className="player-header__row">
+        <span onContextMenu={menu}>
+          <Avatar url={player.headshot} name={player.name} size={96} team={player.team} />
+        </span>
+        <div className="player-header__text">
+          <h1 className="player-header__name" onContextMenu={menu}>
+            {player.name}
+          </h1>
+          <div className="player-header__line">
+            <TeamDot abbr={player.team} size={10} />
+            <span>
+              {player.jersey ? `#${player.jersey} · ` : ''}
+              {player.depthPos || player.position} ·{' '}
+              <a className="player-header__link" onClick={() => navigate(links.team(season, player.team))}>
+                {team?.name ?? player.team}
               </a>
+            </span>
+          </div>
+          {bio && <div className="player-header__bio">{bio}</div>}
+          {moved && (
+            <div className="player-header__bio">
+              {moved.before}
+              {moved.link && (
+                <a className="player-header__link" onClick={() => navigate(links.team(season, moved.link!.abbr))}>
+                  {moved.link.text}
+                </a>
+              )}
+              {moved.after}
             </div>
           )}
-          {item?.note && <div className="play-desc" style={{ marginTop: 8 }}>“{item.note}”</div>}
         </div>
-        <div className="reel-list" ref={listRef}>
-          {items.map((r, i) => (
-            <div key={`${r.gameId}-${r.playId}`} className={`reel-item ${i === index ? 'current' : ''}`} data-test="reel-item" onClick={() => setIndex(i)}>
-              <GradeSymbol grade={r.grade} />
-              <div style={{ minWidth: 0 }}>
-                <div className="faint" style={{ fontSize: 11 }}>
-                  {reelGameLabel(profile, r)}
-                  {r.play ? ` · ${quarterLabel(r.play.qtr)} ${r.play.time} · ${downDistance(r.play)}` : ''}
-                </div>
-                <div className="desc" style={{ fontSize: 12, color: 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.play ? shortDesc(r.play.desc) : `Play ${r.playId}`}
-                </div>
-                {r.tags.length > 0 && <div className="faint" style={{ fontSize: 11 }}>{r.tags.join(' · ')}</div>}
-              </div>
-            </div>
-          ))}
+        <div className="player-header__grade" title={tip}>
+          <RingGauge score={score} size={120} label="Grade" />
+          <div className="player-header__graded">{t.graded ? `${t.graded} ${t.graded === 1 ? 'play' : 'plays'} graded` : 'Not graded yet'}</div>
         </div>
       </div>
-    </div>
+    </CollapsingTitle>
   )
 }
+
+export { firstName }

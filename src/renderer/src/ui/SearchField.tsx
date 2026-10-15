@@ -14,6 +14,8 @@ export interface SearchToken {
 export interface SearchSuggestion {
   section?: string
   token: SearchToken
+  /** Shown after the token in the menu only: a count ("6"). */
+  detail?: string
 }
 
 /**
@@ -75,7 +77,7 @@ export function SearchField({
         items.push({ kind: 'header', label: s.section })
       }
       items.push({
-        label: `${s.token.keyLabel} ${s.token.label}`,
+        label: `${s.token.keyLabel} ${s.token.label}${s.detail ? ` · ${s.detail}` : ''}`,
         run: () => {
           onTokensChange?.([...tokens, s.token])
           setText('')
