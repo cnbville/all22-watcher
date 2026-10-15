@@ -96,8 +96,8 @@ export function Leaderboards({ season, pos }: { season: number; pos: string }) {
     }
   }
 
-  useCommand('view.section', (arg) => setGroup(GROUPS[Number(arg ?? 0)] ?? 'QB'), { enabled: ready })
-  useDynamicMenus({ sections: GROUPS.map((g, i) => ({ index: i, label: GROUP_NAMES[g], checked: g === group })) })
+  useCommand('view.section', (arg) => setGroup(GROUPS[Number(arg ?? 1) - 1] ?? 'QB'), { enabled: ready })
+  useDynamicMenus({ sections: GROUPS.map((g, i) => ({ index: i + 1, label: GROUP_NAMES[g], checked: g === group })) })
   useCommand('view.filters', () => setFilterOpen((o) => !o), { enabled: ready, checked: filterOpen, label: filterOpen ? 'Hide Filters' : 'Show Filters' })
   useCommand('file.exportCsv', () => void exportCsv(), { enabled: ready && rows.length > 0, label: 'Export Leaderboard as CSV…' })
 
