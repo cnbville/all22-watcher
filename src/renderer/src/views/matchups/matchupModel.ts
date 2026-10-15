@@ -338,11 +338,3 @@ export function pushRecent(
     ),
   ].slice(0, 6);
 }
-
-/** Parses `ui.matchup.last` ("PHI|DAL"). */
-export function parseLast(raw: string | null): [string, string] | null {
-  const m = /^([A-Z]{2,3})\|([A-Z]{2,3})$/.exec(raw ?? "");
-  return m && TEAM_BY_ABBR[m[1]] && TEAM_BY_ABBR[m[2]] && m[1] !== m[2]
-    ? [m[1], m[2]]
-    : null;
-}
