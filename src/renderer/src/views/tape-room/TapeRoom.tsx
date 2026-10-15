@@ -13,7 +13,7 @@ import { action, playerMenu, sep, showMenu, submenu } from '../../shell/contextM
 import { useDataEvent } from '../../shell/dataEvents'
 import { setImportContext } from '../../shell/importRequest'
 import { useEscape } from '../../shell/keyRouter'
-import { links, navigate, setEntrySelection, useRoute } from '../../shell/router'
+import { historyState, links, navigate, setEntrySelection, useRoute } from '../../shell/router'
 import { Screen } from '../../shell/Screen'
 import { saveSettings, useSettings } from '../../shell/store'
 import { Toolbar } from '../../shell/Toolbar'
@@ -557,6 +557,9 @@ function Room({
 
   // Back/Forward between entries of the same game: follow the route.
   useEffect(() => {
+    // The room's own replace writes trail its state; following them back flips the team when Player Focus opens on
+    // the other team's player (an endless PHI ↔ DAL loop).
+    if (historyState().via === 'replace') return
     const qTeam = route.query.get('team')
     const qPlay = route.query.get('play')
     if (qTeam && qTeam !== team && (qTeam === game.homeTeam || qTeam === game.awayTeam)) setTeamState(qTeam)
