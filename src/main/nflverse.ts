@@ -9,7 +9,7 @@ import { summarizeTeams } from '@shared/stats'
 import type { DataProgress, GameInfo, Play, PlayerWeek, RosterPlayer, SeasonStatus, Snaps, TeamSummary } from '@shared/types'
 
 const BASE = 'https://github.com/nflverse/nflverse-data/releases/download'
-const CACHE_VERSION = 2
+const CACHE_VERSION = 3
 
 export const FILES = {
   schedule: () => `${BASE}/schedules/games.csv`,
@@ -258,12 +258,14 @@ export async function downloadSeason(
       play.coverage = str(r.defense_coverage_type)
       play.manZone = str(r.defense_man_zone_type)
       play.wasPressure = r.was_pressure === '' ? null : flag(r.was_pressure)
-      play.offensePlayers = ids(r.offense_players)
-      play.defensePlayers = ids(r.defense_players)
+      // Lineups follow possession_team, which before 2023 is the kicking team on kickoffs (pbp's defteam).
+      const [off, def] = play.defteam && team(r.possession_team) === play.defteam ? (['defense', 'offense'] as const) : (['offense', 'defense'] as const)
+      play.offensePlayers = ids(r[`${off}_players`])
+      play.defensePlayers = ids(r[`${def}_players`])
       const kind: keyof Snaps | null = play.special ? 'special' : null
       for (const [list, names, positions, numbers, side, teamAbbr] of [
-        [play.offensePlayers, r.offense_names, r.offense_positions, r.offense_numbers, 'offense', play.posteam],
-        [play.defensePlayers, r.defense_names, r.defense_positions, r.defense_numbers, 'defense', play.defteam]
+        [play.offensePlayers, r[`${off}_names`], r[`${off}_positions`], r[`${off}_numbers`], 'offense', play.posteam],
+        [play.defensePlayers, r[`${def}_names`], r[`${def}_positions`], r[`${def}_numbers`], 'defense', play.defteam]
       ] as const) {
         const nm = names?.split(';') ?? []
         const ps = positions?.split(';') ?? []

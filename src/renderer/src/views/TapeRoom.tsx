@@ -307,6 +307,8 @@ function Room({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (fixing || isTyping(e) || (e.metaKey && e.key !== 'z')) return
+      // A dropdown left focused would otherwise pick an option by type-ahead on keys that aren't hotkeys.
+      if (e.target instanceof HTMLSelectElement) e.target.blur()
       if (showHelp) {
         if (e.key === 'Escape' || e.key === '?') setShowHelp(false)
         return

@@ -31,7 +31,8 @@ async function tradeSeason(): Promise<Library> {
         play(wk1, 10, 'DAL', 'NYJ', { receiver_player_id: 'x1' }),
         play(wk1, 11, 'DAL', 'NYJ', { play_type: 'no_play', penalty: '1', penalty_type: 'False Start' }),
         play(wk1, 12, 'DAL', 'NYJ', { play_type: 'no_play', penalty: '1', penalty_type: 'Defensive Holding' }),
-        play(wk2, 10, 'NYJ', 'IND')
+        play(wk2, 10, 'NYJ', 'IND'),
+        play(wk2, 20, 'IND', 'NYJ', { play_type: 'kickoff', pass: '0', special: '1' })
       ])
     )
   )
@@ -39,7 +40,14 @@ async function tradeSeason(): Promise<Library> {
     ({ nflverse_game_id: game, play_id, offense_players: offense, defense_players: defense, offense_positions: 'QB', defense_positions: 'CB' })
   await writeFile(
     join(mirror, 'pbp_participation_2025.csv'),
-    csv([lineup(wk1, 10, 'd1', 'g1'), lineup(wk1, 11, 'd1', 'g1'), lineup(wk1, 12, 'd1', 'g1'), lineup(wk2, 10, 'q1', 'g1')])
+    csv([
+      lineup(wk1, 10, 'd1', 'g1'),
+      lineup(wk1, 11, 'd1', 'g1'),
+      lineup(wk1, 12, 'd1', 'g1'),
+      lineup(wk2, 10, 'q1', 'g1'),
+      // Before 2023, kickoff lineups are listed from the kicking team's side (possession_team NYJ, pbp posteam IND).
+      { ...lineup(wk2, 20, 'k1', 'r1'), possession_team: 'NYJ' }
+    ])
   )
   const player = (gsis_id: string, team: string, position: string) =>
     ({ gsis_id, full_name: gsis_id, team, position, depth_chart_position: position, status: 'ACT', week: 18 })
@@ -86,6 +94,15 @@ describe('Library with players who changed teams', () => {
       ['NYJ', 'DAL'],
       ['IND', 'NYJ']
     ])
+  })
+
+  it('puts kickoff units on the right side when lineups follow the kicking team', async () => {
+    const library = await tradeSeason()
+    const kickoff = (await library.gameFilm('2025_02_NYJ_IND')).plays.find((p) => p.playId === 20)!
+    expect([kickoff.offensePlayers, kickoff.defensePlayers]).toEqual([['r1'], ['k1']])
+    const season = await library.season(2025)
+    expect(season.snaps.k1['2025_02_NYJ_IND']).toEqual({ team: 'NYJ', offense: 0, defense: 0, special: 1 })
+    expect(season.snaps.r1['2025_02_NYJ_IND']).toEqual({ team: 'IND', offense: 0, defense: 0, special: 1 })
   })
 
   it('asks for a fresh download when the cache was saved by an older version', async () => {
