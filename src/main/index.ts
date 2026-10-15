@@ -462,12 +462,18 @@ app.on('before-quit', (e) => {
       defaultId: 1,
       cancelId: 1
     })
-    if (choice !== 0) {
-      e.preventDefault()
-      return
-    }
+    e.preventDefault()
+    if (choice !== 0) return
     quitConfirmed = true
+    // Cancel, give the pipeline a moment to delete its temp folder and unfinished file, then quit for real.
     for (const a of runningActivities('export')) cancelActivity(a.id)
+    const started = Date.now()
+    const wait = setInterval(() => {
+      if (exportsRunning().length && Date.now() - started < 3000) return
+      clearInterval(wait)
+      app.quit()
+    }, 100)
+    return
   }
   watcher?.stop()
   updater?.stop()
