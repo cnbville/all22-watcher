@@ -146,11 +146,11 @@ export class CutupEngine {
       const notes = new Map(this.store.notesForGame(gameId).map((n) => [n.playId, n]))
       const byPlay = groupBy(entries, (e) => e.playId)
       const plays = await this.library.filmPlays(gameId)
+      // One perspective per game: a focus player's side comes from his grades anywhere in the game, so plays he
+      // wasn't graded on are still seen from his team.
       for (const play of plays) {
-        const playEntries = byPlay.get(play.playId) ?? []
-        const t = focus?.playerId ? perspectiveTeam(game, focus, studied.get(gameId), playEntries.length ? playEntries : entries) : team
-        const ctx: PlayContext = { game, team: t, entries: playEntries, note: notes.get(play.playId) ?? null, chartFields }
-        if (matchRules(rules, play, ctx)) hits.push({ ref: { gameId, playId: play.playId }, game, team: t, play, addedAt: null })
+        const ctx: PlayContext = { game, team, entries: byPlay.get(play.playId) ?? [], note: notes.get(play.playId) ?? null, chartFields }
+        if (matchRules(rules, play, ctx)) hits.push({ ref: { gameId, playId: play.playId }, game, team, play, addedAt: null })
       }
     }
     return {
@@ -176,8 +176,7 @@ export class CutupEngine {
         g = { game, plays, entries: this.store.gradesForGame(row.gameId) }
         gameCache.set(row.gameId, g)
       }
-      const playEntries = g.entries.filter((e) => e.playId === row.playId)
-      const team = perspectiveTeam(g.game, cutup.focus, studied.get(row.gameId), playEntries.length ? playEntries : g.entries)
+      const team = perspectiveTeam(g.game, cutup.focus, studied.get(row.gameId), g.entries)
       hits.push({ ref: { gameId: row.gameId, playId: row.playId }, game: g.game, team, play: g.plays?.get(row.playId) ?? null, addedAt: row.addedAt })
     }
     return { hits, skippedSeasons: [...skipped].sort((a, b) => b - a), noLineupSeasons: [] }
@@ -313,8 +312,7 @@ export class CutupEngine {
       const data = await this.library.seasonOrNull(seasonOf(ref.gameId))
       const game = data?.games.find((x) => x.gameId === ref.gameId) ?? gameFromId(ref.gameId)
       const play = data ? ((await this.library.plays(ref.gameId)).find((p) => p.playId === ref.playId) ?? null) : null
-      const entries = this.store.gradesForGame(ref.gameId).filter((e) => e.playId === ref.playId)
-      hits.push({ ref, game, team: perspectiveTeam(game, focus, studied.get(ref.gameId), entries), play, addedAt: null })
+      hits.push({ ref, game, team: perspectiveTeam(game, focus, studied.get(ref.gameId), this.store.gradesForGame(ref.gameId)), play, addedAt: null })
     }
     return this.items(hits, focus)
   }

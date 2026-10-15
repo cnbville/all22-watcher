@@ -413,6 +413,24 @@ describe('Cut-up evaluation', () => {
     expect(offense.sample.map((i) => `${i.ref.gameId}#${i.ref.playId}`)).toEqual([`${g1}#1`, `${g1}#3`, `${g2}#2`])
   })
 
+  it('sees every play of a game from a focus player’s team, graded on the play or not', async () => {
+    const lib = await seasons(specs, [2019])
+    const engine = new CutupEngine(lib)
+    // g1 is studied as PHI; DAL's d1 is graded on play 2 only.
+    lib.store.touchFilm(g1, 'PHI', false)
+    grade(lib, g1, 2, 'd1', 'DAL', 1)
+    grade(lib, g1, 1, 'qb1', 'PHI', 1)
+    const preview = await engine.preview(third, { playerId: 'd1' })
+    expect(preview.sample.filter((i) => i.ref.gameId === g1).map((i) => [i.ref.playId, i.team])).toEqual([
+      [1, 'DAL'],
+      [2, 'DAL']
+    ])
+    const items = await engine.itemsForRefs([{ gameId: g1, playId: 1 }], { playerId: 'd1' })
+    expect(items[0].team).toBe('DAL')
+    const cut = lib.store.createCutup({ kind: 'manual', focus: { playerId: 'd1' }, plays: [{ gameId: g1, playId: 1 }] })
+    expect((await engine.detail(cut.id))!.items[0].team).toBe('DAL')
+  })
+
   it('reports seasons it couldn’t read, and smart results follow new grades', async () => {
     const lib = await seasons(specs, [2019])
     const engine = new CutupEngine(lib)
