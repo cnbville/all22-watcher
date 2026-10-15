@@ -9,7 +9,7 @@ import { summarizeTeams } from '@shared/stats'
 import type { DataProgress, GameInfo, Play, PlayerWeek, RosterPlayer, SeasonStatus, Snaps, TeamSummary } from '@shared/types'
 
 const BASE = 'https://github.com/nflverse/nflverse-data/releases/download'
-const CACHE_VERSION = 1
+const CACHE_VERSION = 2
 
 export const FILES = {
   schedule: () => `${BASE}/schedules/games.csv`,
@@ -89,6 +89,17 @@ const INVOLVED_COLUMNS = [
   'kickoff_returner_player_id', 'punt_returner_player_id', 'penalty_player_id'
 ]
 
+/** Teams that lost the ball: the fumbling team (the returner on a muffed punt), not always the offense. */
+function giveaways(r: Row): string[] {
+  const fumbles = [1, 2]
+    .map((i) => [team(str(r[`fumbled_${i}_team`]) ?? ''), team(str(r[`fumble_recovery_${i}_team`]) ?? '')])
+    .filter(([by, to]) => by && to && by !== to)
+    .map(([by]) => by)
+  // A fumble out of the end zone is lost with nobody recovering it.
+  if (!fumbles.length && flag(r.fumble_lost)) fumbles.push(team(str(r.fumbled_1_team) ?? r.posteam))
+  return [...(flag(r.interception) ? [team(r.posteam)] : []), ...fumbles]
+}
+
 export function playFromRow(r: Row): Play {
   const involved = [...new Set(INVOLVED_COLUMNS.map((c) => r[c]).filter((v) => v && v !== 'NA'))]
   return {
@@ -118,6 +129,7 @@ export function playFromRow(r: Row): Play {
     runGap: str(r.run_gap),
     touchdown: flag(r.touchdown),
     turnover: flag(r.interception) || flag(r.fumble_lost),
+    giveaways: giveaways(r),
     sack: flag(r.sack),
     penalty: flag(r.penalty),
     involved,
@@ -133,6 +145,9 @@ export function playFromRow(r: Row): Play {
     defensePlayers: []
   }
 }
+
+/** Fouls that stop the play before the snap, so nobody played a snap. */
+const PRE_SNAP_FOULS = new Set(['False Start', 'Delay of Game', 'Defensive Delay of Game', 'Neutral Zone Infraction', 'Encroachment', 'Illegal Substitution'])
 
 const STAT_KEYS = [
   'completions', 'attempts', 'passing_yards', 'passing_tds', 'passing_interceptions', 'sacks_suffered', 'passing_air_yards',
@@ -210,11 +225,13 @@ export async function downloadSeason(
 
   step(1, 'Play-by-play')
   const playsByGame = new Map<string, Play[]>()
+  const preSnap = new Set<Play>()
   const pbp = await open(FILES.pbp(season), false)
   if (pbp) {
     await parseCsv(pbp, true, (r) => {
       const play = playFromRow(r)
       if (!play.gameId || !Number.isFinite(play.playId)) return
+      if (play.playType === 'no_play' && PRE_SNAP_FOULS.has(r.penalty_type)) preSnap.add(play)
       let list = playsByGame.get(play.gameId)
       if (!list) playsByGame.set(play.gameId, (list = []))
       list.push(play)
@@ -253,9 +270,9 @@ export async function downloadSeason(
         const ns = numbers?.split(';') ?? []
         list.forEach((id, i) => {
           if (!extra.has(id)) extra.set(id, { id, name: nm[i] ?? id, position: ps[i] ?? '', jersey: ns[i] ?? '', team: teamAbbr })
-          if (play.playType === '') return
+          if (play.playType === '' || preSnap.has(play)) return
           const bucket = (snaps[id] ??= {})
-          const s = (bucket[play.gameId] ??= { offense: 0, defense: 0, special: 0 })
+          const s = (bucket[play.gameId] ??= { team: teamAbbr, offense: 0, defense: 0, special: 0 })
           s[kind ?? side]++
         })
       }

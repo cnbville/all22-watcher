@@ -54,7 +54,7 @@ const DEFENSE: StatDef[] = [
   { key: 'sacks', label: 'Sacks / game', format: 'dec1', higherIsBetter: true, value: (a) => div(a.sacks, a.games) }
 ]
 
-/** Season record plus offense/defense efficiency for every team, each stat ranked 1–N across the league. */
+/** Regular-season record plus offense/defense efficiency for every team, each stat ranked 1–N across the league. */
 export function summarizeTeams(games: GameInfo[], plays: Iterable<Play>): TeamSummary[] {
   const off = new Map<string, Acc>()
   const def = new Map<string, Acc>()
@@ -70,8 +70,9 @@ export function summarizeTeams(games: GameInfo[], plays: Iterable<Play>): TeamSu
     return r
   }
 
+  const playoffGames = new Set(games.filter((g) => g.gameType !== 'REG').map((g) => g.gameId))
   for (const g of games) {
-    if (g.homeScore === null || g.awayScore === null) continue
+    if (g.gameType !== 'REG' || g.homeScore === null || g.awayScore === null) continue
     for (const [team, pf, pa] of [
       [g.homeTeam, g.homeScore, g.awayScore],
       [g.awayTeam, g.awayScore, g.homeScore]
@@ -82,22 +83,21 @@ export function summarizeTeams(games: GameInfo[], plays: Iterable<Play>): TeamSu
       d.games++
       o.points += pf
       d.points += pa
-      if (g.gameType === 'REG') {
-        const r = rec(team)
-        if (pf > pa) r.w++
-        else if (pf < pa) r.l++
-        else r.t++
-      }
+      const r = rec(team)
+      if (pf > pa) r.w++
+      else if (pf < pa) r.l++
+      else r.t++
     }
   }
 
   for (const p of plays) {
-    if (!p.posteam || !p.defteam) continue
+    if (!p.posteam || !p.defteam || playoffGames.has(p.gameId)) continue
     const o = acc(off, p.posteam)
     const d = acc(def, p.defteam)
-    if (p.turnover) {
-      o.turnovers++
-      d.turnovers++
+    // Usually the offense, but a muffed punt or a fumbled interception return is lost by the other side.
+    for (const giver of p.giveaways) {
+      acc(off, giver).turnovers++
+      acc(def, giver === p.posteam ? p.defteam : p.posteam).turnovers++
     }
     if (p.sack) {
       o.sacks++

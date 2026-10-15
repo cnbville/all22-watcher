@@ -55,6 +55,8 @@ export interface Play {
   runGap: string | null
   touchdown: boolean
   turnover: boolean
+  /** The team that lost the ball, once per turnover (an interception returned and fumbled back lists both teams). */
+  giveaways: string[]
   sack: boolean
   penalty: boolean
   /** Players credited in the play-by-play (passer, rusher, receiver, tacklers, defenders). */
@@ -100,6 +102,8 @@ export interface PlayerWeek {
 }
 
 export interface Snaps {
+  /** The side the player was on in that game. */
+  team: string
   offense: number
   defense: number
   special: number
@@ -115,6 +119,7 @@ export interface TeamRankedStat {
   neutral?: boolean
 }
 
+/** Regular-season games only, so the record, points and ranks agree. */
 export interface TeamSummary {
   team: string
   wins: number
