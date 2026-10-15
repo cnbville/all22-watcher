@@ -12,9 +12,9 @@ import type {
   PositionGroup,
   RosterPlayer,
   Settings,
-  Stroke,
   TagDef
 } from '@shared/types'
+import type { PenShape as Stroke, Shape } from '@shared/drawing'
 import { api } from '../api'
 import { Crumbs } from '../App'
 import { ErrorBox, isTyping, Kbd, Loading, Modal, TeamChip, toast, useAsync } from '../components/common'
@@ -253,7 +253,7 @@ function Room({
   }
   const entryFor = (playerId: string): GradeEntry =>
     grades.get(gradeKey(current!.playId, playerId)) ?? {
-      gameId: game.gameId, playId: current!.playId, playerId, team, grade: null, tags: [], note: ''
+      gameId: game.gameId, playId: current!.playId, playerId, team, grade: null, tags: [], note: '', critical: false, offField: false
     }
   const setGrade = (playerId: string, grade: Grade | null) => {
     if (!current) return
@@ -300,8 +300,11 @@ function Room({
   const playAngles = ANGLE_ORDER.filter((a) => currentClips.some((c) => c.angle === a))
   const nextAngle = () => playAngles.length > 1 && setAngle(playAngles[(playAngles.indexOf(clip!.angle) + 1) % playAngles.length])
 
-  const strokes: Stroke[] = (note?.drawing[clip?.angle ?? angle] ?? []) as Stroke[]
-  const setStrokes = (s: Stroke[]) => saveNote({ drawing: { ...note!.drawing, [clip?.angle ?? angle]: s } })
+  // This view draws pen shapes only; other shape kinds are kept as they are when the pens change.
+  const angleShapes: Shape[] = note?.drawing[clip?.angle ?? angle] ?? []
+  const strokes: Stroke[] = angleShapes.filter((s): s is Stroke => s.kind === 'pen')
+  const setStrokes = (s: Stroke[]) =>
+    saveNote({ drawing: { ...note!.drawing, [clip?.angle ?? angle]: [...angleShapes.filter((x) => x.kind !== 'pen'), ...s] } })
 
   // Keyboard: the whole room is drivable without the mouse. Re-subscribed every render so handlers see current state.
   useEffect(() => {

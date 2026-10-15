@@ -1,17 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Api } from '@shared/api'
+import { API_EVENT_CHANNEL, API_METHODS, type Api, type ApiEvent, type ApiMethod } from '@shared/api'
 import type { DataProgress } from '@shared/types'
 
-const METHODS = [
-  'seasons', 'downloadSeason', 'teamSummaries', 'teamOverview', 'gameFilm', 'openedFilm', 'recentFilm', 'pickClips', 'previewMatch',
-  'importClips', 'canConvert', 'convertClips', 'relinkClip', 'removeFilm', 'revealClip', 'saveGrade', 'savePlayNote', 'playerProfile',
-  'tags', 'saveTags', 'chartFields', 'saveChartFields', 'settings', 'saveSettings', 'exportGradesCsv',
-  'exportPlayerReport', 'dataFolder', 'openDataFolder'
-] as const satisfies readonly Exclude<keyof Api, 'onDataProgress' | 'onConvertProgress'>[]
-
 const api = Object.fromEntries(
-  METHODS.map((m) => [m, (...args: unknown[]) => ipcRenderer.invoke('api', m, ...args)])
-) as Omit<Api, 'onDataProgress' | 'onConvertProgress'>
+  API_METHODS.map((m) => [m, (...args: unknown[]) => ipcRenderer.invoke('api', m, ...args)])
+) as unknown as Pick<Api, ApiMethod>
 
 const full: Api = {
   ...api,
@@ -24,6 +17,11 @@ const full: Api = {
     const listener = (_e: unknown, p: { done: number; total: number }) => cb(p)
     ipcRenderer.on('convert-progress', listener)
     return () => ipcRenderer.removeListener('convert-progress', listener)
+  },
+  onApiEvent(cb) {
+    const listener = (_e: unknown, event: ApiEvent) => cb(event)
+    ipcRenderer.on(API_EVENT_CHANNEL, listener)
+    return () => ipcRenderer.removeListener(API_EVENT_CHANNEL, listener)
   }
 }
 
