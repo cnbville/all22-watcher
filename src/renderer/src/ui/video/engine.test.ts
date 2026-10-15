@@ -86,4 +86,21 @@ describe('VideoEngine', () => {
     expect(v.currentTime).toBeCloseTo(1.5)
     engine.dispose()
   })
+
+  it('works again after a dispose and revive (a StrictMode remount)', () => {
+    const engine = new VideoEngine({ startAtSnap: true, preRoll: 1, speed: 1, loop: false, sound: false, autoplay: true })
+    engine.dispose()
+    engine.revive()
+    const seen: boolean[] = []
+    engine.subscribe(() => seen.push(engine.getState().ready))
+    engine.setPanes([{ id: 'sideline', clip: clip({ snapMs: 3000 }) }], 'sideline')
+    const v = made[0]
+    v.readyState = 2
+    v.fire('loadedmetadata')
+    expect(v.currentTime).toBeCloseTo(2)
+    v.fire('seeked')
+    expect(v.paused).toBe(false)
+    expect(seen.length).toBeGreaterThan(0)
+    engine.dispose()
+  })
 })

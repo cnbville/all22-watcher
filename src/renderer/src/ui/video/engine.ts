@@ -321,6 +321,11 @@ export class VideoEngine {
     this.endedCbs.clear()
   }
 
+  /** Usable again after `dispose` (a remount); panes and preloads are set again by their owner. */
+  revive() {
+    this.disposed = false
+  }
+
   /** The visible <video> of a pane (Copy Frame, drawing). */
   videoOf(id: string): HTMLVideoElement | null {
     const s = this.slots.get(id)
@@ -768,7 +773,11 @@ export function useVideoController(opts: {
     })
   }
   const engine = ref.current
-  useEffect(() => () => engine.dispose(), [engine])
+  // Development's StrictMode runs effects twice on mount: the engine comes back after the first dispose.
+  useEffect(() => {
+    engine.revive()
+    return () => engine.dispose()
+  }, [engine])
   useEffect(() => {
     engine.setConfig({ startAtSnap: opts.startAtSnap, preRoll: opts.preRoll, speed: opts.speed, loop: opts.loop, sound: opts.sound, autoplay: opts.autoplay ?? true })
   }, [engine, opts.startAtSnap, opts.preRoll, opts.speed, opts.loop, opts.sound, opts.autoplay])
