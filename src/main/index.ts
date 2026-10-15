@@ -185,7 +185,13 @@ app.whenReady().then(async () => {
   const userData = app.getPath('userData')
   const cacheDir = join(userData, 'nflverse')
   await mkdir(cacheDir, { recursive: true })
-  const store = await Store.open(join(userData, 'grades.sqlite'))
+  const { store, movedTo } = await Store.openOrRecover(join(userData, 'grades.sqlite'))
+  if (movedTo) {
+    dialog.showErrorBox(
+      'Couldn’t open your grades',
+      `Your grades file couldn’t be read (it may be damaged), so All-22 Watcher moved it aside and started a new, empty one. The old file is here:\n\n${movedTo}`
+    )
+  }
   const mirror = process.env.ALL22_NFLVERSE_MIRROR
   library = new Library(store, cacheDir, mirror ? mirrorFetcher(mirror) : webFetcher((url) => net.fetch(url)))
 
@@ -207,9 +213,15 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((e) => {
+  // Otherwise a failed start leaves the app running with no window and no explanation.
+  dialog.showErrorBox('All-22 Watcher couldn’t start', e instanceof Error ? e.message : String(e))
+  app.quit()
 })
 
 app.on('before-quit', () => library?.store.flush())
+// A note still being typed is saved by the closing window, after before-quit, so write once more on the way out.
+app.on('will-quit', () => library?.store.flush())
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
