@@ -1,0 +1,169 @@
+@layer screens {
+  /* Check Clips (ClipReview.tsx): one clip playing beside the plays it can be. Quiet: graphite, one highlight. */
+  .clip-review {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    flex: 1;
+  }
+  .clip-review__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .clip-review__title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+  .clip-review__name {
+    font: var(--t-headline);
+    color: var(--label);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clip-review__meta,
+  .clip-review__left {
+    font: var(--t-callout);
+    color: var(--label-3);
+  }
+  .clip-review__left {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .clip-review__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr);
+    gap: 16px;
+    min-height: 0;
+  }
+  .clip-review__stage {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .clip-review__video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--video-black);
+    border-radius: var(--r-lg);
+    object-fit: contain;
+    cursor: pointer;
+  }
+  .clip-review__transport {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+  }
+  .clip-review__plays {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--group-border);
+    border-radius: var(--r-lg);
+    background: var(--bg-group);
+  }
+  .clip-review__plays-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 6px 6px 12px;
+    font: var(--t-headline);
+    color: var(--label-2);
+    border-bottom: 1px solid var(--sep);
+  }
+  .clip-review__list {
+    overflow-y: auto;
+    max-height: 360px;
+    padding: 4px;
+  }
+  .clip-review__empty {
+    padding: 16px 12px;
+    font: var(--t-callout);
+    color: var(--label-3);
+  }
+  .clip-review__play {
+    display: grid;
+    grid-template-columns: 16px 64px 36px 72px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--r-md);
+    background: transparent;
+    color: var(--label);
+    font: var(--t-body);
+    text-align: left;
+    cursor: default;
+  }
+  .clip-review__play[data-highlighted] {
+    background: var(--selection);
+  }
+  .clip-review__key,
+  .clip-review__team {
+    font: var(--t-callout);
+    color: var(--label-4);
+  }
+  .clip-review__clock,
+  .clip-review__down {
+    color: var(--label-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .clip-review__desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clip-review__tag {
+    font: var(--t-caption);
+    color: var(--label-3);
+  }
+  .clip-review__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px 6px 12px;
+    border-top: 1px solid var(--sep);
+    font: var(--t-callout);
+    color: var(--label-3);
+  }
+  .clip-review__hint,
+  .clip-review__none {
+    white-space: nowrap;
+  }
+  .clip-review__none {
+    border: 0;
+    background: transparent;
+    padding: 2px 0;
+    font: var(--t-callout);
+    color: var(--label-2);
+  }
+  .clip-review__none:hover {
+    color: var(--label);
+  }
+  .match-look {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: var(--label-3);
+    vertical-align: 1px;
+  }
+  .clip-review kbd {
+    margin: 0 1px;
+    font: var(--t-caption);
+    color: var(--label-3);
+    padding: 0 4px;
+    border: 1px solid var(--sep-strong);
+    border-radius: var(--r-xs);
+  }
+}

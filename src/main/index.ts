@@ -7,6 +7,7 @@ import { API_EVENT_CHANNEL, type Api, type ApiMethod, CLIP_SCHEME } from '@share
 import type { ExportPlan } from '@shared/exportVideo'
 import { VIDEO_EXTENSIONS } from '@shared/matching'
 import { convertClips, findFfmpeg } from './convert'
+import { splitGame } from './splitGame'
 import { Store } from './db'
 import { addEventSink, broadcast, cancelActivity, changed, listActivities, runningActivities, startActivity } from './events'
 import { planExport } from './exportPlan'
@@ -264,6 +265,32 @@ function handlers(): Handlers {
         throw e
       }
     },
+    splitGame: async (gameId, path) => {
+      const ffmpeg = findFfmpeg()
+      if (!ffmpeg) throw new Error('ffmpeg couldn’t be found, so this film can’t be split.')
+      const abort = new AbortController()
+      const activity = startActivity({ kind: 'convert', title: 'Splitting film into plays', detail: 'Finding the plays…', total: 100 }, () => abort.abort())
+      try {
+        const res = await splitGame(
+          ffmpeg,
+          path,
+          library.splitDir(gameId),
+          (p) => {
+            // Finding cuts reads every frame small; cutting encodes them, so it gets most of the bar.
+            const done = Math.round((p.stage === 'finding' ? p.fraction * 0.3 : 0.3 + p.fraction * 0.7) * 100)
+            sendAll('convert-progress', { done, total: 100 })
+            activity.update({ detail: p.stage === 'finding' ? 'Finding the plays…' : 'Cutting the plays…', done, total: 100 })
+          },
+          abort.signal
+        )
+        activity.done({ detail: `${res.plays} ${res.plays === 1 ? 'play' : 'plays'}` })
+        return res
+      } catch (e) {
+        if (abort.signal.aborted) activity.cancelled()
+        else activity.fail(e instanceof Error ? e.message : String(e))
+        throw e
+      }
+    },
     relinkClip: async (clipId, playId) => {
       store().relinkClip(clipId, playId)
       changed('film')
@@ -492,6 +519,12 @@ app.whenReady().then(async () => {
     if (url.hostname === 'logo') {
       const bytes = await logos.read(decodeURIComponent(url.pathname.slice(1))).catch(() => null)
       return cors(bytes ? new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=604800' } }) : new Response('No logo', { status: 404 }))
+    }
+    if (url.hostname === 'file') {
+      // A clip in an import sheet, before it is saved: only files the sheet was shown.
+      const path = url.searchParams.get('p') ?? ''
+      if (!library.canPreview(path) || !existsSync(path)) return cors(new Response('Clip not found', { status: 404 }))
+      return cors(await serveVideo(path, req.headers.get('range')))
     }
     const clip = url.hostname === 'clip' ? library.store.clipById(Number(url.pathname.slice(1))) : null
     if (!clip || !existsSync(clip.path)) return cors(new Response('Clip not found', { status: 404 }))
