@@ -1,55 +1,47 @@
 @layer screens {
   .screen-team {
-    /* Header (§5.2) */
+    /* Key-art header */
     .team-header {
-      margin-bottom: 32px;
-    }
-    .team-header__rule {
-      height: 2px;
-      border-radius: 1px;
-      background: var(--team);
-    }
-    .team-header__row {
       display: flex;
-      align-items: center;
-      gap: 16px;
-      min-height: 72px;
-      margin-top: 16px;
+      align-items: flex-end;
+      gap: 32px;
     }
     .team-header__text {
+      display: grid;
+      gap: 8px;
       flex: 1;
       min-width: 0;
     }
-    .team-header__name {
-      margin: 0;
-      font: var(--t-large-title);
-      color: var(--label);
+    .team-header__badge {
+      display: inline-flex;
+      justify-self: start;
+      margin-bottom: 4px;
     }
-    .team-header__sub {
-      margin-top: 4px;
-      font: var(--t-body);
-      color: var(--label-2);
+    .team-header__name {
+      font-size: 40px;
     }
     .team-header__stats {
       display: flex;
-      align-items: center;
-      gap: 24px;
+      gap: 32px;
+      flex: none;
     }
-    .team-stat {
-      min-width: 72px;
-      text-align: right;
+
+    .team-body .page-section__header > h2 {
+      font: var(--t-title-3);
+      letter-spacing: var(--track-title-3);
     }
-    .team-stat__label {
-      font: var(--t-subheadline);
-      color: var(--label-2);
+    .team-body .page-section + .page-section,
+    .team-body .page-section + .team-two-col,
+    .team-body .team-two-col + .page-section {
+      margin-top: 44px;
     }
-    .team-stat__value {
-      font: var(--t-stat-lg);
-      color: var(--label);
-      white-space: nowrap;
+    .team-two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 48px;
     }
-    .team-header__ring {
-      display: flex;
+    .team-two-col > .page-section + .page-section {
+      margin-top: 0;
     }
 
     .team-footnote {
@@ -57,7 +49,7 @@
       align-items: center;
       gap: 8px;
       margin-top: 12px;
-      font: var(--t-subheadline);
+      font: var(--t-callout);
       color: var(--label-3);
     }
     .team-empty-inline {
@@ -67,87 +59,152 @@
       gap: 4px;
       padding: 16px 0;
       border-radius: var(--r-xl);
-      background: var(--bg-group);
-    }
-
-    /* Unit strip (§5.3, §5.6) */
-    .unit-strip {
-      display: flex;
-      align-items: flex-start;
-      gap: 16px;
-    }
-    .unit-strip__sep {
-      flex: none;
-      align-self: center;
-      width: 1px;
-      height: 64px;
-      margin: 0 -8px;
-      background: var(--sep);
-    }
-    .unit-cell {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      height: 84px;
-      padding-top: 0;
-      border-radius: var(--r-lg);
-      text-align: center;
-      outline: none;
-    }
-    .unit-strip--72 .unit-cell {
-      height: 132px;
-    }
-    .unit-cell[data-clickable] {
-      cursor: pointer;
-    }
-    .unit-cell[data-clickable]:hover {
       background: var(--fill-4);
     }
-    .unit-cell:focus-visible {
+
+    /* Game cards */
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 24px 20px;
+    }
+    .game-card__result {
+      font-weight: 600;
+      color: var(--label);
+    }
+    .game-card__result--L {
+      color: var(--heat-lo);
+    }
+    .game-card__result--T {
+      color: var(--label-2);
+    }
+    .game-card__next {
+      color: var(--label-2);
+      font-weight: 500;
+    }
+
+    /* Unit grades: name, a thin trend, the grade as a plain number */
+    .unit-list {
+      display: grid;
+      gap: 14px;
+    }
+    .unit-list__group {
+      display: grid;
+      gap: 2px;
+    }
+    .unit-list__heading {
+      margin-bottom: 4px;
+      font: var(--t-callout);
+      font-weight: 500;
+      color: var(--label-3);
+    }
+    .unit-row {
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr) 36px;
+      align-items: center;
+      gap: 16px;
+      height: 32px;
+      padding: 0 8px;
+      margin: 0 -8px;
+      border-radius: var(--r-md);
+      outline: none;
+    }
+    .unit-list--detailed {
+      max-width: 760px;
+    }
+    .unit-list--detailed .unit-row {
+      grid-template-columns: 140px 96px minmax(0, 1fr) 64px 40px;
+      height: 40px;
+    }
+    .unit-row[data-clickable] {
+      cursor: pointer;
+    }
+    .unit-row[data-clickable]:hover {
+      background: var(--fill-3);
+    }
+    .unit-row:focus-visible {
       box-shadow: 0 0 0 3px var(--focus-ring);
     }
-    .unit-cell__name {
-      margin-top: 8px;
-      font: var(--t-callout);
-      color: var(--label);
+    .unit-row__name {
+      font: var(--t-body);
+      color: var(--label-2);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .unit-strip--72 .unit-cell__name {
-      margin-top: 10px;
-    }
-    .unit-cell__count {
-      margin-top: 2px;
-      font: var(--t-subheadline);
+    .unit-row__count {
+      font: var(--t-callout);
       color: var(--label-3);
       white-space: nowrap;
     }
-    .unit-cell__tally {
+    .unit-row__tally {
       display: flex;
-      justify-content: center;
-      width: 72px;
-      margin-top: 10px;
+    }
+    .unit-row__grade {
+      justify-self: end;
+      font: var(--t-title-3);
+      color: var(--label);
+    }
+
+    /* Top graded players: a roomy list with headshots */
+    .top-players {
+      display: grid;
+      gap: 2px;
+    }
+    .top-player {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 48px;
+      padding: 0 8px;
+      margin: 0 -8px;
+      border-radius: var(--r-md);
+      outline: none;
+      cursor: default;
+    }
+    .top-player:hover {
+      background: var(--fill-3);
+    }
+    .top-player:focus-visible {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .top-player__text {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+    }
+    .top-player__name {
+      font: 500 13px/16px var(--font-text);
+      color: var(--label);
+    }
+    .top-player__sub {
+      margin-top: 2px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .top-player__grade {
+      font: var(--t-title-3);
+      color: var(--label);
     }
 
     /* League ranks */
     .league-ranks {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 48px;
     }
     .rank-list__title {
-      height: 24px;
-      font: var(--t-headline);
-      color: var(--label);
+      height: 28px;
+      font: var(--t-callout);
+      font-weight: 500;
+      color: var(--label-3);
     }
     .rank-list__row {
       display: grid;
       grid-template-columns: 1fr auto 56px;
       align-items: center;
-      gap: 8px;
-      height: 32px;
-      box-shadow: inset 0 -0.5px 0 var(--sep);
+      gap: 12px;
+      height: 36px;
     }
     .rank-list__row > :last-child {
       justify-self: end;
@@ -165,8 +222,11 @@
     .table--headless .table__header {
       display: none;
     }
-    .team-games-table .table__row {
-      min-height: 32px;
+    .team-all-stats {
+      margin-top: 56px !important;
+    }
+    .team-all-stats .page-section__header > h2 {
+      color: var(--label-2);
     }
     .game-opp {
       display: inline-flex;
@@ -219,7 +279,7 @@
     .roster-player {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
       min-width: 0;
     }
     .roster-player__name {
@@ -261,8 +321,7 @@
       grid-template-columns: 1fr auto 40px;
       align-items: center;
       gap: 12px;
-      height: 32px;
-      box-shadow: inset 0 -0.5px 0 var(--sep);
+      height: 36px;
     }
     .opp-tier > :last-child {
       justify-self: end;
@@ -280,8 +339,14 @@
     .screen-team .opp-strength {
       grid-template-columns: 1fr;
     }
-    .screen-team .unit-cell__name {
-      white-space: normal;
+    .screen-team .team-two-col {
+      grid-template-columns: 1fr;
+      gap: 44px;
+    }
+    .screen-team .team-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
     }
   }
 }

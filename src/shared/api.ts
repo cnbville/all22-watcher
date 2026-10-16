@@ -221,6 +221,11 @@ export function clipUrl(clipId: number): string {
 }
 
 /** A still from a clip at `at` seconds (03 §2.7): 480 wide by default. */
+/** A team's logo from nflverse's team list, cached on disk by the main process. */
+export function logoUrl(abbr: string): string {
+  return `${CLIP_SCHEME}://logo/${encodeURIComponent(abbr)}`
+}
+
 export function posterUrl(clipId: number, at: number, width?: number): string {
   return `${CLIP_SCHEME}://poster/${clipId}?t=${(Math.round(at * 10) / 10).toFixed(1)}${width ? `&w=${width}` : ''}`
 }

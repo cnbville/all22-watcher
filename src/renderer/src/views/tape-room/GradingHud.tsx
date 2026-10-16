@@ -1,5 +1,7 @@
-import { downDistance, quarterLabel } from '../../format'
-import { CriticalMark, GradeControl } from '../../ui/Grade'
+import { quarterLabel } from '../../format'
+import { CriticalMark } from '../../ui/Grade'
+import { GradeSegments } from './Inspector/GradeSegments'
+import { situationText } from './Inspector/PlaySummary'
 import type { Room } from './model'
 
 /**
@@ -11,8 +13,8 @@ export function GradingHud({ room, hidden }: { room: Room; hidden: boolean }) {
   if (!current || !target || (!focus && !room.listed.length)) return null
   const entry = room.targetEntry
   const index = room.visible.findIndex((p) => p.playId === current.playId)
-  const position = index >= 0 ? `Play ${index + 1}/${room.visible.length}` : null
-  const line1 = [`${quarterLabel(current.qtr)} ${current.time}`, current.down ? downDistance(current) : null, position].filter(Boolean).join(' · ')
+  const position = index >= 0 ? `Play ${index + 1} of ${room.visible.length}` : null
+  const line1 = [position, `${quarterLabel(current.qtr)} ${current.time}`, situationText(current)].filter(Boolean).join(' · ')
   const hotkey = focus ? null : room.listed.findIndex((p) => p.id === target.id) + 1
   const tags = entry?.tags ?? []
   let progress: string
@@ -30,7 +32,7 @@ export function GradingHud({ room, hidden }: { room: Room; hidden: boolean }) {
         <span className="grading-hud__pos">{target.depthPos || target.position}</span>
       </div>
       <div className="grading-hud__controls">
-        <GradeControl size="hud" value={entry?.grade ?? null} onChange={(g) => room.grade(target.id, g, { toggle: true })} />
+        <GradeSegments tone="glass" value={entry?.grade ?? null} onChange={(g) => room.grade(target.id, g, { toggle: true })} />
         <span className="grading-hud__critical" title={entry?.critical ? 'Critical' : undefined}>
           {entry?.critical && <CriticalMark grade={entry.grade} />}
         </span>

@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
-import type { GradeEntry, RosterPlayer, TagDef } from '@shared/types'
+import type { Grade, GradeEntry, RosterPlayer, TagDef } from '@shared/types'
 import { lastName } from '../../../format'
-import { CriticalMark, GradeControl } from '../../../ui/Grade'
+import { CriticalMark } from '../../../ui/Grade'
 import { gradeGlyphScore, ink, tint } from '../../../ui/heat'
 import { Icon, type IconName } from '../../../ui/Icon'
 import { Keycap } from '../../../ui/Keycap'
@@ -9,6 +9,7 @@ import { noMouseFocus } from '../../../ui/keyboard'
 import { TextField } from '../../../ui/TextField'
 import { tagsFor } from '../grading'
 import type { Room } from '../model'
+import { GradeSegments } from './GradeSegments'
 
 /** One player's grading row (02 §6.3.3), expanded when selected (§6.3.4). */
 export function GradingRow({
@@ -35,6 +36,11 @@ export function GradingRow({
   const note = entry?.note ?? ''
   const showOffField = !room.film.hasParticipation || !(room.current?.offensePlayers.length || room.current?.defensePlayers.length) || offField
   const second = !selected && (tags.length > 0 || !!note.trim() || offField)
+  const gradeIt = (g: Grade) => {
+    room.select(player.id)
+    room.grade(player.id, g, { toggle: true })
+    room.refocus()
+  }
 
   return (
     <div
@@ -86,16 +92,11 @@ export function GradingRow({
         <span className="grading-row__critical" data-test={critical ? 'critical-mark' : undefined}>
           {critical && <CriticalMark grade={grade} />}
         </span>
-        <span className="grading-row__control" data-off={offField || undefined}>
-          <GradeControl
-            value={grade}
-            onChange={(g) => {
-              room.select(player.id)
-              room.grade(player.id, g, { toggle: true })
-              room.refocus()
-            }}
-          />
-        </span>
+        {!selected && (
+          <span className="grading-row__control" data-off={offField || undefined}>
+            <GradeSegments variant="compact" value={grade} onChange={gradeIt} />
+          </span>
+        )}
       </div>
       {second && (
         <div className="grading-row__second">
@@ -116,6 +117,9 @@ export function GradingRow({
       )}
       {selected && (
         <div className="grading-row__detail">
+          <span className="grading-row__control grading-row__control--full" data-off={offField || undefined}>
+            <GradeSegments value={grade} onChange={gradeIt} />
+          </span>
           {(tagDefs.length > 0 || tags.length > 0) && (
             <div className="grading-row__tags">
               {tagDefs.map((t, i) => (

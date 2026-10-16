@@ -3,6 +3,7 @@ import { type Shape, shapeVisibleAt } from '@shared/drawing'
 import { gradeScore, tallyOf } from '@shared/stats'
 import type { Angle, Clip, TeamGame } from '@shared/types'
 import { api } from '../../api'
+import { shortDesc } from '../../format'
 import { runCommand } from '../../shell/commands'
 import { action, sep, showMenu, submenu } from '../../shell/contextMenus'
 import { setUi } from '../../shell/uiState'
@@ -19,8 +20,12 @@ import { TransportHud, transportHudHeight, transportHudWidth } from '../../ui/vi
 import { ViewerToast } from '../../ui/video/ViewerToast'
 import { DrawLayer, DrawPalette, PALETTE_HEIGHT, shapeMenu } from './DrawPalette'
 import { GradingHud } from './GradingHud'
+import { situationText } from './Inspector/PlaySummary'
 import { angleLabel, angleTitle, type EndPanel, type Layout, type Room, weekName } from './model'
 import { readPref, writePref } from './prefs'
+
+const QUARTERS = ['1st quarter', '2nd quarter', '3rd quarter', '4th quarter']
+const quarterName = (q: number) => (q >= 5 ? 'Overtime' : (QUARTERS[q - 1] ?? `Q${q}`))
 
 /**
  * The viewer (02 §5, §8, §13.3): one or two angle panes in Single, Side by Side or Picture in Picture, per-pane
@@ -285,8 +290,8 @@ export function Viewer({
   // ── HUD placement (02 §5.3) ─────────────────────────────────────────────
   const hudW = transportHudWidth(W)
   const hudH = transportHudHeight(rows)
-  const below = H - lowest
-  const hudTop = below >= hudH + 32 ? lowest + (below - hudH) / 2 : Math.max(8, lowest - 24 - hudH)
+  // The HUD floats on glass over the bottom of the picture, inset 16 (it fades with the rest of the chrome).
+  const hudTop = Math.max(8, lowest - 16 - hudH)
 
   // Palette and toast positions.
   const picTop = activeGeo ? activeGeo.picture.y : 0
@@ -513,6 +518,11 @@ export function Viewer({
   // ── Scrubbing ───────────────────────────────────────────────────────────
   const wasPlaying = useRef(false)
 
+  // ── Play card (top left of the main picture; fades with the HUD) ───────
+  const mainGeo = geo.find((g) => !g.inset)
+  const showCard = !!current && !!mainGeo && !drawMode && !filmOnly && layout !== 'sideBySide' && mainGeo.picture.w >= 560 && mainGeo.picture.h >= 300
+  const playIndex = current ? room.visible.findIndex((p) => p.playId === current.playId) : -1
+
   const ghost = drawMode ? room.selectedShape : null
   const viewerStyle: CSSProperties = cursorHidden ? { cursor: 'none' } : {}
 
@@ -548,7 +558,7 @@ export function Viewer({
             id={g.angle}
             pane={g.pane}
             picture={g.inset ? { x: g.pane.x, y: g.pane.y, w: g.pane.w, h: g.pane.h } : g.picture}
-            label={pillShown && g.clip ? angleLabel(g.angle) : undefined}
+            label={pillShown && g.clip && !(showCard && g === mainGeo) ? angleLabel(g.angle) : undefined}
             active={isActive}
             ring={geo.length > 1 && layout === 'sideBySide'}
             unlinked={geo.length > 1 && !!g.clip && g.clip.snapMs === null && geo.some((o) => o !== g && o.clip?.snapMs !== null && o.clip)}
@@ -656,6 +666,22 @@ export function Viewer({
           onPointerLeave={() => pin('hud', false)}
           onMenu={(open) => pin('menu', open)}
         />
+      )}
+
+      {showCard && current && mainGeo && (
+        <div
+          className="play-card"
+          data-test="play-card"
+          data-state={hudHidden ? 'hidden' : 'shown'}
+          style={{ left: mainGeo.picture.x + 16, top: mainGeo.picture.y + 16 }}
+          aria-hidden
+        >
+          <span className="play-card__eyebrow">
+            {[playIndex >= 0 ? `Play ${playIndex + 1} of ${room.visible.length}` : null, `${quarterName(current.qtr)}, ${current.time}`].filter(Boolean).join(' · ')}
+          </span>
+          <span className="play-card__title">{situationText(current)}</span>
+          <span className="play-card__desc">{shortDesc(current.desc)}</span>
+        </div>
       )}
 
       {drawMode && (

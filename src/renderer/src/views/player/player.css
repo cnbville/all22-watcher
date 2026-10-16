@@ -1,60 +1,126 @@
 @layer screens {
   .screen-player {
-    /* Header (§6.1) */
-    .player-header {
-      margin-bottom: 32px;
-    }
-    .player-header__rule {
-      height: 2px;
-      border-radius: 1px;
-      background: var(--team);
-    }
-    .player-header__row {
+    /* Header (§6.1), Theater: a darkened still from his best rep as key art, fading left and down into the page. */
+    .player-hero {
+      position: relative;
       display: flex;
-      align-items: center;
-      gap: 24px;
-      min-height: 120px;
-      margin-top: 16px;
+      align-items: flex-end;
+      min-height: 300px;
+      margin-top: calc(-1 * (var(--toolbar-h) + 24px));
+      margin-bottom: 36px;
+      padding: calc(var(--toolbar-h) + 48px) 0 4px;
     }
-    .player-header__text {
+    .player-hero__art {
+      position: absolute;
+      top: 0;
+      bottom: -36px;
+      left: 50%;
+      z-index: 0;
+      width: var(--bleed-w, calc(100% + 2 * var(--page-pad-x)));
+      transform: translateX(-50%);
+      overflow: hidden;
+      background:
+        radial-gradient(90% 120% at 78% 0%, var(--fill-4), var(--transparent) 70%),
+        var(--bg-under-page);
+      pointer-events: none;
+    }
+    .player-hero__art::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(color-mix(in srgb, var(--video-black) 50%, var(--transparent)), var(--transparent) 120px),
+        linear-gradient(90deg, color-mix(in srgb, var(--bg-content) 92%, var(--transparent)), color-mix(in srgb, var(--bg-content) 30%, var(--transparent)) 60%, var(--transparent)),
+        linear-gradient(var(--transparent) 35%, var(--bg-content));
+    }
+    .player-hero__still {
+      position: absolute;
+      inset: 0;
+      height: 100%;
+      aspect-ratio: auto;
+      background: var(--transparent);
+      filter: saturate(0.7) brightness(0.62);
+
+      .poster__placeholder {
+        display: none;
+      }
+      .poster__image {
+        object-position: center 40%;
+        transition-duration: var(--dur-slow);
+      }
+    }
+    .player-hero__content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: flex-end;
+      gap: 32px;
+      width: 100%;
+    }
+    .player-hero__text {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
       flex: 1;
       min-width: 0;
     }
-    .player-header__name {
-      margin: 0;
-      font: var(--t-large-title);
-      color: var(--label);
-    }
-    .player-header__line {
+    .player-hero__line {
       display: flex;
       align-items: center;
-      gap: 6px;
-      margin-top: 6px;
-      font: var(--t-body);
+      gap: 8px;
+      font: 400 13px/18px var(--font-text);
       color: var(--label-2);
     }
-    .player-header__bio {
-      margin-top: 6px;
-      font: var(--t-callout);
-      color: var(--label-3);
+    .player-hero__name {
+      margin: 0;
+      font: 700 40px/1.05 var(--font-text);
+      letter-spacing: -0.025em;
+      color: var(--label);
+      text-wrap: balance;
     }
-    .player-header__link {
+    .player-hero__bio {
+      font: 400 13px/18px var(--font-text);
+      color: var(--label-2);
+    }
+    .player-hero__link {
       color: inherit;
       cursor: pointer;
     }
-    .player-header__link:hover {
+    .player-hero__link:hover {
       color: var(--label);
       text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
     }
-    .player-header__grade {
+    .player-hero__grade {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 4px;
+      align-items: flex-end;
+      flex: none;
+      max-width: 240px;
+      text-align: right;
     }
-    .player-header__graded {
-      font: var(--t-subheadline);
-      color: var(--label-3);
+    .player-hero__score {
+      font: 300 56px/1 var(--font-text);
+      letter-spacing: -0.03em;
+      color: var(--label);
+    }
+    .player-hero__note {
+      margin-top: 6px;
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+
+    /* A 6px grade mark in the muted heat ink (Theater); hollow when there is no grade. */
+    .grade-mark {
+      display: inline-block;
+      flex: none;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .grade-mark[data-none] {
+      box-shadow: inset 0 0 0 1px var(--label-4);
     }
 
     .player-quiet {
@@ -76,102 +142,265 @@
       background: var(--bg-group);
     }
 
-    /* Overview (§6.2) */
-    .stat-strip {
-      display: grid;
-      grid-template-columns: repeat(var(--cells), minmax(0, 1fr));
-      min-height: 48px;
+    /* Overview (§6.2), Theater: roomy, few lines, small figures. */
+    .player-body > .page-section__header,
+    .player-body .page-section__header {
+      height: auto;
+      margin-bottom: 14px;
     }
-    .stat-strip__cell {
-      padding: 0 12px;
-      box-shadow: inset 1px 0 0 var(--sep);
+    .player-body .page-section__header > h2 {
+      font: 600 15px/20px var(--font-text);
+      letter-spacing: -0.01em;
     }
-    .stat-strip__cell:first-child {
-      padding-left: 0;
-      box-shadow: none;
-    }
-    .stat-strip__label {
-      font: var(--t-subheadline);
-      color: var(--label-2);
-      white-space: nowrap;
-    }
-    .stat-strip__value {
-      margin-top: 4px;
-      font: var(--t-stat-lg);
-      color: var(--label);
-      white-space: nowrap;
+    .player-body > .page-section + .page-section,
+    .player-two-col + .page-section {
+      margin-top: 44px;
     }
     .player-two-col {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 24px;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 56px;
       align-items: start;
-      margin: 40px 0;
+      margin-bottom: 0;
     }
     .player-two-col > .page-section {
       margin-top: 0;
     }
-    .player-two-col:last-child {
-      margin-bottom: 0;
+
+    .week-line {
+      width: 100%;
+      min-height: 160px;
+
+      svg {
+        display: block;
+        overflow: visible;
+      }
     }
-    .player-two-col + .page-section {
-      margin-top: 0;
+    .week-line__guides line {
+      stroke: var(--grid);
+      stroke-width: 1;
     }
-    .breakdown__figures {
+    .week-line__guides text,
+    .week-line__weeks text {
+      font: 400 10px/1 var(--font-text);
+      fill: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .week-line__area {
+      fill: var(--fill-4);
+    }
+    .week-line__line {
+      stroke: var(--label);
+      stroke-width: 1.6;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+    .week-line__point {
+      outline: none;
+      cursor: default;
+
+      circle {
+        fill: var(--bg-content);
+        stroke: var(--label);
+        stroke-width: 1.4;
+      }
+    }
+    .week-line__point[data-last] circle,
+    .week-line__point[data-on] circle {
+      fill: var(--label);
+    }
+    .week-line__point:focus-visible circle {
+      stroke: var(--focus-ring);
+      stroke-width: 3;
+    }
+    .week-line__hit {
+      fill: var(--transparent);
+    }
+    .week-line__value {
+      font: 500 11px/1 var(--font-text);
+      fill: var(--label);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tag-list {
       display: flex;
+      flex-direction: column;
     }
+    .tag-list__row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 38px;
+      padding: 0;
+      border: 0;
+      border-bottom: 0.5px solid var(--sep);
+      background: var(--transparent);
+      color: var(--label);
+      font: var(--t-body);
+      text-align: left;
+      cursor: default;
+    }
+    .tag-list__row:last-of-type {
+      border-bottom: 0;
+    }
+    .tag-list__row:hover .tag-list__name {
+      text-decoration: underline;
+      text-decoration-color: var(--label-4);
+      text-underline-offset: 3px;
+    }
+    .tag-list__row:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--focus-ring);
+      border-radius: var(--r-sm);
+    }
+    .tag-list__name {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .tag-list__count {
+      color: var(--label-2);
+    }
+    .tag-list__more {
+      align-self: flex-start;
+      margin-top: 8px;
+      padding: 0;
+      border: 0;
+      background: var(--transparent);
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+    .tag-list__more:hover {
+      color: var(--label);
+    }
+
+    /* The clip shelf: film stills with two plain lines under each. */
+    .clip-shelf {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(200px, calc((100% - 4 * 16px) / 5));
+      gap: 16px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scroll-snap-type: x proximity;
+      scrollbar-width: thin;
+    }
+    .clip-shelf__item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      background: var(--transparent);
+      color: var(--label);
+      text-align: left;
+      scroll-snap-align: start;
+      cursor: default;
+    }
+    .clip-shelf__still {
+      margin-bottom: 6px;
+      border-radius: var(--r-lg);
+      transition: filter var(--dur-fast) var(--ease-out);
+    }
+    .clip-shelf__item:hover .clip-shelf__still {
+      filter: brightness(1.12);
+    }
+    .clip-shelf__item:focus-visible {
+      outline: none;
+    }
+    .clip-shelf__item:focus-visible .clip-shelf__still {
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .clip-shelf__title {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font: 500 13px/17px var(--font-text);
+    }
+    .clip-shelf__meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font: var(--t-callout);
+      color: var(--label-2);
+
+      > span {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+    }
+
+    .stat-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 40px;
+    }
+    .stat-strip__cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 56px;
+    }
+    .stat-strip__label {
+      font: var(--t-callout);
+      color: var(--label-2);
+      white-space: nowrap;
+    }
+    .stat-strip__value {
+      font: 500 20px/26px var(--font-text);
+      letter-spacing: -0.01em;
+      color: var(--label);
+      white-space: nowrap;
+    }
+    .grade-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 40px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 0.5px solid var(--sep);
+    }
+    .grade-line__figure {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 56px;
+    }
+    .grade-line__value {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 500 17px/22px var(--font-text);
+      color: var(--label);
+    }
+    .grade-line__label {
+      font: var(--t-callout);
+      color: var(--label-2);
+    }
+
     .figure {
       min-width: 96px;
     }
     .figure__label {
-      font: var(--t-subheadline);
+      font: var(--t-callout);
       color: var(--label-2);
     }
     .figure__value {
       display: flex;
       align-items: center;
       gap: 4px;
-      font: var(--t-stat-lg);
+      margin-top: 2px;
+      font: 500 20px/26px var(--font-text);
       color: var(--label);
     }
     .figure__caption {
       font: var(--t-subheadline);
       color: var(--label-3);
-    }
-    .breakdown__zap {
-      color: var(--label-2);
-    }
-    .breakdown__bar {
-      margin-top: 16px;
-    }
-    .breakdown__tags-title {
-      margin: 24px 0 8px;
-      font: var(--t-headline);
-    }
-    .tag-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .tag-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      height: 22px;
-      padding: 0 8px;
-      border: 0;
-      border-radius: var(--r-sm);
-      background: var(--chip-bg, var(--fill-1));
-      color: var(--chip-fg, var(--label));
-      font: var(--t-callout);
-      cursor: pointer;
-    }
-    .tag-chip:hover {
-      filter: brightness(1.15);
-    }
-    .tag-chip__count {
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
     }
 
     /* Film (§6.3) */
@@ -322,9 +551,20 @@
       align-items: center;
       gap: 8px;
     }
+    .career-summary__ring {
+      gap: 20px;
+    }
+    .career-summary__score {
+      font: 300 44px/1 var(--font-text);
+      letter-spacing: -0.03em;
+      color: var(--label);
+    }
     .career-summary__text {
-      font: var(--t-body);
+      font: var(--t-body-prose);
       color: var(--label-2);
+    }
+    .career-summary__label {
+      color: var(--label);
     }
     .career-missing {
       display: flex;
@@ -373,6 +613,55 @@
     }
     .career-table .table__cell {
       overflow: visible;
+    }
+  }
+
+  /* Secondary tables (game log, splits, career), Theater: roomy rows, no grid lines or stripes, quiet headers. */
+  .screen-player,
+  .screen-leaderboards {
+    .table__th {
+      height: 32px;
+      background: var(--bg-content);
+      backdrop-filter: none;
+      border-bottom: 0.5px solid var(--sep);
+      font: 400 11px/14px var(--font-text);
+      letter-spacing: 0;
+      color: var(--label-3);
+    }
+    .table__cell {
+      height: 44px;
+    }
+    .table--stripes .table__row[data-stripe] > .table__cell {
+      background: var(--transparent);
+    }
+    .table__row:hover > .table__cell {
+      background: var(--fill-4);
+    }
+    .table__row[aria-selected='true'] > .table__cell,
+    .table:focus-within .table__row[aria-selected='true'] > .table__cell {
+      background: var(--fill-3);
+    }
+    .table__row[aria-selected='true'] > .table__cell:first-child {
+      box-shadow: none;
+    }
+    .table__row > .table__cell:first-child {
+      border-radius: var(--r-lg) 0 0 var(--r-lg);
+    }
+    .table__row > .table__cell:last-child {
+      border-radius: 0 var(--r-lg) var(--r-lg) 0;
+    }
+    .table__group {
+      height: 36px;
+      border-bottom: 0;
+      font: 600 12px/15px var(--font-text);
+      color: var(--label-2);
+    }
+    .sample-badge,
+    .grade-badge {
+      background: var(--transparent);
+      padding: 0;
+      min-width: 0;
+      font-weight: 500;
     }
   }
   @media (max-width: 1100px) {

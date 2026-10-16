@@ -15,6 +15,7 @@ import { exportsRunning, pickEncoder, queueExport, setExportKeepAwake } from './
 import { ffmpegStatus } from './ffmpeg'
 import { KnownPaths } from './knownPaths'
 import { Library } from './library'
+import { LogoCache } from './logos'
 import { mirrorFetcher, webFetcher } from './nflverse'
 import { CutupEngine } from './playQuery'
 import { PosterCache, posterQuery } from './posters'
@@ -36,6 +37,7 @@ let cutupEngine: CutupEngine
 let watcher: WatchFolder
 let updater: SeasonUpdater
 let posters: PosterCache
+let logos: LogoCache
 let known: KnownPaths
 let lastExportFolder: string | null = null
 
@@ -468,7 +470,9 @@ app.whenReady().then(async () => {
     )
   }
   const mirror = process.env.ALL22_NFLVERSE_MIRROR
-  library = new Library(store, cacheDir, mirror ? mirrorFetcher(mirror) : webFetcher((url) => net.fetch(url)))
+  const fetcher = mirror ? mirrorFetcher(mirror) : webFetcher((url) => net.fetch(url))
+  library = new Library(store, cacheDir, fetcher)
+  logos = new LogoCache(join(userData, 'logos'), fetcher)
   cutupEngine = new CutupEngine(library)
   watcher = new WatchFolder(library)
   updater = new SeasonUpdater(library)
@@ -512,6 +516,10 @@ app.whenReady().then(async () => {
     }
     const url = new URL(req.url)
     if (url.hostname === 'poster') return cors(await servePoster(url))
+    if (url.hostname === 'logo') {
+      const bytes = await logos.read(decodeURIComponent(url.pathname.slice(1))).catch(() => null)
+      return cors(bytes ? new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=604800' } }) : new Response('No logo', { status: 404 }))
+    }
     if (url.hostname === 'file') {
       // A clip in an import sheet, before it is saved: only files the sheet was shown.
       const path = url.searchParams.get('p') ?? ''

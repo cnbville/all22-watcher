@@ -15,11 +15,88 @@
       color: var(--label-2);
     }
     .leaders__table {
-      margin-top: 20px;
+      margin-top: 36px;
     }
     .leaders__rank {
-      font: var(--t-headline);
+      font: 400 13px/16px var(--font-text);
+      color: var(--label-2);
+    }
+
+    /* The top three (Theater): quiet cards, the grade as one light number. */
+    .leaders-top {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    .leaders-top__card {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-width: 0;
+      padding: 16px 18px 18px;
+      border: 0;
+      border-radius: var(--r-2xl);
+      background: var(--bg-group);
+      box-shadow: inset 0 0 0 0.5px var(--group-border);
       color: var(--label);
+      text-align: left;
+      cursor: default;
+      transition: background var(--dur-fast) var(--ease-out);
+    }
+    .leaders-top__card:hover {
+      background: var(--fill-3);
+    }
+    .leaders-top__card:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+    .leaders-top__rank {
+      font: var(--t-callout);
+      color: var(--label-3);
+      font-variant-numeric: tabular-nums;
+    }
+    .leaders-top__who {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .leaders-top__names {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .leaders-top__name {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font: 600 15px/20px var(--font-text);
+      letter-spacing: -0.01em;
+    }
+    .leaders-top__line {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font: var(--t-callout);
+      color: var(--label-2);
+      white-space: nowrap;
+    }
+    .leaders-top__grade {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .leaders-top__score {
+      font: 300 40px/1 var(--font-text);
+      letter-spacing: -0.03em;
+    }
+    .leaders-top__sub {
+      font: var(--t-callout);
+      color: var(--label-3);
     }
     .leaders__rank--tied {
       color: var(--label-3);
@@ -71,6 +148,12 @@
       svg {
         color: var(--label-3);
       }
+    }
+  }
+
+  @media (max-width: 1100px) {
+    .screen-leaderboards .leaders-top {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -133,7 +216,12 @@
     .leaders-inspector__grade {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
+    }
+    .leaders-inspector__score {
+      font: 300 44px/1 var(--font-text);
+      letter-spacing: -0.03em;
+      color: var(--label);
     }
     .leaders-inspector__rank {
       font: var(--t-body);
@@ -178,7 +266,7 @@
       padding: 0 8px;
       border: 0;
       border-radius: var(--r-sm);
-      background: var(--chip-bg, var(--fill-1));
+      background: var(--fill-3);
       color: var(--chip-fg, var(--label));
       font: var(--t-callout);
       cursor: default;
